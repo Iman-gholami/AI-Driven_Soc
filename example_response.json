@@ -1,0 +1,35 @@
+{
+  "incident_summary": {
+    "rule_name": "Suspicious PowerShell Download",
+    "what_happened": "PowerShell executed with obfuscated command line from an Office parent process."
+  },
+  "detection_analysis": {
+    "trigger_reason": "The detection likely matched encoded PowerShell execution with suspicious parent-child process chain.",
+    "evidence": ["powershell.exe", "-enc", "parent_process=winword.exe"]
+  },
+  "behavior_analysis": {
+    "assessment": "Execution pattern is consistent with scripted post-exploitation or phishing payload staging.",
+    "gaps": ["No network destination observed in provided data", "No child process tree provided"]
+  },
+  "attack_mapping": {
+    "mitre_techniques": [
+      {"id": "T1059.001", "name": "PowerShell", "confidence": "medium"}
+    ]
+  },
+  "risk_assessment": {
+    "severity": "high",
+    "confidence": "medium",
+    "rationale": "Encoded command and Office parent are strong suspicious indicators, but outcome is unconfirmed."
+  },
+  "false_positive_analysis": {
+    "possible": true,
+    "conditions": ["Known administrative automation", "Approved script deployment tooling"]
+  },
+  "recommended_investigation_steps": [
+    "Decode and review the PowerShell command safely.",
+    "Collect full process tree for the affected host.",
+    "Review EDR telemetry for network connections by powershell.exe.",
+    "Check user activity and email artifacts around execution time."
+  ],
+  "final_soc_note": "Prioritize triage within high-severity queue and validate script intent before containment actions."
+}

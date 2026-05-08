@@ -1,0 +1,11 @@
+{
+  "rule_name": "Suspicious PowerShell Download",
+  "severity": "high",
+  "host": "win10-finance-22",
+  "user": "CORP\\jdoe",
+  "process_name": "powershell.exe",
+  "command_line": "powershell -nop -w hidden -enc SQBFAFgA...",
+  "parent_process": "winword.exe",
+  "raw_log": "EventCode=4688 NewProcessName=powershell.exe ParentProcessName=winword.exe ...",
+  "timestamp": "2026-05-08T11:22:14Z"
+}

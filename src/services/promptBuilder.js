@@ -1,6 +1,4 @@
-from typing import Dict
-
-SYSTEM_PROMPT = """You are a Senior SOC Analyst.
+const SYSTEM_PROMPT = `You are a Senior SOC Analyst.
 Your tasks:
 1) Explain why the alert triggered based only on provided evidence.
 2) Analyze observed behavior in the telemetry.
@@ -17,12 +15,10 @@ Rules:
 
 Output JSON schema keys exactly:
 incident_summary, detection_analysis, behavior_analysis, attack_mapping,
-risk_assessment, false_positive_analysis, recommended_investigation_steps, final_soc_note.
-"""
+risk_assessment, false_positive_analysis, recommended_investigation_steps, final_soc_note.`;
 
+function buildUserPrompt(context) {
+  return `Analyze this Splunk incident context and return only valid JSON:\n${JSON.stringify(context)}`;
+}
 
-def build_user_prompt(context: Dict[str, str | None]) -> str:
-    return (
-        "Analyze this Splunk incident context and return only valid JSON:\n"
-        f"{context}"
-    )
+module.exports = { SYSTEM_PROMPT, buildUserPrompt };

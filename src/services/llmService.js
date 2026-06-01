@@ -5,7 +5,12 @@ const { SYSTEM_PROMPT, buildUserPrompt } = require("./promptBuilder");
 class LLMService {
   constructor() {
     this.client = new OpenAI({ apiKey: settings.openaiApiKey, timeout: settings.openaiTimeoutMs });
+    this.provider = "openai";
     this.model = settings.openaiModel;
+  }
+
+  getMetadata() {
+    return { provider: this.provider, model: this.model };
   }
 
   async analyze(context) {

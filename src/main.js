@@ -5,6 +5,7 @@ const pinoHttp = require("pino-http");
 const { settings } = require("./core/config");
 const { createLogger } = require("./core/logging");
 const { router } = require("./api/routes");
+const { connectMongo, disconnectMongo } = require("./database/mongo");
 
 const logger = createLogger(settings.logLevel);
 const app = express();
@@ -18,6 +19,19 @@ if (settings.enableRateLimiting) {
 
 app.use(router);
 
-app.listen(settings.port, "0.0.0.0", () => {
+connectMongo(logger).catch((error) => {
+  logger.error({ err: error }, "MongoDB initialization failed; continuing without alert persistence");
+});
+
+const server = app.listen(settings.port, "0.0.0.0", () => {
   logger.info({ port: settings.port }, "API started");
 });
+
+async function shutdown(signal) {
+  logger.info({ signal }, "API shutting down");
+  await disconnectMongo(logger);
+  server.close(() => process.exit(0));
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

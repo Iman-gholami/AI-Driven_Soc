@@ -27,8 +27,9 @@ const alertSchema = new Schema(
     alertId: { type: String, required: true, trim: true },
     source: { type: String, default: "unknown", trim: true },
     rawEvent: { type: Schema.Types.Mixed, required: true },
-    analysis: { type: alertAnalysisSchema, required: true },
-    status: { type: String, default: "analyzed", trim: true },
+    analysis: { type: alertAnalysisSchema, default: undefined },
+    status: { type: String, default: "new", enum: ["new", "analyzed"], trim: true },
+    severity: { type: String, default: "unknown", trim: true },
     llmProvider: { type: String, trim: true },
     model: { type: String, trim: true },
     processingTimeMs: { type: Number, min: 0 },
@@ -36,8 +37,8 @@ const alertSchema = new Schema(
     fullAnalysis: { type: Schema.Types.Mixed, default: undefined },
     soc: { type: futureSocFieldsSchema, default: () => ({}) },
     processing: {
-      attempts: { type: Number, default: 1, min: 0 },
-      completedAt: { type: Date, default: Date.now },
+      attempts: { type: Number, default: 0, min: 0 },
+      completedAt: { type: Date, default: undefined },
       errors: { type: [Schema.Types.Mixed], default: undefined },
     },
   },
@@ -47,10 +48,11 @@ const alertSchema = new Schema(
   },
 );
 
-alertSchema.index({ alertId: 1 });
+alertSchema.index({ alertId: 1 }, { unique: true });
 alertSchema.index({ status: 1 });
 alertSchema.index({ createdAt: -1 });
+alertSchema.index({ severity: 1 });
 alertSchema.index({ "analysis.severity": 1 });
-alertSchema.index({ eventHash: 1 });
+alertSchema.index({ eventHash: 1 }, { unique: true });
 
 module.exports = mongoose.models.Alert || mongoose.model("Alert", alertSchema);

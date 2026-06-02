@@ -15,47 +15,76 @@ class IncidentAnalyzer {
   }
 
   async analyzeIncident(payload) {
+    const analyzed = await this.analyzePayload(payload);
+
+    await this.persistAnalyzedAlert(payload, analyzed.analysis, analyzed.metadata.processingTimeMs);
+
+    return analyzed.analysis;
+  }
+
+  async analyzeStoredAlert(alert) {
+    const rawEvent = alert?.rawEvent || alert || {};
+    const analyzed = await this.analyzePayload(rawEvent);
+    return {
+      ...analyzed,
+      persistence: this.buildAnalysisPersistence(alert, analyzed.analysis, analyzed.metadata.processingTimeMs),
+    };
+  }
+
+  async analyzePayload(payload) {
     const startedAt = Date.now();
     const context = buildContext(payload);
     const result = await this.llm.analyze(context);
     const response = analysisResponseSchema.parse(result);
     const processingTimeMs = Date.now() - startedAt;
+    const providerMetadata = this.llm.getMetadata ? this.llm.getMetadata() : {};
 
-    await this.persistAnalyzedAlert(payload, response, processingTimeMs);
-
-    return response;
+    return {
+      analysis: response,
+      metadata: {
+        provider: providerMetadata.provider || "unknown",
+        model: providerMetadata.model || "unknown",
+        processingTimeMs,
+      },
+    };
   }
 
   async persistAnalyzedAlert(payload, analysisResult, processingTimeMs) {
     const eventHash = createEventHash(payload);
-    const providerMetadata = this.llm.getMetadata ? this.llm.getMetadata() : {};
     const alertId = getAlertId(payload);
 
     try {
-      await this.alertRepository.create({
+      await this.alertRepository.upsertAnalyzedAlert({
         alertId,
         source: getAlertSource(payload),
+        severity: getSeverity(analysisResult),
         rawEvent: payload,
-        analysis: mapAnalysisSummary(analysisResult),
-        status: "analyzed",
-        llmProvider: providerMetadata.provider || "unknown",
-        model: providerMetadata.model || "unknown",
-        processingTimeMs,
         eventHash,
-        fullAnalysis: analysisResult,
-        soc: {
-          mitreAttack: analysisResult.attack_mapping,
-          providerMetadata,
-        },
-        processing: {
-          attempts: 1,
-          completedAt: new Date(),
-        },
+        ...this.buildAnalysisPersistence({ rawEvent: payload }, analysisResult, processingTimeMs),
       });
       this.logger.info({ alertId, eventHash, status: "analyzed" }, "Alert stored successfully");
     } catch (error) {
       this.logger.error({ err: error, alertId, eventHash }, "Alert storage failure");
     }
+  }
+
+  buildAnalysisPersistence(alert, analysisResult, processingTimeMs) {
+    const providerMetadata = this.llm.getMetadata ? this.llm.getMetadata() : {};
+    return {
+      analysis: mapAnalysisSummary(analysisResult),
+      fullAnalysis: analysisResult,
+      llmProvider: providerMetadata.provider || "unknown",
+      model: providerMetadata.model || "unknown",
+      processingTimeMs,
+      soc: {
+        ...(alert?.soc || {}),
+        mitreAttack: analysisResult.attack_mapping,
+        iocs: alert?.soc?.iocs,
+        correlation: alert?.soc?.correlation,
+        threatIntelligence: alert?.soc?.threatIntelligence,
+        providerMetadata,
+      },
+    };
   }
 }
 

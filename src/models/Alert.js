@@ -27,7 +27,7 @@ const alertSchema = new Schema(
     alertId: { type: String, required: true, trim: true },
     source: { type: String, default: "unknown", trim: true },
     rawEvent: { type: Schema.Types.Mixed, required: true },
-    analysis: { type: alertAnalysisSchema, default: undefined },
+    analysis: { type: [alertAnalysisSchema], default: undefined },
     status: { type: String, default: "new", enum: ["new", "analyzed"], trim: true },
     severity: { type: String, default: "unknown", trim: true },
     llmProvider: { type: String, trim: true },

@@ -53,11 +53,9 @@ class AlertRepository {
         $set: {
           alertId,
           source,
-          severity,
           rawEvent,
           eventHash,
-          analysis,
-          severity: analysis?.severity || "unknown",
+          severity: analysis?.severity || severity || "unknown",
           fullAnalysis,
           soc,
           llmProvider,
@@ -66,6 +64,7 @@ class AlertRepository {
           status: "analyzed",
           "processing.completedAt": new Date(),
         },
+        $push: { analysis },
         $inc: { "processing.attempts": 1 },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
@@ -113,7 +112,6 @@ class AlertRepository {
       { alertId },
       {
         $set: {
-          analysis,
           severity: analysis?.severity || "unknown",
           fullAnalysis,
           soc,
@@ -123,6 +121,7 @@ class AlertRepository {
           status: "analyzed",
           "processing.completedAt": new Date(),
         },
+        $push: { analysis },
         $inc: { "processing.attempts": 1 },
       },
       { new: true },

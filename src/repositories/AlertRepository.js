@@ -18,23 +18,12 @@ class AlertRepository {
         rawEvent,
         eventHash,
         status: "new",
-        analysis: undefined,
-        fullAnalysis: undefined,
-        llmProvider: undefined,
-        model: undefined,
-        processingTimeMs: undefined,
-        soc: {
-          mitreAttack: undefined,
-          iocs: undefined,
-          correlation: undefined,
-          threatIntelligence: undefined,
-          providerMetadata: undefined,
-        },
-        processing: {
-          attempts: 0,
-          errors: undefined,
-          completedAt: undefined,
-        },
+      },
+      $setOnInsert: {
+        analysisCount: 0,
+        latestAnalysisId: undefined,
+        lastAnalyzedAt: undefined,
+        processing: { attempts: 0 },
       },
     };
 
@@ -45,28 +34,22 @@ class AlertRepository {
     );
   }
 
-
-  async upsertAnalyzedAlert({ alertId, source, severity, rawEvent, eventHash, analysis, fullAnalysis, soc, llmProvider, model, processingTimeMs }) {
+  async upsertAnalyzedAlert({ alertId, source, severity, rawEvent, eventHash }) {
     return this.alertModel.findOneAndUpdate(
       { $or: [{ alertId }, { eventHash }] },
       {
         $set: {
           alertId,
           source,
-          severity,
+          severity: severity || "unknown",
           rawEvent,
           eventHash,
-          analysis,
-          severity: analysis?.severity || "unknown",
-          fullAnalysis,
-          soc,
-          llmProvider,
-          model,
-          processingTimeMs,
           status: "analyzed",
-          "processing.completedAt": new Date(),
         },
-        $inc: { "processing.attempts": 1 },
+        $setOnInsert: {
+          analysisCount: 0,
+          processing: { attempts: 0 },
+        },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -83,7 +66,8 @@ class AlertRepository {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(safeLimit)
-      .select("alertId source status severity analysis.severity createdAt updatedAt eventHash")
+      .select("alertId source status severity latestAnalysisId analysisCount lastAnalyzedAt createdAt updatedAt eventHash")
+      .populate({ path: "latestAnalysisId", select: "analysis fullAnalysis llmProvider model processingTimeMs soc processing createdAt updatedAt" })
       .lean();
 
     const [alerts, total] = await Promise.all([
@@ -108,25 +92,37 @@ class AlertRepository {
     return this.alertModel.findOne({ alertId }).lean().exec();
   }
 
-  async updateAnalysis(alertId, { analysis, fullAnalysis, soc, llmProvider, model, processingTimeMs }) {
+  async updateLatestAnalysisReference(alertId, { analysisId, severity, analyzedAt = new Date(), attemptNumber } = {}) {
     return this.alertModel.findOneAndUpdate(
       { alertId },
       {
         $set: {
-          analysis,
-          severity: analysis?.severity || "unknown",
-          fullAnalysis,
-          soc,
-          llmProvider,
-          model,
-          processingTimeMs,
+          latestAnalysisId: analysisId,
+          severity: severity || "unknown",
           status: "analyzed",
-          "processing.completedAt": new Date(),
+          lastAnalyzedAt: analyzedAt,
+          "processing.completedAt": analyzedAt,
+          ...(attemptNumber ? { "processing.attempts": attemptNumber } : {}),
         },
-        $inc: { "processing.attempts": 1 },
       },
       { new: true },
-    );
+    ).lean().exec();
+  }
+
+  async incrementAnalysisCount(alertId) {
+    return this.alertModel.findOneAndUpdate(
+      { alertId },
+      { $inc: { analysisCount: 1, "processing.attempts": 1 } },
+      { new: true },
+    ).lean().exec();
+  }
+
+  async updateStatus(alertId, status) {
+    return this.alertModel.findOneAndUpdate(
+      { alertId },
+      { $set: { status } },
+      { new: true },
+    ).lean().exec();
   }
 }
 

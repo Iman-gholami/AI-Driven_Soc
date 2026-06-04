@@ -3,9 +3,14 @@ const crypto = require("crypto");
 const { settings } = require("../core/config");
 const { IncidentAnalyzer } = require("../services/analyzer");
 const { AlertRepository } = require("../repositories/AlertRepository");
+const { AlertAnalysisRepository } = require("../repositories/AlertAnalysisRepository");
 const { createEventHash } = require("../services/eventHash");
 
-function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new AlertRepository() } = {}) {
+function createRouter({
+  analyzer = new IncidentAnalyzer(),
+  alertRepository = new AlertRepository(),
+  alertAnalysisRepository = new AlertAnalysisRepository(),
+} = {}) {
   const router = express.Router();
 
   router.get("/health", (_, res) => {
@@ -110,13 +115,26 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
       }
 
       const analyzed = await analyzer.analyzeStoredAlert(alert);
-      await alertRepository.updateAnalysis(alertId, analyzed.persistence);
+      const attemptNumber = (alert.analysisCount || 0) + 1;
+      const completedAt = new Date();
+      const analysisRecord = await alertAnalysisRepository.createForAlert(alert, {
+        ...analyzed.persistence,
+        processing: { attemptNumber, completedAt },
+      });
+      await alertRepository.incrementAnalysisCount(alertId);
+      await alertRepository.updateLatestAnalysisReference(alertId, {
+        analysisId: analysisRecord._id || analysisRecord.id,
+        severity: analyzed.persistence.analysis?.severity,
+        analyzedAt: completedAt,
+        attemptNumber,
+      });
 
-      req.log.info({ requestId, alertId, processingTimeMs: analyzed.metadata.processingTimeMs }, "alert_analyzed");
+      req.log.info({ requestId, alertId, analysisId: analysisRecord._id || analysisRecord.id, processingTimeMs: analyzed.metadata.processingTimeMs }, "alert_analyzed");
       return res.json({
         alertId,
         analysis: analyzed.analysis,
         metadata: analyzed.metadata,
+        latestAnalysis: toAnalysisResponse(analysisRecord),
       });
     } catch (error) {
       if (error?.name === "ZodError") {
@@ -139,15 +157,24 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
       }
 
       const response = toPlainObject(alert);
+      const [latestAnalysis, analyses] = await Promise.all([
+        alert.latestAnalysisId ? alertAnalysisRepository.findById(alert.latestAnalysisId) : alertAnalysisRepository.findLatestByAlertId(req.params.id),
+        isTruthy(req.query.includeAnalyses) ? alertAnalysisRepository.listByAlertId(req.params.id) : Promise.resolve(undefined),
+      ]);
+
+      response.latestAnalysis = toAnalysisResponse(latestAnalysis);
+      if (analyses) response.analyses = analyses.map(toAnalysisResponse);
+
       const requestedSocFields = getRequestedSocFields(req.query);
       if (requestedSocFields.length > 0) {
+        const socSource = response.latestAnalysis?.soc || {};
         response.socFields = requestedSocFields.reduce((fields, field) => {
-          fields[field] = response.soc?.[field];
+          fields[field] = socSource[field];
           return fields;
         }, {});
       }
 
-      req.log.info({ requestId, alertId: req.params.id, socFields: requestedSocFields }, "alert_retrieved");
+      req.log.info({ requestId, alertId: req.params.id, socFields: requestedSocFields, includeAnalyses: Boolean(analyses) }, "alert_retrieved");
       return res.json(response);
     } catch (error) {
       req.log.error({ requestId, alertId: req.params.id, err: error }, "alert_retrieve_failed");
@@ -186,15 +213,42 @@ function toPlainObject(document) {
 
 function toAlertSummary(alert) {
   const plain = toPlainObject(alert);
+  const latestAnalysis = toAnalysisResponse(plain.latestAnalysis || plain.latestAnalysisId);
   return {
     alertId: plain.alertId,
     source: plain.source,
     status: plain.status,
-    severity: plain.severity || plain.analysis?.severity || "unknown",
+    severity: plain.severity || latestAnalysis?.analysis?.severity || "unknown",
     createdAt: plain.createdAt,
     updatedAt: plain.updatedAt,
     eventHash: plain.eventHash,
+    analysisCount: plain.analysisCount || 0,
+    lastAnalyzedAt: plain.lastAnalyzedAt,
+    latestAnalysis,
   };
+}
+
+function toAnalysisResponse(analysis) {
+  if (!analysis || typeof analysis !== "object") return undefined;
+  const plain = toPlainObject(analysis);
+  if (!plain.analysis && !plain.fullAnalysis && !plain.alertId) return undefined;
+  return {
+    id: plain._id || plain.id,
+    alertId: plain.alertId,
+    analysis: plain.analysis,
+    fullAnalysis: plain.fullAnalysis,
+    llmProvider: plain.llmProvider,
+    model: plain.model,
+    processingTimeMs: plain.processingTimeMs,
+    soc: plain.soc,
+    processing: plain.processing,
+    createdAt: plain.createdAt,
+    updatedAt: plain.updatedAt,
+  };
+}
+
+function isTruthy(value) {
+  return value === true || value === "true" || value === "1";
 }
 
 function getRequestedSocFields(query) {

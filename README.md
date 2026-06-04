@@ -10,12 +10,42 @@ Current service boundaries keep provider and persistence concerns isolated so th
 HTTP API (src/api)
   -> IncidentAnalyzer service (src/services)
     -> LLM service/provider adapter (src/services/llmService.js)
-    -> Alert repository (src/repositories)
-      -> Mongoose alert model (src/models)
+    -> Repositories (src/repositories)
+      -> Alert model + AlertAnalysis model (src/models)
         -> MongoDB connection (src/database)
 ```
 
-Persistence is intentionally accessed through the repository layer only. API controllers and business services call `AlertRepository`; they do not call Mongoose directly. The Alert schema includes timestamps, `status` (`new` or `analyzed`), deterministic `eventHash` duplicate detection, and extension points for future SOC capabilities such as MITRE ATT&CK enrichment, IOC extraction, correlation metadata, offline threat intelligence, and provider-specific metadata.
+Persistence is intentionally accessed through the repository layer only. API controllers and business services call `AlertRepository` and `AlertAnalysisRepository`; they do not call Mongoose directly. The Alert schema includes timestamps, `status` (`new` or `analyzed`), deterministic `eventHash` duplicate detection, and a reference to the newest analysis. Each AI result is stored as its own `AlertAnalysis` document so repeated analyst-triggered analysis preserves history.
+
+## Database Relationship
+
+```text
+Alert (alerts collection)
+  _id
+  alertId
+  source
+  rawEvent
+  status
+  severity
+  eventHash
+  latestAnalysisId  ───────────────┐
+  analysisCount                    │ references newest result
+  lastAnalyzedAt                   │
+  createdAt / updatedAt           │
+                                    ▼
+AlertAnalysis (alertanalyses collection)
+  _id
+  alert ─────────────── references Alert._id
+  alertId
+  analysis { severity, summary, recommendations[] }
+  fullAnalysis
+  llmProvider / model / processingTimeMs
+  soc { mitreAttack, iocs, correlation, threatIntelligence, providerMetadata }
+  processing { attemptNumber, completedAt, errors[] }
+  createdAt / updatedAt
+```
+
+One `Alert` can have many `AlertAnalysis` records. `Alert.latestAnalysisId` points to the newest `AlertAnalysis`, while older `AlertAnalysis` documents remain available as immutable analysis history. Webhook alert upserts reset only alert-level workflow fields such as `rawEvent`, `source`, `severity`, and `status`; they do **not** delete existing analysis history.
 
 ## Run
 
@@ -68,7 +98,7 @@ If `MONGODB_URI` is not configured or MongoDB is unavailable, the backward-compa
 
 ### 1. Ingest alert(s): `POST /webhook-alert`
 
-Receives Splunk-style alert payloads, stores each alert with `status: "new"`, computes a deterministic SHA-256 `eventHash`, and does **not** call the LLM. If an incoming alert has the same `alertId` or `eventHash` as an existing document, the existing document is overwritten atomically with the latest raw alert and reset to `status: "new"`.
+Receives Splunk-style alert payloads, stores each alert with `status: "new"`, computes a deterministic SHA-256 `eventHash`, and does **not** call the LLM. It also does **not** create an `AlertAnalysis` document. If an incoming alert has the same `alertId` or `eventHash` as an existing alert, the alert-level fields are overwritten atomically with the latest raw alert and reset to `status: "new"`; existing `AlertAnalysis` history is preserved.
 
 Single alert payload:
 
@@ -130,11 +160,11 @@ Returns summary alert records sorted by `createdAt` descending. Supported filter
 curl "http://localhost:8000/alerts?status=new&severity=high&page=1&limit=25"
 ```
 
-Response records include summary fields only: `alertId`, `source`, `status`, `severity`, `createdAt`, `updatedAt`, and `eventHash`.
+Response records include alert summary fields (`alertId`, `source`, `status`, `severity`, `analysisCount`, `lastAnalyzedAt`, `createdAt`, `updatedAt`, and `eventHash`) plus `latestAnalysis` when a latest analysis exists.
 
 ### 3. Analyze selected alert: `POST /alerts/:id/analyze`
 
-Fetches a stored alert by `alertId`, sends its `rawEvent` to `IncidentAnalyzer` / `LLMService`, validates the AI response with the existing Zod schema, overwrites any previous AI result, sets `status: "analyzed"`, and stores LLM metadata (`provider`, `model`, and `processingTimeMs`). The update changes only analysis and metadata fields, so the original `rawEvent` is never lost during analysis.
+Fetches a stored alert by `alertId`, sends its `rawEvent` to `IncidentAnalyzer` / `LLMService`, validates the AI response with the existing Zod schema, creates a new `AlertAnalysis` document, sets `status: "analyzed"`, updates top-level `severity`, increments `analysisCount`, updates `lastAnalyzedAt`, and points `latestAnalysisId` at the new analysis. Previous `AlertAnalysis` records are not overwritten or deleted, so multiple clicks of Analyze create multiple historical results.
 
 ```bash
 curl -X POST http://localhost:8000/alerts/splunk-alert-001/analyze
@@ -159,13 +189,25 @@ Response:
     "provider": "openai",
     "model": "gpt-4.1",
     "processingTimeMs": 1234
+  },
+  "latestAnalysis": {
+    "id": "665f...",
+    "alertId": "splunk-alert-001",
+    "analysis": {
+      "severity": "high",
+      "summary": "Suspicious PowerShell execution",
+      "recommendations": ["Review process tree"]
+    },
+    "llmProvider": "openai",
+    "model": "gpt-4.1",
+    "processingTimeMs": 1234
   }
 }
 ```
 
 ### 4. Retrieve full alert: `GET /alerts/:id`
 
-Returns the full alert document, including `rawEvent`, summarized `analysis`, full model response (`fullAnalysis`), timestamps, status, processing metadata, and SOC extension fields. Optional SOC query params can project requested extension fields into a `socFields` object:
+Returns the full alert document, including `rawEvent`, alert-level workflow fields, and `latestAnalysis`. Optional SOC query params can project requested extension fields from `latestAnalysis.soc` into a `socFields` object:
 
 ```bash
 curl "http://localhost:8000/alerts/splunk-alert-001?socFields=mitreAttack,iocs"
@@ -173,6 +215,26 @@ curl "http://localhost:8000/alerts/splunk-alert-001?mitreAttack=true&threatIntel
 ```
 
 Supported SOC field names are `mitreAttack`, `iocs`, `correlation`, and `threatIntelligence`.
+
+To retrieve the full analysis history, add `includeAnalyses=true`:
+
+```bash
+curl "http://localhost:8000/alerts/splunk-alert-001?includeAnalyses=true"
+```
+
+The response includes:
+
+```json
+{
+  "alertId": "splunk-alert-001",
+  "rawEvent": { "host": "web-01" },
+  "latestAnalysis": { "id": "665f-newest", "analysis": { "severity": "high" } },
+  "analyses": [
+    { "id": "665f-newest", "analysis": { "severity": "high" } },
+    { "id": "665f-older", "analysis": { "severity": "medium" } }
+  ]
+}
+```
 
 ## Backward-Compatible Immediate Analysis Example
 
@@ -199,17 +261,30 @@ curl -X POST http://localhost:8000/analyze-incident \
 
 ## Alert Persistence
 
-The alert workflow stores documents containing:
+### Alert documents
+
+`Alert` documents store alert-level triage state only:
 
 - The original raw alert/event in `rawEvent`.
 - `status`, beginning as `new` after webhook ingestion and changing to `analyzed` after human-triggered analysis.
+- Top-level `severity` for queue filtering. Before analysis this comes from the webhook payload when present; after analysis it is updated to the newest AI severity.
 - A deterministic SHA-256 `eventHash` generated from the normalized incoming event.
-- Top-level `severity` for queue filtering, plus summarized analysis (`severity`, `summary`, and `recommendations`) after AI review.
-- The full AI response (`fullAnalysis`) for backward-compatible API behavior and richer future workflows.
-- LLM provider/model metadata and processing timing.
-- Future SOC fields for MITRE ATT&CK mapping, IOC extraction, correlation, offline threat intelligence, and provider metadata.
+- `latestAnalysisId`, an ObjectId reference to the newest `AlertAnalysis`.
+- `analysisCount` and `lastAnalyzedAt`, which make it easy to show whether and when an alert has been analyzed.
 
-MongoDB indexes are created for `alertId`, `status`, `createdAt`, `severity`, `analysis.severity`, and `eventHash` to support triage queues, duplicate detection, time-window searches, and correlation. `alertId` and `eventHash` are unique so duplicate webhook events overwrite existing documents instead of creating duplicate analyst work items.
+### AlertAnalysis documents
+
+`AlertAnalysis` documents store every AI result independently:
+
+- `alert`, an ObjectId reference to the parent `Alert._id`.
+- `alertId`, duplicated for convenient lookup by external alert identifier.
+- Summarized `analysis` (`severity`, `summary`, and `recommendations`).
+- The full AI response in `fullAnalysis`.
+- LLM provider/model metadata and processing timing.
+- SOC fields for MITRE ATT&CK mapping, IOC extraction, correlation, offline threat intelligence, and provider metadata.
+- Processing metadata, including `attemptNumber`, `completedAt`, and any errors.
+
+MongoDB indexes are created on `Alert.alertId`, `Alert.status`, `Alert.createdAt`, `Alert.severity`, `Alert.eventHash`, and `Alert.latestAnalysisId`. `AlertAnalysis` indexes are created on `alert`, `alertId`, `createdAt`, `analysis.severity`, `llmProvider`, and `model`. `Alert.alertId` and `Alert.eventHash` are unique so duplicate webhook events update existing analyst work items instead of creating duplicate alerts, without deleting any historical `AlertAnalysis` records.
 
 ## Testing
 
@@ -217,4 +292,4 @@ MongoDB indexes are created for `alertId`, `status`, `createdAt`, `severity`, `a
 npm test
 ```
 
-The test suite uses Node's built-in test runner and focuses on deterministic event hashing, alert model indexes, repository delegation, MongoDB initialization behavior, persistence failure handling, single and bulk alert ingestion, duplicate overwrite behavior, filtered alert listing, full alert retrieval, and human-triggered AI analysis overwrites.
+The test suite uses Node's built-in test runner and focuses on deterministic event hashing, Alert and AlertAnalysis schemas, repository delegation, MongoDB initialization behavior, persistence failure handling, single and bulk alert ingestion, duplicate overwrite behavior, filtered alert listing, latest/full alert retrieval, historical analysis retrieval, immediate analysis compatibility, and repeated human-triggered AI analysis history creation.

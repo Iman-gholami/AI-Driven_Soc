@@ -6,11 +6,18 @@ const { createLogger } = require("../core/logging");
 const { settings } = require("../core/config");
 const { analysisResponseSchema } = require("../models/incidentSchema");
 const { AlertRepository } = require("../repositories/AlertRepository");
+const { AlertAnalysisRepository } = require("../repositories/AlertAnalysisRepository");
 
 class IncidentAnalyzer {
-  constructor({ llm = new LLMService(), alertRepository = new AlertRepository(), logger = createLogger(settings.logLevel) } = {}) {
+  constructor({
+    llm = new LLMService(),
+    alertRepository = new AlertRepository(),
+    alertAnalysisRepository = new AlertAnalysisRepository(),
+    logger = createLogger(settings.logLevel),
+  } = {}) {
     this.llm = llm;
     this.alertRepository = alertRepository;
+    this.alertAnalysisRepository = alertAnalysisRepository;
     this.logger = logger;
   }
 
@@ -54,15 +61,28 @@ class IncidentAnalyzer {
     const alertId = getAlertId(payload);
 
     try {
-      await this.alertRepository.upsertAnalyzedAlert({
+      const alert = await this.alertRepository.upsertAnalyzedAlert({
         alertId,
         source: getAlertSource(payload),
         severity: getSeverity(analysisResult),
         rawEvent: payload,
         eventHash,
-        ...this.buildAnalysisPersistence({ rawEvent: payload }, analysisResult, processingTimeMs),
       });
-      this.logger.info({ alertId, eventHash, status: "analyzed" }, "Alert stored successfully");
+      const attemptNumber = (alert?.analysisCount || 0) + 1;
+      const completedAt = new Date();
+      const analysis = await this.alertAnalysisRepository.createForAlert(alert, {
+        ...this.buildAnalysisPersistence(alert, analysisResult, processingTimeMs),
+        processing: { attemptNumber, completedAt },
+      });
+
+      await this.alertRepository.incrementAnalysisCount(alertId);
+      await this.alertRepository.updateLatestAnalysisReference(alertId, {
+        analysisId: analysis._id || analysis.id,
+        severity: getSeverity(analysisResult),
+        analyzedAt: completedAt,
+        attemptNumber,
+      });
+      this.logger.info({ alertId, eventHash, status: "analyzed", analysisId: analysis._id || analysis.id }, "Alert stored successfully");
     } catch (error) {
       this.logger.error({ err: error, alertId, eventHash }, "Alert storage failure");
     }

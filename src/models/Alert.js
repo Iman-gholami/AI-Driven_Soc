@@ -26,6 +26,9 @@ const alertSchema = new Schema(
   {
     alertId: { type: String, required: true, trim: true },
     source: { type: String, default: "unknown", trim: true },
+    signature: { type: String, default: undefined, trim: true },
+    eventType: { type: String, default: undefined, trim: true },
+    host: { type: String, default: undefined, trim: true },
     rawEvent: { type: Schema.Types.Mixed, required: true },
     ruleMatch: { type: Schema.Types.Mixed, default: undefined },
     aiStatus: { type: String, default: "not_analyzed", enum: ["not_analyzed", "analyzing", "analyzed", "failed"], trim: true },

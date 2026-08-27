@@ -346,26 +346,80 @@ test("GET /alerts lists summary alerts with filters and pagination", async () =>
   assert.equal(response.body.alerts.length, 1);
   assert.deepEqual(
     Object.keys(response.body.alerts[0]).sort(),
-    ["alertId", "aiStatus", "createdAt", "eventHash", "eventType", "host", "severity", "signature", "source", "status", "updatedAt"].sort(),
+    ["alertId", "aiEligibility", "aiStatus", "createdAt", "eventHash", "eventType", "host", "severity", "signature", "source", "status", "updatedAt"].sort(),
   );
   assert.equal(response.body.alerts[0].aiStatus, "not_analyzed");
+  assert.equal(response.body.alerts[0].aiEligibility.eligible, false);
+  assert.equal(response.body.alerts[0].aiEligibility.reason, "missing_signature");
   assert.equal(response.body.alerts[0].alertId, "a1");
   assert.equal(response.body.sort.createdAt, "desc");
 });
 
-test("POST /alerts/:id/analyze overwrites previous analysis and preserves rawEvent", async () => {
+test("POST /alerts/:id/analyze runs only after a signature resolves to a rule", async () => {
   const repository = new InMemoryAlertRepository();
-  await repository.upsertNewAlert({ alertId: "a1", source: "splunk", severity: "low", rawEvent: { host: "srv-1" }, eventHash: "h1" });
-  repository.alerts[0].analysis = { severity: "low", summary: "old", recommendations: [] };
+  const rawEvent = { host: "srv-1", signature: "Example Detection", protocol: "tcp" };
+  await repository.upsertNewAlert({
+    alertId: "a1",
+    source: "splunk",
+    severity: "low",
+    rawEvent,
+    eventHash: "h1",
+    ruleMatch: {
+      status: "matched",
+      matchType: "exact_signature",
+      ruleId: "12345",
+      revision: 2,
+      title: "Example Detection",
+    },
+  });
+
+  const ruleResolution = {
+    status: "matched",
+    matchType: "exact_signature",
+    candidateCount: 1,
+    rule: {
+      ruleId: "12345",
+      revision: 2,
+      title: "Example Detection",
+      protocol: "tcp",
+      classtype: "test-class",
+      sourceFile: "test.rules",
+      parsedRule: { flow: [], contents: [], pcre: [], references: [] },
+      rawRule: 'alert tcp any any -> any any (msg:"Example Detection"; sid:12345; rev:2;)',
+    },
+  };
+
   const analyzer = {
-    async analyzeStoredAlert(alert) {
-      assert.deepEqual(alert.rawEvent, { host: "srv-1" });
+    async resolveDetectionRule(event) {
+      assert.deepEqual(event, rawEvent);
+      return ruleResolution;
+    },
+    async analyzeStoredAlert(alert, options) {
+      assert.deepEqual(alert.rawEvent, rawEvent);
+      assert.equal(options.ruleResolution, ruleResolution);
       return {
         analysis: validAnalysis,
+        ruleResolution,
+        ruleMatch: {
+          status: "matched",
+          matchType: "exact_signature",
+          candidateCount: 1,
+          ruleId: "12345",
+          revision: 2,
+          title: "Example Detection",
+        },
         metadata: { provider: "test", model: "stub-model", processingTimeMs: 12 },
         persistence: {
           analysis: { severity: "high", summary: "Suspicious login", recommendations: ["Review source IP"] },
           fullAnalysis: validAnalysis,
+          ruleMatch: {
+            status: "matched",
+            matchType: "exact_signature",
+            candidateCount: 1,
+            ruleId: "12345",
+            revision: 2,
+            title: "Example Detection",
+          },
           soc: { mitreAttack: validAnalysis.attack_mapping, providerMetadata: { provider: "test", model: "stub-model" } },
           llmProvider: "test",
           model: "stub-model",
@@ -374,16 +428,46 @@ test("POST /alerts/:id/analyze overwrites previous analysis and preserves rawEve
       };
     },
   };
-  const app = createTestApp({ alertRepository: repository, analyzer });
 
+  const app = createTestApp({ alertRepository: repository, analyzer });
   const response = await request(app, { method: "POST", path: "/alerts/a1/analyze" });
 
   assert.equal(response.status, 200);
+  assert.equal(response.body.aiStatus, "analyzed");
   assert.deepEqual(response.body.analysis, validAnalysis);
   assert.equal(response.body.metadata.provider, "test");
   assert.equal(repository.alerts[0].status, "analyzed");
+  assert.equal(repository.alerts[0].aiStatus, "analyzed");
   assert.equal(repository.alerts[0].analysis.summary, "Suspicious login");
-  assert.deepEqual(repository.alerts[0].rawEvent, { host: "srv-1" });
+  assert.deepEqual(repository.alerts[0].rawEvent, rawEvent);
+});
+
+test("POST /alerts/:id/analyze does not send alerts without signature to the LLM", async () => {
+  const repository = new InMemoryAlertRepository();
+  await repository.upsertNewAlert({
+    alertId: "no-signature",
+    source: "splunk",
+    severity: "medium",
+    rawEvent: { host: "srv-2", eventtype: "notable" },
+    eventHash: "h-no-signature",
+  });
+
+  let analyzeCalls = 0;
+  const analyzer = {
+    async analyzeStoredAlert() {
+      analyzeCalls += 1;
+      throw new Error("LLM must not be called");
+    },
+  };
+
+  const app = createTestApp({ alertRepository: repository, analyzer });
+  const response = await request(app, { method: "POST", path: "/alerts/no-signature/analyze" });
+
+  assert.equal(response.status, 422);
+  assert.equal(response.body.reason, "missing_signature");
+  assert.equal(response.body.analysisScenario, "signature_rule_v1");
+  assert.equal(analyzeCalls, 0);
+  assert.equal(repository.alerts[0].aiStatus, "not_analyzed");
 });
 
 test("GET /alerts/:id returns full alert and requested SOC fields", async () => {

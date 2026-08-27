@@ -208,6 +208,7 @@ class InMemoryAlertRepository {
       ...(existingIndex >= 0 ? this.alerts[existingIndex] : {}),
       ...record,
       status: "new",
+      aiStatus: "not_analyzed",
       analysis: undefined,
       fullAnalysis: undefined,
       llmProvider: undefined,
@@ -223,9 +224,10 @@ class InMemoryAlertRepository {
     return stored;
   }
 
-  async listAlerts({ status, severity, page = 1, limit = 50 } = {}) {
+  async listAlerts({ status, aiStatus, severity, page = 1, limit = 50 } = {}) {
     let filtered = [...this.alerts];
     if (status) filtered = filtered.filter((alert) => alert.status === status);
+    if (aiStatus) filtered = filtered.filter((alert) => alert.aiStatus === aiStatus);
     if (severity) filtered = filtered.filter((alert) => alert.severity === severity);
     filtered.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     const safePage = Number(page) || 1;
@@ -234,7 +236,7 @@ class InMemoryAlertRepository {
     return {
       alerts: paged,
       pagination: { page: safePage, limit: safeLimit, total: filtered.length, pages: Math.ceil(filtered.length / safeLimit) },
-      filters: { status, severity },
+      filters: { status, aiStatus, severity },
       sort: { createdAt: "desc" },
     };
   }
@@ -243,12 +245,37 @@ class InMemoryAlertRepository {
     return this.alerts.find((alert) => alert.alertId === alertId) || null;
   }
 
+  async markAnalysisStarted(alertId) {
+    const existing = await this.findByAlertId(alertId);
+    if (!existing || existing.aiStatus === "analyzing") return null;
+    existing.aiStatus = "analyzing";
+    existing.processing = {
+      ...(existing.processing || {}),
+      startedAt: new Date().toISOString(),
+    };
+    return existing;
+  }
+
+  async markAnalysisFailed(alertId, error) {
+    const existing = await this.findByAlertId(alertId);
+    if (!existing) return null;
+    existing.aiStatus = "failed";
+    existing.processing = {
+      ...(existing.processing || {}),
+      failedAt: new Date().toISOString(),
+      lastError: String(error?.message || error || "analysis failed"),
+      attempts: (existing.processing?.attempts || 0) + 1,
+    };
+    return existing;
+  }
+
   async updateAnalysis(alertId, persistence) {
     this.updateCalls.push({ alertId, persistence });
     const existing = await this.findByAlertId(alertId);
     Object.assign(existing, persistence, {
       severity: persistence.analysis.severity,
       status: "analyzed",
+      aiStatus: "analyzed",
       updatedAt: new Date().toISOString(),
       processing: { attempts: (existing.processing?.attempts || 0) + 1, completedAt: new Date().toISOString() },
     });

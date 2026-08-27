@@ -34,9 +34,9 @@ class IncidentAnalyzer {
     return analyzed.analysis;
   }
 
-  async analyzeStoredAlert(alert) {
+  async analyzeStoredAlert(alert, { ruleResolution } = {}) {
     const rawEvent = alert?.rawEvent || alert || {};
-    const analyzed = await this.analyzePayload(rawEvent);
+    const analyzed = await this.analyzePayload(rawEvent, { ruleResolution });
     return {
       ...analyzed,
       persistence: this.buildAnalysisPersistence(
@@ -48,9 +48,9 @@ class IncidentAnalyzer {
     };
   }
 
-  async analyzePayload(payload) {
+  async analyzePayload(payload, { ruleResolution: providedRuleResolution } = {}) {
     const startedAt = Date.now();
-    const ruleResolution = await this.resolveDetectionRule(payload);
+    const ruleResolution = providedRuleResolution || await this.resolveDetectionRule(payload);
     const context = buildContext(payload, ruleResolution);
     const result = await this.llm.analyze(context);
     const response = analysisResponseSchema.parse(result);

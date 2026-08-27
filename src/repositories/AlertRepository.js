@@ -14,6 +14,9 @@ class AlertRepository {
       $set: {
         alertId,
         source,
+        signature: getRawSignature(rawEvent),
+        eventType: rawEvent?.eventtype ? String(rawEvent.eventtype) : undefined,
+        host: rawEvent?.host ? String(rawEvent.host) : undefined,
         severity: severity || "unknown",
         rawEvent,
         eventHash,
@@ -70,6 +73,9 @@ class AlertRepository {
         $set: {
           alertId,
           source,
+          signature: getRawSignature(rawEvent),
+          eventType: rawEvent?.eventtype ? String(rawEvent.eventtype) : undefined,
+          host: rawEvent?.host ? String(rawEvent.host) : undefined,
           rawEvent,
           eventHash,
           ruleMatch,
@@ -202,6 +208,11 @@ class AlertRepository {
       { new: true },
     );
   }
+}
+
+function getRawSignature(rawEvent) {
+  const value = rawEvent?.signature || rawEvent?.Signature || rawEvent?.rule_name || rawEvent?.ruleName;
+  return value ? String(value).trim() : undefined;
 }
 
 function buildListFilters({ status, aiStatus, severity, createdAtFrom, createdAtTo } = {}) {

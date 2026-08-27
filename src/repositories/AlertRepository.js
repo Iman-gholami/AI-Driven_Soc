@@ -109,7 +109,7 @@ class AlertRepository {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(safeLimit)
-      .select("alertId source status aiStatus severity analysis.severity ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host createdAt updatedAt eventHash processing")
+      .select("alertId source signature eventType host status aiStatus severity analysis.severity ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host createdAt updatedAt eventHash processing")
       .lean();
 
     const [alerts, total] = await Promise.all([

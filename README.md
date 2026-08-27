@@ -263,3 +263,30 @@ AI Initial Analysis
 ```
 
 The AI report is investigation guidance only; it does not perform automated remediation.
+
+
+## Analyst Panel
+
+The service now includes a built-in analyst triage panel at:
+
+```text
+http://<server>:8000/panel/
+```
+
+The queue intentionally shows every ingested alert, regardless of whether AI has analyzed it. Rule enrichment happens automatically during ingestion, but LLM analysis remains analyst-triggered.
+
+Each alert row exposes one contextual AI action:
+
+- `AI Analyze` — no LLM request has been made yet.
+- `Analyzing…` — a request is currently in progress.
+- `View AI` — opens the stored analysis without generating a new request.
+- `Retry AI` — the previous request failed.
+- `Re-analyze with AI` — available inside the incident drawer after a completed analysis.
+
+The panel keeps three evidence domains visually separate:
+
+1. **Observed Evidence** — fields actually received from Splunk.
+2. **Detection Logic** — the deterministically matched rule and its parsed/raw conditions.
+3. **AI Assessment** — the LLM's interpretation, risk/confidence, false-positive reasoning, and investigation recommendations.
+
+The alert queue is paginated and can be filtered by severity or AI state. Filtering is a view concern only; all alerts remain persisted in MongoDB.

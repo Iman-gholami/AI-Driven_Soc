@@ -9,7 +9,7 @@ class AlertRepository {
     return this.alertModel.create(alertRecord);
   }
 
-  async upsertNewAlert({ alertId, source, severity, rawEvent, eventHash }) {
+  async upsertNewAlert({ alertId, source, severity, rawEvent, eventHash, ruleMatch }) {
     const update = {
       $set: {
         alertId,
@@ -17,6 +17,7 @@ class AlertRepository {
         severity: severity || "unknown",
         rawEvent,
         eventHash,
+        ruleMatch,
         status: "new",
         analysis: undefined,
         fullAnalysis: undefined,
@@ -45,8 +46,7 @@ class AlertRepository {
     );
   }
 
-
-  async upsertAnalyzedAlert({ alertId, source, severity, rawEvent, eventHash, analysis, fullAnalysis, soc, llmProvider, model, processingTimeMs }) {
+  async upsertAnalyzedAlert({ alertId, source, severity, rawEvent, eventHash, analysis, fullAnalysis, ruleMatch, soc, llmProvider, model, processingTimeMs }) {
     return this.alertModel.findOneAndUpdate(
       { $or: [{ alertId }, { eventHash }] },
       {
@@ -55,6 +55,7 @@ class AlertRepository {
           source,
           rawEvent,
           eventHash,
+          ruleMatch,
           severity: analysis?.severity || severity || "unknown",
           fullAnalysis,
           soc,
@@ -82,7 +83,7 @@ class AlertRepository {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(safeLimit)
-      .select("alertId source status severity analysis.severity createdAt updatedAt eventHash")
+      .select("alertId source status severity analysis.severity ruleMatch createdAt updatedAt eventHash")
       .lean();
 
     const [alerts, total] = await Promise.all([
@@ -107,11 +108,12 @@ class AlertRepository {
     return this.alertModel.findOne({ alertId }).lean().exec();
   }
 
-  async updateAnalysis(alertId, { analysis, fullAnalysis, soc, llmProvider, model, processingTimeMs }) {
+  async updateAnalysis(alertId, { analysis, fullAnalysis, ruleMatch, soc, llmProvider, model, processingTimeMs }) {
     return this.alertModel.findOneAndUpdate(
       { alertId },
       {
         $set: {
+          ruleMatch,
           severity: analysis?.severity || "unknown",
           fullAnalysis,
           soc,

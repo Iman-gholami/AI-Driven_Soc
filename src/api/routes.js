@@ -258,6 +258,9 @@ function toAlertSummary(alert) {
   const summary = {
     alertId: plain.alertId,
     source: plain.source,
+    signature: plain.signature || plain.ruleMatch?.title || undefined,
+    eventType: plain.eventType,
+    host: plain.host,
     status: plain.status,
     aiStatus: getAiStatus(plain),
     severity: plain.severity || plain.analysis?.severity || "unknown",

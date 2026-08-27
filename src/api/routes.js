@@ -1,7 +1,8 @@
 const express = require("express");
 const crypto = require("crypto");
 const { settings } = require("../core/config");
-const { IncidentAnalyzer } = require("../services/analyzer");
+const { IncidentAnalyzer, summarizeRuleResolution } = require("../services/analyzer");
+const { buildDetectionRuleContext } = require("../services/contextBuilder");
 const { AlertRepository } = require("../repositories/AlertRepository");
 const { createEventHash } = require("../services/eventHash");
 
@@ -57,12 +58,14 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
       for (const alert of alerts) {
         const eventHash = createEventHash(alert);
         const alertId = getAlertId(alert);
+        const ruleMatch = await resolveRuleMatchForIngest(analyzer, alert);
         const stored = await alertRepository.upsertNewAlert({
           alertId,
           source: getAlertSource(alert),
           severity: getAlertSeverity(alert),
           rawEvent: alert,
           eventHash,
+          ruleMatch,
         });
         storedAlerts.push(toAlertSummary(stored));
       }
@@ -116,6 +119,8 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
       return res.json({
         alertId,
         analysis: analyzed.analysis,
+        ruleMatch: analyzed.ruleMatch,
+        detectionRule: buildDetectionRuleContext(analyzed.ruleResolution),
         metadata: analyzed.metadata,
       });
     } catch (error) {
@@ -139,6 +144,11 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
       }
 
       const response = toPlainObject(alert);
+      if (typeof analyzer.resolveDetectionRule === "function") {
+        const ruleResolution = await analyzer.resolveDetectionRule(response.rawEvent || {});
+        response.detectionRule = buildDetectionRuleContext(ruleResolution);
+      }
+
       const requestedSocFields = getRequestedSocFields(req.query);
       if (requestedSocFields.length > 0) {
         response.socFields = requestedSocFields.reduce((fields, field) => {
@@ -158,6 +168,12 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
   return router;
 }
 
+async function resolveRuleMatchForIngest(analyzer, alert) {
+  if (typeof analyzer.resolveDetectionRule !== "function") return undefined;
+  const resolution = await analyzer.resolveDetectionRule(alert);
+  return summarizeRuleResolution(resolution);
+}
+
 function normalizeAlertPayload(payload) {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.alerts)) return payload.alerts;
@@ -167,7 +183,7 @@ function normalizeAlertPayload(payload) {
 }
 
 function getAlertId(payload) {
-  return String(payload?.alertId || payload?.alert_id || payload?.sid || payload?.id || crypto.randomUUID());
+  return String(payload?.alertId || payload?.alert_id || payload?.event_id || payload?.sid || payload?.id || crypto.randomUUID());
 }
 
 function getAlertSource(payload) {
@@ -186,7 +202,7 @@ function toPlainObject(document) {
 
 function toAlertSummary(alert) {
   const plain = toPlainObject(alert);
-  return {
+  const summary = {
     alertId: plain.alertId,
     source: plain.source,
     status: plain.status,
@@ -195,6 +211,8 @@ function toAlertSummary(alert) {
     updatedAt: plain.updatedAt,
     eventHash: plain.eventHash,
   };
+  if (plain.ruleMatch) summary.ruleMatch = plain.ruleMatch;
+  return summary;
 }
 
 function getRequestedSocFields(query) {

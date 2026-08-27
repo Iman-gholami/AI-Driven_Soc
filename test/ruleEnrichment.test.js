@@ -82,3 +82,15 @@ test("RuleResolver disambiguates duplicate signatures with incident evidence", a
   assert.equal(result.rule.ruleId, "2");
   assert.match(result.matchType, /evidence$/);
 });
+
+test("RuleResolver selects the latest revision when all candidates share a rule id", async () => {
+  const rules = [
+    { ruleId: "10", revision: 1, title: "Versioned", normalizedTitle: "versioned", protocol: "tcp", parsedRule: { contents: [] } },
+    { ruleId: "10", revision: 4, title: "Versioned", normalizedTitle: "versioned", protocol: "tcp", parsedRule: { contents: [] } },
+  ];
+  const resolver = new RuleResolver({ detectionRuleRepository: createRepository(rules) });
+  const result = await resolver.resolve({ signature: "Versioned" });
+  assert.equal(result.status, "matched");
+  assert.equal(result.rule.revision, 4);
+  assert.match(result.matchType, /latest_revision$/);
+});

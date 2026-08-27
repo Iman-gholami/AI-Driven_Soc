@@ -355,6 +355,52 @@ test("GET /alerts lists summary alerts with filters and pagination", async () =>
   assert.equal(response.body.sort.createdAt, "desc");
 });
 
+test("GET /alerts keeps signature and non-signature alerts in the same analyst queue", async () => {
+  const repository = new InMemoryAlertRepository();
+
+  await repository.upsertNewAlert({
+    alertId: "with-signature",
+    source: "splunk",
+    severity: "high",
+    rawEvent: { signature: "Example Detection", host: "srv-1" },
+    eventHash: "queue-h1",
+    ruleMatch: {
+      status: "matched",
+      matchType: "exact_signature",
+      ruleId: "12345",
+      revision: 1,
+      title: "Example Detection",
+    },
+  });
+
+  await repository.upsertNewAlert({
+    alertId: "without-signature",
+    source: "splunk",
+    severity: "medium",
+    rawEvent: { eventtype: "notable", host: "srv-2" },
+    eventHash: "queue-h2",
+    ruleMatch: {
+      status: "unresolved",
+      reason: "missing_signature",
+      candidateCount: 0,
+    },
+  });
+
+  const app = createTestApp({ alertRepository: repository, analyzer: {} });
+  const response = await request(app, { path: "/alerts?page=1&limit=10" });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.alerts.length, 2);
+
+  const withSignature = response.body.alerts.find((alert) => alert.alertId === "with-signature");
+  const withoutSignature = response.body.alerts.find((alert) => alert.alertId === "without-signature");
+
+  assert.equal(withSignature.aiEligibility.eligible, true);
+  assert.equal(withSignature.aiEligibility.scenario, "signature_rule_v1");
+  assert.equal(withoutSignature.aiEligibility.eligible, false);
+  assert.equal(withoutSignature.aiEligibility.reason, "missing_signature");
+});
+
 test("POST /alerts/:id/analyze runs only after a signature resolves to a rule", async () => {
   const repository = new InMemoryAlertRepository();
   const rawEvent = { host: "srv-1", signature: "Example Detection", protocol: "tcp" };

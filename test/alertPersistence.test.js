@@ -317,7 +317,11 @@ test("GET /alerts lists summary alerts with filters and pagination", async () =>
 
   assert.equal(response.status, 200);
   assert.equal(response.body.alerts.length, 1);
-  assert.deepEqual(Object.keys(response.body.alerts[0]).sort(), ["alertId", "createdAt", "eventHash", "severity", "source", "status", "updatedAt"].sort());
+  assert.deepEqual(
+    Object.keys(response.body.alerts[0]).sort(),
+    ["alertId", "aiStatus", "createdAt", "eventHash", "eventType", "host", "severity", "signature", "source", "status", "updatedAt"].sort(),
+  );
+  assert.equal(response.body.alerts[0].aiStatus, "not_analyzed");
   assert.equal(response.body.alerts[0].alertId, "a1");
   assert.equal(response.body.sort.createdAt, "desc");
 });

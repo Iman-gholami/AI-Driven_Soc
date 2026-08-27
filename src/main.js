@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const path = require("node:path");
 const rateLimit = require("express-rate-limit");
 const pinoHttp = require("pino-http");
 const { settings } = require("./core/config");
@@ -17,6 +18,8 @@ if (settings.enableRateLimiting) {
   app.use(rateLimit({ windowMs: 60 * 1000, limit: 60 }));
 }
 
+app.use("/panel", express.static(path.join(__dirname, "../public/panel")));
+app.get("/", (_req, res) => res.redirect("/panel/"));
 app.use(router);
 
 connectMongo(logger).catch((error) => {

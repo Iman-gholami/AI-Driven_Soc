@@ -87,12 +87,7 @@ function aiLabel(status) {
 }
 
 function actionLabel(status) {
-  return {
-    not_analyzed: "AI Analyze",
-    analyzing: "Analyzing…",
-    analyzed: "View AI",
-    failed: "Retry AI",
-  }[status] || "AI Analyze";
+  return status === "analyzing" ? "Analyzing…" : "AI Analyze";
 }
 
 function formatDate(value) {
@@ -172,7 +167,7 @@ function renderRows() {
     tr.innerHTML = `
       <td><span class="badge ${escapeHtml((alert.severity || "unknown").toLowerCase())}">${escapeHtml(alert.severity || "unknown")}</span></td>
       <td>
-        <div class="alert-title" title="${escapeHtml(alert.signature || alert.alertId)}">${escapeHtml(alert.signature || alert.alertId)}</div>
+        <div class="alert-title" title="${escapeHtml(alert.signature || "Alert without signature")}">${escapeHtml(alert.signature || "Alert without signature")}</div>
         <div class="alert-subtitle">${escapeHtml(alert.alertId)}${alert.host ? ` · ${escapeHtml(alert.host)}` : ""}</div>
       </td>
       <td>${ruleCell(alert)}</td>
@@ -397,13 +392,20 @@ function renderAiAnalysis(alert) {
   }
 
   if (!analysis) {
+    const eligibility = alert.aiEligibility || {};
+    const message = eligibility.eligible === false && eligibility.reason === "missing_signature"
+      ? "This alert has no signature. It stays in the analyst queue, but V1 does not send it to the LLM yet. A dedicated scenario can be added later."
+      : eligibility.eligible === false
+        ? "This alert does not currently have a deterministic signature-to-rule match, so V1 will not send it to the LLM."
+        : "No LLM request has been made for this alert. Use Analyze with AI when you want an initial Tier-1 assessment.";
+
     return `
       <section class="section-card">
         <div class="section-title">
           <div><div class="section-kicker">AI Assessment</div><h3>Not analyzed yet</h3></div>
         </div>
         <div class="analysis-copy">
-          <p>No LLM request has been made for this alert. Use <strong>Analyze with AI</strong> when you want an initial Tier-1 assessment.</p>
+          <p>${escapeHtml(message)}</p>
         </div>
       </section>
     `;
@@ -475,15 +477,24 @@ function renderDrawer(alert) {
   ].join("");
 
   const status = alert.aiStatus || (alert.fullAnalysis ? "analyzed" : "not_analyzed");
+  const eligibility = alert.aiEligibility || {};
+  const eligible = eligibility.eligible === true;
+
   els.drawerFooter.hidden = false;
-  els.analyzeButton.disabled = status === "analyzing";
+  els.analyzeButton.disabled = status === "analyzing" || !eligible;
   els.analyzeButton.innerHTML = status === "analyzing"
     ? '<span class="spinner"></span> Analyzing…'
-    : escapeHtml(status === "analyzed" ? "Re-analyze with AI" : status === "failed" ? "Retry AI Analysis" : "Analyze with AI");
+    : escapeHtml(status === "analyzed" ? "Re-analyze with AI" : "Analyze with AI");
 
-  els.analysisHint.textContent = status === "analyzed"
-    ? "A new run will append a fresh summary and replace the latest full analysis."
-    : "LLM analysis runs only after this analyst action.";
+  if (!eligible && eligibility.reason === "missing_signature") {
+    els.analysisHint.textContent = "V1 has no AI analysis scenario for alerts without a signature yet. The alert remains available for analyst review.";
+  } else if (!eligible) {
+    els.analysisHint.textContent = "V1 requires a deterministic signature-to-rule match before sending this alert to the LLM.";
+  } else if (status === "analyzed") {
+    els.analysisHint.textContent = "A new analyst-triggered run will append a fresh summary and replace the latest full analysis.";
+  } else {
+    els.analysisHint.textContent = "Clicking Analyze with AI sends this incident and its matched detection rule to the LLM.";
+  }
 }
 
 async function openAlert(alertId) {
@@ -533,7 +544,11 @@ els.tableBody.addEventListener("click", async (event) => {
     const alertId = button.dataset.alertId;
     const alert = state.alerts.find((item) => item.alertId === alertId);
     await openAlert(alertId);
-    if (alert && ["not_analyzed", "failed"].includes(alert.aiStatus || "not_analyzed")) {
+
+    const status = alert?.aiStatus || "not_analyzed";
+    const eligible = alert?.aiEligibility?.eligible === true;
+
+    if (eligible && ["not_analyzed", "failed"].includes(status)) {
       await analyzeSelected();
     }
     return;

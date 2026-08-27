@@ -19,6 +19,7 @@ class AlertRepository {
         eventHash,
         ruleMatch,
         status: "new",
+        aiStatus: "not_analyzed",
         analysis: undefined,
         fullAnalysis: undefined,
         llmProvider: undefined,
@@ -33,8 +34,11 @@ class AlertRepository {
         },
         processing: {
           attempts: 0,
-          errors: undefined,
+          startedAt: undefined,
           completedAt: undefined,
+          failedAt: undefined,
+          lastError: undefined,
+          errors: undefined,
         },
       },
     };
@@ -46,7 +50,20 @@ class AlertRepository {
     );
   }
 
-  async upsertAnalyzedAlert({ alertId, source, severity, rawEvent, eventHash, analysis, fullAnalysis, ruleMatch, soc, llmProvider, model, processingTimeMs }) {
+  async upsertAnalyzedAlert({
+    alertId,
+    source,
+    severity,
+    rawEvent,
+    eventHash,
+    analysis,
+    fullAnalysis,
+    ruleMatch,
+    soc,
+    llmProvider,
+    model,
+    processingTimeMs,
+  }) {
     return this.alertModel.findOneAndUpdate(
       { $or: [{ alertId }, { eventHash }] },
       {
@@ -63,7 +80,10 @@ class AlertRepository {
           model,
           processingTimeMs,
           status: "analyzed",
+          aiStatus: "analyzed",
           "processing.completedAt": new Date(),
+          "processing.failedAt": undefined,
+          "processing.lastError": undefined,
         },
         $push: { analysis },
         $inc: { "processing.attempts": 1 },
@@ -83,7 +103,7 @@ class AlertRepository {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(safeLimit)
-      .select("alertId source status severity analysis.severity ruleMatch createdAt updatedAt eventHash")
+      .select("alertId source status aiStatus severity analysis.severity ruleMatch createdAt updatedAt eventHash processing")
       .lean();
 
     const [alerts, total] = await Promise.all([
@@ -108,7 +128,33 @@ class AlertRepository {
     return this.alertModel.findOne({ alertId }).lean().exec();
   }
 
-  async updateAnalysis(alertId, { analysis, fullAnalysis, ruleMatch, soc, llmProvider, model, processingTimeMs }) {
+  async markAnalysisStarted(alertId) {
+    return this.alertModel.findOneAndUpdate(
+      {
+        alertId,
+        aiStatus: { $ne: "analyzing" },
+      },
+      {
+        $set: {
+          aiStatus: "analyzing",
+          "processing.startedAt": new Date(),
+          "processing.failedAt": undefined,
+          "processing.lastError": undefined,
+        },
+      },
+      { new: true },
+    );
+  }
+
+  async updateAnalysis(alertId, {
+    analysis,
+    fullAnalysis,
+    ruleMatch,
+    soc,
+    llmProvider,
+    model,
+    processingTimeMs,
+  }) {
     return this.alertModel.findOneAndUpdate(
       { alertId },
       {
@@ -121,9 +167,36 @@ class AlertRepository {
           model,
           processingTimeMs,
           status: "analyzed",
+          aiStatus: "analyzed",
           "processing.completedAt": new Date(),
+          "processing.failedAt": undefined,
+          "processing.lastError": undefined,
         },
         $push: { analysis },
+        $inc: { "processing.attempts": 1 },
+      },
+      { new: true },
+    );
+  }
+
+  async markAnalysisFailed(alertId, error) {
+    const message = String(error?.message || error || "Unknown analysis error").slice(0, 2000);
+    const at = new Date();
+
+    return this.alertModel.findOneAndUpdate(
+      { alertId },
+      {
+        $set: {
+          aiStatus: "failed",
+          "processing.failedAt": at,
+          "processing.lastError": message,
+        },
+        $push: {
+          "processing.errors": {
+            at,
+            message,
+          },
+        },
         $inc: { "processing.attempts": 1 },
       },
       { new: true },

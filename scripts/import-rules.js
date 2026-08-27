@@ -17,8 +17,14 @@ function mapSourceRule(source) {
   }
 
   const revision = Number(source.rev || 0);
+  const parsedRule = parseRawRule(source.raw_rule);
+  if ((!parsedRule.pcre || parsedRule.pcre.length === 0) && source.pcre) {
+    parsedRule.pcre = [String(source.pcre)];
+  }
+
   return {
     ruleId: String(source.rule_id),
+    action: String(source.raw_rule).trim().split(/\s+/, 1)[0].toLowerCase(),
     revision: Number.isFinite(revision) ? revision : 0,
     title: String(source.title).trim(),
     normalizedTitle: normalizeTitle(source.title),
@@ -33,7 +39,7 @@ function mapSourceRule(source) {
     sourcePcre: source.pcre ? String(source.pcre) : undefined,
     rawRule: String(source.raw_rule),
     sourceFile: source.source_file ? String(source.source_file) : undefined,
-    parsedRule: parseRawRule(source.raw_rule),
+    parsedRule,
   };
 }
 

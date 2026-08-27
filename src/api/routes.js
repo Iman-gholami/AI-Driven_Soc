@@ -293,7 +293,7 @@ function toAlertSummary(alert) {
 
 function getAiStatus(alert) {
   if (alert?.aiStatus) return alert.aiStatus;
-  if (alert?.fullAnalysis) return "analyzed";
+  if (alert?.status === "analyzed" || alert?.fullAnalysis) return "analyzed";
   return "not_analyzed";
 }
 

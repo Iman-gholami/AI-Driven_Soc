@@ -92,8 +92,8 @@ class AlertRepository {
     );
   }
 
-  async listAlerts({ status, severity, createdAtFrom, createdAtTo, page = 1, limit = 50 } = {}) {
-    const filters = buildListFilters({ status, severity, createdAtFrom, createdAtTo });
+  async listAlerts({ status, aiStatus, severity, createdAtFrom, createdAtTo, page = 1, limit = 50 } = {}) {
+    const filters = buildListFilters({ status, aiStatus, severity, createdAtFrom, createdAtTo });
     const safePage = Math.max(Number(page) || 1, 1);
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const skip = (safePage - 1) * safeLimit;
@@ -204,10 +204,11 @@ class AlertRepository {
   }
 }
 
-function buildListFilters({ status, severity, createdAtFrom, createdAtTo } = {}) {
+function buildListFilters({ status, aiStatus, severity, createdAtFrom, createdAtTo } = {}) {
   const filters = {};
 
   if (status) filters.status = String(status);
+  if (aiStatus) filters.aiStatus = String(aiStatus);
   if (severity) filters.severity = String(severity);
 
   if (createdAtFrom || createdAtTo) {

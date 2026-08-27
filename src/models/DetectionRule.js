@@ -5,6 +5,7 @@ const { Schema } = mongoose;
 const detectionRuleSchema = new Schema(
   {
     ruleId: { type: String, required: true, trim: true },
+    action: { type: String, default: "alert", trim: true, lowercase: true },
     revision: { type: Number, required: true, min: 0 },
     title: { type: String, required: true, trim: true },
     normalizedTitle: { type: String, required: true, trim: true },

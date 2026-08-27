@@ -290,3 +290,55 @@ The panel keeps three evidence domains visually separate:
 3. **AI Assessment** — the LLM's interpretation, risk/confidence, false-positive reasoning, and investigation recommendations.
 
 The alert queue is paginated and can be filtered by severity or AI state. Filtering is a view concern only; all alerts remain persisted in MongoDB.
+
+
+## Analyst Panel (V1)
+
+The service now serves a lightweight analyst queue at:
+
+```text
+http://<server>:8000/panel/
+```
+
+V1 behavior is intentionally human-in-the-loop:
+
+```text
+All incoming alerts
+      ↓
+Stored in MongoDB
+      ↓
+Rule resolution runs automatically when possible
+      ↓
+Every alert remains visible in the analyst queue
+      ↓
+[ AI Analyze ] action is shown beside every alert
+```
+
+When the analyst clicks **AI Analyze**:
+
+- If the alert has a `Signature` and that signature resolves deterministically to a detection rule, the incident plus matched rule context are sent to the LLM.
+- If the alert has no signature, it stays in the queue but is **not** sent to the LLM in V1. The panel explains that no analysis scenario exists for that alert type yet.
+- If a signature exists but rule resolution is ambiguous or unresolved, V1 does not guess and does not send the alert to the LLM.
+- The AI result is persisted and displayed in a right-side triage drawer alongside **Observed Evidence** and **Detection Rule**.
+- Re-analysis remains analyst-triggered.
+
+The queue exposes these AI lifecycle states:
+
+```text
+not_analyzed
+analyzing
+analyzed
+failed
+```
+
+The API also returns `aiEligibility` per alert so future analysis scenarios can be added without changing the queue contract:
+
+```json
+{
+  "eligible": false,
+  "scenario": "signature_rule_v1",
+  "reason": "missing_signature"
+}
+```
+
+Future scenarios for non-signature alerts, RAG, autonomous search/query tools, and additional telemetry retrieval are intentionally out of scope for this V1.

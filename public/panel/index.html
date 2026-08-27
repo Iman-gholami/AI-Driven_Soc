@@ -3,7 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#ffffff" />
+  <script>
+    try {
+      const savedTheme = localStorage.getItem("soc-panel-theme");
+      document.documentElement.dataset.theme = savedTheme === "dark" ? "dark" : "light";
+    } catch (_) {
+      document.documentElement.dataset.theme = "light";
+    }
+  </script>
   <title>AI-Driven SOC | Analyst Triage</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -23,6 +32,10 @@
           <span class="status-dot"></span>
           Connecting
         </div>
+        <button id="themeButton" class="theme-button" type="button" aria-label="Switch color theme" title="Switch color theme">
+          <span id="themeIcon" class="theme-icon" aria-hidden="true">☾</span>
+          <span id="themeLabel">Dark SOC</span>
+        </button>
         <button id="refreshButton" class="button button-secondary" type="button">
           Refresh
         </button>
@@ -33,7 +46,7 @@
       <section class="hero">
         <div>
           <div class="eyebrow">Analyst Queue</div>
-          <h1>Investigate first. Ask AI when it helps.</h1>
+          <h1>Every alert stays visible. AI joins when you ask.</h1>
           <p>
             Detection rules are enriched automatically. LLM analysis runs only when an analyst
             explicitly requests it.

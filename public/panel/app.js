@@ -7,6 +7,9 @@ const state = {
 
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
+  themeButton: document.querySelector("#themeButton"),
+  themeIcon: document.querySelector("#themeIcon"),
+  themeLabel: document.querySelector("#themeLabel"),
   refreshButton: document.querySelector("#refreshButton"),
   searchInput: document.querySelector("#searchInput"),
   severityFilter: document.querySelector("#severityFilter"),
@@ -30,6 +33,33 @@ const els = {
   closeDrawerButton: document.querySelector("#closeDrawerButton"),
   emptyQueueTemplate: document.querySelector("#emptyQueueTemplate"),
 };
+
+function currentTheme() {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function syncThemeUi() {
+  const theme = currentTheme();
+  const isLight = theme === "light";
+  els.themeIcon.textContent = isLight ? "☾" : "☀";
+  els.themeLabel.textContent = isLight ? "Dark SOC" : "Emerald Light";
+  els.themeButton.setAttribute("aria-label", isLight ? "Switch to dark SOC theme" : "Switch to emerald light theme");
+  els.themeButton.setAttribute("title", isLight ? "Switch to dark SOC theme" : "Switch to emerald light theme");
+
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute("content", isLight ? "#ffffff" : "#07120c");
+}
+
+function toggleTheme() {
+  const nextTheme = currentTheme() === "light" ? "dark" : "light";
+  document.documentElement.dataset.theme = nextTheme;
+  try {
+    localStorage.setItem("soc-panel-theme", nextTheme);
+  } catch (_) {
+    // Theme still works for the current session when storage is unavailable.
+  }
+  syncThemeUi();
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -558,6 +588,7 @@ els.tableBody.addEventListener("click", async (event) => {
   if (row) await openAlert(row.dataset.alertId);
 });
 
+els.themeButton.addEventListener("click", toggleTheme);
 els.refreshButton.addEventListener("click", () => loadAlerts(state.pagination.page));
 els.searchInput.addEventListener("input", renderRows);
 els.severityFilter.addEventListener("change", () => loadAlerts(1));
@@ -571,4 +602,5 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeDrawer();
 });
 
+syncThemeUi();
 loadAlerts(1);

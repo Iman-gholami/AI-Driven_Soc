@@ -265,42 +265,16 @@ AI Initial Analysis
 The AI report is investigation guidance only; it does not perform automated remediation.
 
 
-## Analyst Panel
-
-The service now includes a built-in analyst triage panel at:
-
-```text
-http://<server>:8000/panel/
-```
-
-The queue intentionally shows every ingested alert, regardless of whether AI has analyzed it. Rule enrichment happens automatically during ingestion, but LLM analysis remains analyst-triggered.
-
-Each alert row exposes one contextual AI action:
-
-- `AI Analyze` — no LLM request has been made yet.
-- `Analyzing…` — a request is currently in progress.
-- `View AI` — opens the stored analysis without generating a new request.
-- `Retry AI` — the previous request failed.
-- `Re-analyze with AI` — available inside the incident drawer after a completed analysis.
-
-The panel keeps three evidence domains visually separate:
-
-1. **Observed Evidence** — fields actually received from Splunk.
-2. **Detection Logic** — the deterministically matched rule and its parsed/raw conditions.
-3. **AI Assessment** — the LLM's interpretation, risk/confidence, false-positive reasoning, and investigation recommendations.
-
-The alert queue is paginated and can be filtered by severity or AI state. Filtering is a view concern only; all alerts remain persisted in MongoDB.
-
 
 ## Analyst Panel (V1)
 
-The service now serves a lightweight analyst queue at:
+The service includes a built-in analyst triage panel at:
 
 ```text
 http://<server>:8000/panel/
 ```
 
-V1 behavior is intentionally human-in-the-loop:
+The V1 workflow is intentionally human-in-the-loop:
 
 ```text
 All incoming alerts
@@ -311,18 +285,26 @@ Rule resolution runs automatically when possible
       ↓
 Every alert remains visible in the analyst queue
       ↓
-[ AI Analyze ] action is shown beside every alert
+[ AI Analyze ] is shown beside every alert
 ```
 
 When the analyst clicks **AI Analyze**:
 
 - If the alert has a `Signature` and that signature resolves deterministically to a detection rule, the incident plus matched rule context are sent to the LLM.
-- If the alert has no signature, it stays in the queue but is **not** sent to the LLM in V1. The panel explains that no analysis scenario exists for that alert type yet.
+- If the alert has no signature, it remains visible in the same queue but is **not** sent to the LLM in V1. The drawer explains that no analysis scenario exists for that alert type yet.
 - If a signature exists but rule resolution is ambiguous or unresolved, V1 does not guess and does not send the alert to the LLM.
-- The AI result is persisted and displayed in a right-side triage drawer alongside **Observed Evidence** and **Detection Rule**.
-- Re-analysis remains analyst-triggered.
+- After successful analysis, the result is persisted and displayed in the same incident drawer.
+- Re-analysis remains an explicit analyst action.
 
-The queue exposes these AI lifecycle states:
+The drawer keeps the evidence domains visually separate:
+
+1. **Observed Evidence** — fields actually received from Splunk.
+2. **Detection Logic** — the deterministically matched rule and its parsed/raw conditions.
+3. **AI Assessment** — the LLM interpretation, risk/confidence, false-positive reasoning, and investigation recommendations.
+
+The queue is paginated and can be filtered by severity or AI lifecycle state. Pagination/filtering only changes the view; all alerts remain persisted.
+
+AI lifecycle states:
 
 ```text
 not_analyzed
@@ -331,7 +313,7 @@ analyzed
 failed
 ```
 
-The API also returns `aiEligibility` per alert so future analysis scenarios can be added without changing the queue contract:
+The API exposes `aiEligibility` for every alert:
 
 ```json
 {
@@ -341,4 +323,4 @@ The API also returns `aiEligibility` per alert so future analysis scenarios can 
 }
 ```
 
-Future scenarios for non-signature alerts, RAG, autonomous search/query tools, and additional telemetry retrieval are intentionally out of scope for this V1.
+This keeps the V1 contract extensible without implementing those scenarios yet. Non-signature analysis scenarios, RAG, autonomous query/search tools, and additional telemetry retrieval are intentionally out of scope for the current version.

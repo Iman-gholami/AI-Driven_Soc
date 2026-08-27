@@ -27,6 +27,7 @@ const alertSchema = new Schema(
     alertId: { type: String, required: true, trim: true },
     source: { type: String, default: "unknown", trim: true },
     rawEvent: { type: Schema.Types.Mixed, required: true },
+    ruleMatch: { type: Schema.Types.Mixed, default: undefined },
     analysis: { type: [alertAnalysisSchema], default: undefined },
     status: { type: String, default: "new", enum: ["new", "analyzed"], trim: true },
     severity: { type: String, default: "unknown", trim: true },
@@ -54,5 +55,6 @@ alertSchema.index({ createdAt: -1 });
 alertSchema.index({ severity: 1 });
 alertSchema.index({ "analysis.severity": 1 });
 alertSchema.index({ eventHash: 1 }, { unique: true });
+alertSchema.index({ "ruleMatch.ruleId": 1 });
 
 module.exports = mongoose.models.Alert || mongoose.model("Alert", alertSchema);

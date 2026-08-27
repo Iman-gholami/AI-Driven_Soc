@@ -28,6 +28,7 @@ const alertSchema = new Schema(
     source: { type: String, default: "unknown", trim: true },
     rawEvent: { type: Schema.Types.Mixed, required: true },
     ruleMatch: { type: Schema.Types.Mixed, default: undefined },
+    aiStatus: { type: String, default: "not_analyzed", enum: ["not_analyzed", "analyzing", "analyzed", "failed"], trim: true },
     analysis: { type: [alertAnalysisSchema], default: undefined },
     status: { type: String, default: "new", enum: ["new", "analyzed"], trim: true },
     severity: { type: String, default: "unknown", trim: true },
@@ -39,7 +40,10 @@ const alertSchema = new Schema(
     soc: { type: futureSocFieldsSchema, default: () => ({}) },
     processing: {
       attempts: { type: Number, default: 0, min: 0 },
+      startedAt: { type: Date, default: undefined },
       completedAt: { type: Date, default: undefined },
+      failedAt: { type: Date, default: undefined },
+      lastError: { type: String, default: undefined, trim: true },
       errors: { type: [Schema.Types.Mixed], default: undefined },
     },
   },

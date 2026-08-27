@@ -84,6 +84,7 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
     try {
       const result = await alertRepository.listAlerts({
         status: req.query.status,
+        aiStatus: req.query.aiStatus,
         severity: req.query.severity,
         createdAtFrom: req.query.createdAtFrom || req.query.from,
         createdAtTo: req.query.createdAtTo || req.query.to,
@@ -105,11 +106,30 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
   router.post("/alerts/:id/analyze", async (req, res) => {
     const requestId = crypto.randomUUID();
     const alertId = req.params.id;
+    let analysisStarted = false;
 
     try {
       const alert = await alertRepository.findByAlertId(alertId);
       if (!alert) {
         return res.status(404).json({ detail: "Alert not found" });
+      }
+
+      if (alert.aiStatus === "analyzing") {
+        return res.status(409).json({
+          detail: "Alert analysis is already in progress",
+          aiStatus: "analyzing",
+        });
+      }
+
+      if (typeof alertRepository.markAnalysisStarted === "function") {
+        const startedAlert = await alertRepository.markAnalysisStarted(alertId);
+        if (!startedAlert) {
+          return res.status(409).json({
+            detail: "Alert analysis is already in progress",
+            aiStatus: "analyzing",
+          });
+        }
+        analysisStarted = true;
       }
 
       const analyzed = await analyzer.analyzeStoredAlert(alert);
@@ -118,19 +138,28 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
       req.log.info({ requestId, alertId, processingTimeMs: analyzed.metadata.processingTimeMs }, "alert_analyzed");
       return res.json({
         alertId,
+        aiStatus: "analyzed",
         analysis: analyzed.analysis,
         ruleMatch: analyzed.ruleMatch,
         detectionRule: buildDetectionRuleContext(analyzed.ruleResolution),
         metadata: analyzed.metadata,
       });
     } catch (error) {
+      if (analysisStarted && typeof alertRepository.markAnalysisFailed === "function") {
+        try {
+          await alertRepository.markAnalysisFailed(alertId, error);
+        } catch (persistenceError) {
+          req.log.error({ requestId, alertId, err: persistenceError }, "analysis_failure_state_persist_failed");
+        }
+      }
+
       if (error?.name === "ZodError") {
         req.log.warn({ requestId, alertId, error: error.message }, "invalid_llm_output");
-        return res.status(502).json({ detail: "Invalid model output" });
+        return res.status(502).json({ detail: "Invalid model output", aiStatus: "failed" });
       }
 
       req.log.error({ requestId, alertId, err: error }, "alert_analysis_failed");
-      return res.status(500).json({ detail: "Internal error during alert analysis" });
+      return res.status(500).json({ detail: "Internal error during alert analysis", aiStatus: "failed" });
     }
   });
 
@@ -144,6 +173,7 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
       }
 
       const response = toPlainObject(alert);
+      response.aiStatus = getAiStatus(response);
       if (typeof analyzer.resolveDetectionRule === "function") {
         const ruleResolution = await analyzer.resolveDetectionRule(response.rawEvent || {});
         response.detectionRule = buildDetectionRuleContext(ruleResolution);
@@ -206,13 +236,21 @@ function toAlertSummary(alert) {
     alertId: plain.alertId,
     source: plain.source,
     status: plain.status,
+    aiStatus: getAiStatus(plain),
     severity: plain.severity || plain.analysis?.severity || "unknown",
     createdAt: plain.createdAt,
     updatedAt: plain.updatedAt,
     eventHash: plain.eventHash,
   };
   if (plain.ruleMatch) summary.ruleMatch = plain.ruleMatch;
+  if (plain.processing?.lastError) summary.analysisError = plain.processing.lastError;
   return summary;
+}
+
+function getAiStatus(alert) {
+  if (alert?.aiStatus) return alert.aiStatus;
+  if (alert?.fullAnalysis) return "analyzed";
+  return "not_analyzed";
 }
 
 function getRequestedSocFields(query) {

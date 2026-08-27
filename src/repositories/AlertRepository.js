@@ -208,7 +208,19 @@ function buildListFilters({ status, aiStatus, severity, createdAtFrom, createdAt
   const filters = {};
 
   if (status) filters.status = String(status);
-  if (aiStatus) filters.aiStatus = String(aiStatus);
+  if (aiStatus === "not_analyzed") {
+    filters.$or = [
+      { aiStatus: "not_analyzed" },
+      { aiStatus: { $exists: false }, fullAnalysis: { $exists: false } },
+    ];
+  } else if (aiStatus === "analyzed") {
+    filters.$or = [
+      { aiStatus: "analyzed" },
+      { aiStatus: { $exists: false }, fullAnalysis: { $exists: true } },
+    ];
+  } else if (aiStatus) {
+    filters.aiStatus = String(aiStatus);
+  }
   if (severity) filters.severity = String(severity);
 
   if (createdAtFrom || createdAtTo) {

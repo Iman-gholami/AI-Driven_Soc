@@ -33,6 +33,12 @@ class RuleResolver {
       return matched(candidates[0], matchType, 1);
     }
 
+    const sameRuleId = candidates.every((rule) => String(rule.ruleId) === String(candidates[0].ruleId));
+    if (sameRuleId) {
+      const latest = [...candidates].sort((a, b) => Number(b.revision || 0) - Number(a.revision || 0))[0];
+      return matched(latest, `${matchType}_latest_revision`, candidates.length, [`rule_id:${latest.ruleId}`]);
+    }
+
     const resolution = disambiguateCandidates(candidates, incident);
     if (resolution.rule) {
       return matched(resolution.rule, `${matchType}_${resolution.reason}`, candidates.length, resolution.evidence);

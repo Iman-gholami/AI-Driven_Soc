@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { settings } = require("../core/config");
 const { IncidentAnalyzer, summarizeRuleResolution } = require("../services/analyzer");
 const { buildDetectionRuleContext } = require("../services/contextBuilder");
+const { getIncidentSignature } = require("../services/ruleResolver");
 const { AlertRepository } = require("../repositories/AlertRepository");
 const { createEventHash } = require("../services/eventHash");
 
@@ -121,6 +122,28 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
         });
       }
 
+      const signature = getIncidentSignature(alert.rawEvent || {});
+      if (!signature) {
+        return res.status(422).json({
+          detail: "AI analysis for alerts without a signature is not supported in V1 yet",
+          aiStatus: getAiStatus(alert),
+          analysisScenario: "signature_rule_v1",
+          reason: "missing_signature",
+        });
+      }
+
+      const ruleResolution = await analyzer.resolveDetectionRule(alert.rawEvent || {});
+      if (ruleResolution.status !== "matched") {
+        return res.status(422).json({
+          detail: "A deterministic detection rule match is required before AI analysis in V1",
+          aiStatus: getAiStatus(alert),
+          analysisScenario: "signature_rule_v1",
+          reason: ruleResolution.reason || ruleResolution.status,
+          ruleMatch: summarizeRuleResolution(ruleResolution),
+          detectionRule: buildDetectionRuleContext(ruleResolution),
+        });
+      }
+
       if (typeof alertRepository.markAnalysisStarted === "function") {
         const startedAlert = await alertRepository.markAnalysisStarted(alertId);
         if (!startedAlert) {
@@ -132,7 +155,7 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
         analysisStarted = true;
       }
 
-      const analyzed = await analyzer.analyzeStoredAlert(alert);
+      const analyzed = await analyzer.analyzeStoredAlert(alert, { ruleResolution });
       await alertRepository.updateAnalysis(alertId, analyzed.persistence);
 
       req.log.info({ requestId, alertId, processingTimeMs: analyzed.metadata.processingTimeMs }, "alert_analyzed");

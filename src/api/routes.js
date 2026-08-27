@@ -197,6 +197,11 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
 
       const response = toPlainObject(alert);
       response.aiStatus = getAiStatus(response);
+      response.aiEligibility = getAiEligibility({
+        signature: getIncidentSignature(response.rawEvent || {}),
+        ruleMatch: response.ruleMatch,
+      });
+
       if (typeof analyzer.resolveDetectionRule === "function") {
         const ruleResolution = await analyzer.resolveDetectionRule(response.rawEvent || {});
         response.detectionRule = buildDetectionRuleContext(ruleResolution);

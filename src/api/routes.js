@@ -200,6 +200,10 @@ function createRouter({ analyzer = new IncidentAnalyzer(), alertRepository = new
       if (typeof analyzer.resolveDetectionRule === "function") {
         const ruleResolution = await analyzer.resolveDetectionRule(response.rawEvent || {});
         response.detectionRule = buildDetectionRuleContext(ruleResolution);
+        response.aiEligibility = getAiEligibility({
+          signature: getIncidentSignature(response.rawEvent || {}),
+          ruleMatch: summarizeRuleResolution(ruleResolution),
+        });
       }
 
       const requestedSocFields = getRequestedSocFields(req.query);
@@ -255,22 +259,28 @@ function toPlainObject(document) {
 
 function toAlertSummary(alert) {
   const plain = toPlainObject(alert);
+  const signature = plain.signature
+    || plain.rawEvent?.signature
+    || plain.rawEvent?.Signature
+    || plain.rawEvent?.rule_name
+    || plain.ruleMatch?.title
+    || null;
+
   const summary = {
     alertId: plain.alertId,
     source: plain.source,
-    signature: plain.signature || plain.ruleMatch?.title || undefined,
-    eventType: plain.eventType,
-    host: plain.host,
+    signature,
+    eventType: plain.eventType || plain.rawEvent?.eventtype || null,
+    host: plain.host || plain.rawEvent?.host || null,
     status: plain.status,
     aiStatus: getAiStatus(plain),
+    aiEligibility: getAiEligibility({ signature, ruleMatch: plain.ruleMatch }),
     severity: plain.severity || plain.analysis?.severity || "unknown",
-    signature: plain.rawEvent?.signature || plain.rawEvent?.Signature || plain.rawEvent?.rule_name || null,
-    eventType: plain.rawEvent?.eventtype || null,
-    host: plain.rawEvent?.host || null,
     createdAt: plain.createdAt,
     updatedAt: plain.updatedAt,
     eventHash: plain.eventHash,
   };
+
   if (plain.ruleMatch) summary.ruleMatch = plain.ruleMatch;
   if (plain.processing?.lastError) summary.analysisError = plain.processing.lastError;
   return summary;
@@ -280,6 +290,30 @@ function getAiStatus(alert) {
   if (alert?.aiStatus) return alert.aiStatus;
   if (alert?.fullAnalysis) return "analyzed";
   return "not_analyzed";
+}
+
+function getAiEligibility({ signature, ruleMatch } = {}) {
+  if (!signature) {
+    return {
+      eligible: false,
+      scenario: "signature_rule_v1",
+      reason: "missing_signature",
+    };
+  }
+
+  if (ruleMatch?.status !== "matched") {
+    return {
+      eligible: false,
+      scenario: "signature_rule_v1",
+      reason: ruleMatch?.status || ruleMatch?.reason || "rule_not_matched",
+    };
+  }
+
+  return {
+    eligible: true,
+    scenario: "signature_rule_v1",
+    reason: null,
+  };
 }
 
 function getRequestedSocFields(query) {

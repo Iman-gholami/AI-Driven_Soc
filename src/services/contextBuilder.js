@@ -78,6 +78,7 @@ function buildDetectionRuleContext(ruleResolution) {
     resolution_evidence: ruleResolution.resolutionEvidence || [],
     rule: {
       rule_id: rule.ruleId,
+      action: rule.action || "alert",
       revision: rule.revision,
       title: rule.title,
       classtype: rule.classtype,

@@ -218,3 +218,48 @@ npm test
 ```
 
 The test suite uses Node's built-in test runner and focuses on deterministic event hashing, alert model indexes, repository delegation, MongoDB initialization behavior, persistence failure handling, single and bulk alert ingestion, duplicate overwrite behavior, filtered alert listing, full alert retrieval, and human-triggered AI analysis overwrites.
+
+
+## Detection Rule Enrichment
+
+The V1 analyst workflow can enrich a Splunk incident with the detection rule that produced its `Signature`.
+
+Rules are imported into MongoDB from the JSON-lines dataset format used by this project:
+
+```bash
+export MONGODB_URI="mongodb://localhost:27017/ai-driven-soc"
+npm run import:rules -- /path/to/rules.dataset.json
+```
+
+Each imported `DetectionRule` keeps both searchable fields and the original `raw_rule`. The importer also parses the raw rule to recover `msg`, `flow`, all `content` clauses, PCRE, references, SID/revision metadata, and the rule header fields already present in the dataset.
+
+### Rule resolution
+
+Splunk incidents do not need to contain a Suricata/Snort SID. The resolver uses this conservative order:
+
+1. Exact `Signature` → rule `title` match.
+2. Normalized signature match (case/whitespace normalization).
+3. If multiple rules share the same title, use only deterministic incident evidence such as protocol or rule content that is explicitly present in the incident payload.
+4. If candidates still cannot be distinguished, return `ambiguous` instead of guessing.
+5. If all candidates are revisions of the same `ruleId`, use the latest revision.
+
+The persisted alert stores compact `ruleMatch` metadata. Alert detail and analyze responses also expose `detectionRule` context for an analyst panel.
+
+### LLM evidence boundaries
+
+The LLM receives two separate evidence domains:
+
+- `incident`: telemetry and metadata actually supplied by Splunk.
+- `detection_rule`: the matched detection logic.
+
+The prompt explicitly prevents treating rule conditions as observed event evidence. A `content` or PCRE clause describes what the rule checks for; the model must not claim that value was observed unless it is also present in the incident telemetry.
+
+The intended V1 panel separation is:
+
+```text
+Observed Evidence
+Detection Rule
+AI Initial Analysis
+```
+
+The AI report is investigation guidance only; it does not perform automated remediation.

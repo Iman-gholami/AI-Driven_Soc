@@ -55,6 +55,5 @@ alertSchema.index({ createdAt: -1 });
 alertSchema.index({ severity: 1 });
 alertSchema.index({ "analysis.severity": 1 });
 alertSchema.index({ eventHash: 1 }, { unique: true });
-alertSchema.index({ "ruleMatch.ruleId": 1 });
 
 module.exports = mongoose.models.Alert || mongoose.model("Alert", alertSchema);

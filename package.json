@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/main.js",
     "dev": "node --watch src/main.js",
-    "test": "node --test"
+    "test": "node --test",
+    "import:rules": "node scripts/import-rules.js"
   },
   "dependencies": {
     "dotenv": "^16.5.0",

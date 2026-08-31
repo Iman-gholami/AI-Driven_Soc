@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#ffffff" />
+  <script>
+    try {
+      const savedTheme = localStorage.getItem("soc-panel-theme");
+      document.documentElement.dataset.theme = savedTheme === "dark" ? "dark" : "light";
+    } catch (_) {
+      document.documentElement.dataset.theme = "light";
+    }
+  </script>
+  <title>AI-Driven SOC | Analyst Triage</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">AI</div>
+        <div>
+          <div class="brand-title">AI-Driven SOC</div>
+          <div class="brand-subtitle">Human-in-the-loop incident triage</div>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <div id="apiStatus" class="connection-pill" aria-live="polite">
+          <span class="status-dot"></span>
+          Connecting
+        </div>
+        <button id="themeButton" class="theme-button" type="button" aria-label="Switch color theme" title="Switch color theme">
+          <span id="themeIcon" class="theme-icon" aria-hidden="true">☾</span>
+          <span id="themeLabel">Dark SOC</span>
+        </button>
+        <button id="refreshButton" class="button button-secondary" type="button">
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="hero">
+        <div>
+          <div class="eyebrow">Analyst Queue</div>
+          <h1>Every alert stays visible. AI joins when you ask.</h1>
+          <p>
+            Detection rules are enriched automatically. LLM analysis runs only when an analyst
+            explicitly requests it.
+          </p>
+        </div>
+        <div class="hero-metrics" id="heroMetrics">
+          <div class="metric">
+            <span class="metric-label">Alerts</span>
+            <strong id="metricAlerts">—</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Rule matched</span>
+            <strong id="metricMatched">—</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">AI analyzed</span>
+            <strong id="metricAnalyzed">—</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="queue-card">
+        <div class="queue-toolbar">
+          <div class="search-wrap">
+            <label class="sr-only" for="searchInput">Search alerts</label>
+            <input
+              id="searchInput"
+              class="search-input"
+              type="search"
+              placeholder="Search signature, alert ID, rule ID, source…"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="filters">
+            <label>
+              <span>Severity</span>
+              <select id="severityFilter">
+                <option value="">All</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+                <option value="info">Info</option>
+              </select>
+            </label>
+
+            <label>
+              <span>AI status</span>
+              <select id="aiFilter">
+                <option value="">All</option>
+                <option value="not_analyzed">Not analyzed</option>
+                <option value="analyzing">Analyzing</option>
+                <option value="analyzed">Analyzed</option>
+                <option value="failed">Failed</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div id="queueState" class="queue-state">Loading alerts…</div>
+
+        <div class="table-wrap">
+          <table class="alert-table">
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Alert</th>
+                <th>Detection rule</th>
+                <th>AI status</th>
+                <th>Received</th>
+                <th class="align-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="alertTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <div id="paginationInfo" class="pagination-info">—</div>
+          <div class="pagination-actions">
+            <button id="prevPageButton" class="button button-secondary" type="button">Previous</button>
+            <button id="nextPageButton" class="button button-secondary" type="button">Next</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+
+  <aside
+    id="triageDrawer"
+    class="triage-drawer"
+    aria-hidden="true"
+    aria-label="Incident triage details"
+  >
+    <div class="drawer-header">
+      <div>
+        <div class="eyebrow">Incident workspace</div>
+        <h2 id="drawerTitle">Alert details</h2>
+        <div id="drawerMeta" class="drawer-meta"></div>
+      </div>
+      <button id="closeDrawerButton" class="icon-button" type="button" aria-label="Close">
+        ×
+      </button>
+    </div>
+
+    <div id="drawerBody" class="drawer-body">
+      <div class="drawer-loading">Select an alert to inspect it.</div>
+    </div>
+
+    <div id="drawerFooter" class="drawer-footer" hidden>
+      <div id="analysisHint" class="analysis-hint"></div>
+      <button id="analyzeButton" class="button button-primary" type="button">
+        Analyze with AI
+      </button>
+    </div>
+  </aside>
+
+  <template id="emptyQueueTemplate">
+    <tr>
+      <td colspan="6">
+        <div class="empty-state">
+          <strong>No alerts match this view.</strong>
+          <span>Try changing the search or filters.</span>
+        </div>
+      </td>
+    </tr>
+  </template>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

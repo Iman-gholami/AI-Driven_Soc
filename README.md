@@ -218,3 +218,109 @@ npm test
 ```
 
 The test suite uses Node's built-in test runner and focuses on deterministic event hashing, alert model indexes, repository delegation, MongoDB initialization behavior, persistence failure handling, single and bulk alert ingestion, duplicate overwrite behavior, filtered alert listing, full alert retrieval, and human-triggered AI analysis overwrites.
+
+
+## Detection Rule Enrichment
+
+The V1 analyst workflow can enrich a Splunk incident with the detection rule that produced its `Signature`.
+
+Rules are imported into MongoDB from the JSON-lines dataset format used by this project:
+
+```bash
+export MONGODB_URI="mongodb://localhost:27017/ai-driven-soc"
+npm run import:rules -- /path/to/rules.dataset.json
+```
+
+Each imported `DetectionRule` keeps both searchable fields and the original `raw_rule`. The importer also parses the raw rule to recover `msg`, `flow`, all `content` clauses, PCRE, references, SID/revision metadata, and the rule header fields already present in the dataset.
+
+### Rule resolution
+
+Splunk incidents do not need to contain a Suricata/Snort SID. The resolver uses this conservative order:
+
+1. Exact `Signature` → rule `title` match.
+2. Normalized signature match (case/whitespace normalization).
+3. If multiple rules share the same title, use only deterministic incident evidence such as protocol or rule content that is explicitly present in the incident payload.
+4. If candidates still cannot be distinguished, return `ambiguous` instead of guessing.
+5. If all candidates are revisions of the same `ruleId`, use the latest revision.
+
+The persisted alert stores compact `ruleMatch` metadata. Alert detail and analyze responses also expose `detectionRule` context for an analyst panel.
+
+### LLM evidence boundaries
+
+The LLM receives two separate evidence domains:
+
+- `incident`: telemetry and metadata actually supplied by Splunk.
+- `detection_rule`: the matched detection logic.
+
+The prompt explicitly prevents treating rule conditions as observed event evidence. A `content` or PCRE clause describes what the rule checks for; the model must not claim that value was observed unless it is also present in the incident telemetry.
+
+The intended V1 panel separation is:
+
+```text
+Observed Evidence
+Detection Rule
+AI Initial Analysis
+```
+
+The AI report is investigation guidance only; it does not perform automated remediation.
+
+
+
+## Analyst Panel (V1)
+
+The service includes a built-in analyst triage panel at:
+
+```text
+http://<server>:8000/panel/
+```
+
+The V1 workflow is intentionally human-in-the-loop:
+
+```text
+All incoming alerts
+      ↓
+Stored in MongoDB
+      ↓
+Rule resolution runs automatically when possible
+      ↓
+Every alert remains visible in the analyst queue
+      ↓
+[ AI Analyze ] is shown beside every alert
+```
+
+When the analyst clicks **AI Analyze**:
+
+- If the alert has a `Signature` and that signature resolves deterministically to a detection rule, the incident plus matched rule context are sent to the LLM.
+- If the alert has no signature, it remains visible in the same queue but is **not** sent to the LLM in V1. The drawer explains that no analysis scenario exists for that alert type yet.
+- If a signature exists but rule resolution is ambiguous or unresolved, V1 does not guess and does not send the alert to the LLM.
+- After successful analysis, the result is persisted and displayed in the same incident drawer.
+- Re-analysis remains an explicit analyst action.
+
+The drawer keeps the evidence domains visually separate:
+
+1. **Observed Evidence** — fields actually received from Splunk.
+2. **Detection Logic** — the deterministically matched rule and its parsed/raw conditions.
+3. **AI Assessment** — the LLM interpretation, risk/confidence, false-positive reasoning, and investigation recommendations.
+
+The queue is paginated and can be filtered by severity or AI lifecycle state. Pagination/filtering only changes the view; all alerts remain persisted.
+
+AI lifecycle states:
+
+```text
+not_analyzed
+analyzing
+analyzed
+failed
+```
+
+The API exposes `aiEligibility` for every alert:
+
+```json
+{
+  "eligible": false,
+  "scenario": "signature_rule_v1",
+  "reason": "missing_signature"
+}
+```
+
+This keeps the V1 contract extensible without implementing those scenarios yet. Non-signature analysis scenarios, RAG, autonomous query/search tools, and additional telemetry retrieval are intentionally out of scope for the current version.

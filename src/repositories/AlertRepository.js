@@ -9,15 +9,20 @@ class AlertRepository {
     return this.alertModel.create(alertRecord);
   }
 
-  async upsertNewAlert({ alertId, source, severity, rawEvent, eventHash }) {
+  async upsertNewAlert({ alertId, source, severity, rawEvent, eventHash, ruleMatch }) {
     const update = {
       $set: {
         alertId,
         source,
+        signature: getRawSignature(rawEvent),
+        eventType: rawEvent?.eventtype ? String(rawEvent.eventtype) : undefined,
+        host: rawEvent?.host ? String(rawEvent.host) : undefined,
         severity: severity || "unknown",
         rawEvent,
         eventHash,
+        ruleMatch,
         status: "new",
+        aiStatus: "not_analyzed",
         analysis: undefined,
         fullAnalysis: undefined,
         llmProvider: undefined,
@@ -32,8 +37,11 @@ class AlertRepository {
         },
         processing: {
           attempts: 0,
-          errors: undefined,
+          startedAt: undefined,
           completedAt: undefined,
+          failedAt: undefined,
+          lastError: undefined,
+          errors: undefined,
         },
       },
     };
@@ -45,16 +53,32 @@ class AlertRepository {
     );
   }
 
-
-  async upsertAnalyzedAlert({ alertId, source, severity, rawEvent, eventHash, analysis, fullAnalysis, soc, llmProvider, model, processingTimeMs }) {
+  async upsertAnalyzedAlert({
+    alertId,
+    source,
+    severity,
+    rawEvent,
+    eventHash,
+    analysis,
+    fullAnalysis,
+    ruleMatch,
+    soc,
+    llmProvider,
+    model,
+    processingTimeMs,
+  }) {
     return this.alertModel.findOneAndUpdate(
       { $or: [{ alertId }, { eventHash }] },
       {
         $set: {
           alertId,
           source,
+          signature: getRawSignature(rawEvent),
+          eventType: rawEvent?.eventtype ? String(rawEvent.eventtype) : undefined,
+          host: rawEvent?.host ? String(rawEvent.host) : undefined,
           rawEvent,
           eventHash,
+          ruleMatch,
           severity: analysis?.severity || severity || "unknown",
           fullAnalysis,
           soc,
@@ -62,7 +86,10 @@ class AlertRepository {
           model,
           processingTimeMs,
           status: "analyzed",
+          aiStatus: "analyzed",
           "processing.completedAt": new Date(),
+          "processing.failedAt": undefined,
+          "processing.lastError": undefined,
         },
         $push: { analysis },
         $inc: { "processing.attempts": 1 },
@@ -71,8 +98,8 @@ class AlertRepository {
     );
   }
 
-  async listAlerts({ status, severity, createdAtFrom, createdAtTo, page = 1, limit = 50 } = {}) {
-    const filters = buildListFilters({ status, severity, createdAtFrom, createdAtTo });
+  async listAlerts({ status, aiStatus, severity, createdAtFrom, createdAtTo, page = 1, limit = 50 } = {}) {
+    const filters = buildListFilters({ status, aiStatus, severity, createdAtFrom, createdAtTo });
     const safePage = Math.max(Number(page) || 1, 1);
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const skip = (safePage - 1) * safeLimit;
@@ -82,7 +109,7 @@ class AlertRepository {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(safeLimit)
-      .select("alertId source status severity analysis.severity createdAt updatedAt eventHash")
+      .select("alertId source signature eventType host status aiStatus severity analysis.severity ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host createdAt updatedAt eventHash processing")
       .lean();
 
     const [alerts, total] = await Promise.all([
@@ -107,11 +134,38 @@ class AlertRepository {
     return this.alertModel.findOne({ alertId }).lean().exec();
   }
 
-  async updateAnalysis(alertId, { analysis, fullAnalysis, soc, llmProvider, model, processingTimeMs }) {
+  async markAnalysisStarted(alertId) {
+    return this.alertModel.findOneAndUpdate(
+      {
+        alertId,
+        aiStatus: { $ne: "analyzing" },
+      },
+      {
+        $set: {
+          aiStatus: "analyzing",
+          "processing.startedAt": new Date(),
+          "processing.failedAt": undefined,
+          "processing.lastError": undefined,
+        },
+      },
+      { new: true },
+    );
+  }
+
+  async updateAnalysis(alertId, {
+    analysis,
+    fullAnalysis,
+    ruleMatch,
+    soc,
+    llmProvider,
+    model,
+    processingTimeMs,
+  }) {
     return this.alertModel.findOneAndUpdate(
       { alertId },
       {
         $set: {
+          ruleMatch,
           severity: analysis?.severity || "unknown",
           fullAnalysis,
           soc,
@@ -119,7 +173,10 @@ class AlertRepository {
           model,
           processingTimeMs,
           status: "analyzed",
+          aiStatus: "analyzed",
           "processing.completedAt": new Date(),
+          "processing.failedAt": undefined,
+          "processing.lastError": undefined,
         },
         $push: { analysis },
         $inc: { "processing.attempts": 1 },
@@ -127,12 +184,54 @@ class AlertRepository {
       { new: true },
     );
   }
+
+  async markAnalysisFailed(alertId, error) {
+    const message = String(error?.message || error || "Unknown analysis error").slice(0, 2000);
+    const at = new Date();
+
+    return this.alertModel.findOneAndUpdate(
+      { alertId },
+      {
+        $set: {
+          aiStatus: "failed",
+          "processing.failedAt": at,
+          "processing.lastError": message,
+        },
+        $push: {
+          "processing.errors": {
+            at,
+            message,
+          },
+        },
+        $inc: { "processing.attempts": 1 },
+      },
+      { new: true },
+    );
+  }
 }
 
-function buildListFilters({ status, severity, createdAtFrom, createdAtTo } = {}) {
+function getRawSignature(rawEvent) {
+  const value = rawEvent?.signature || rawEvent?.Signature || rawEvent?.rule_name || rawEvent?.ruleName;
+  return value ? String(value).trim() : undefined;
+}
+
+function buildListFilters({ status, aiStatus, severity, createdAtFrom, createdAtTo } = {}) {
   const filters = {};
 
   if (status) filters.status = String(status);
+  if (aiStatus === "not_analyzed") {
+    filters.$or = [
+      { aiStatus: "not_analyzed" },
+      { aiStatus: { $exists: false }, fullAnalysis: { $exists: false } },
+    ];
+  } else if (aiStatus === "analyzed") {
+    filters.$or = [
+      { aiStatus: "analyzed" },
+      { aiStatus: { $exists: false }, fullAnalysis: { $exists: true } },
+    ];
+  } else if (aiStatus) {
+    filters.aiStatus = String(aiStatus);
+  }
   if (severity) filters.severity = String(severity);
 
   if (createdAtFrom || createdAtTo) {

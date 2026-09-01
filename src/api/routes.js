@@ -12,6 +12,7 @@ const { createEventHash } = require('../services/eventHash');
 const { getAllAlerts } = require('./controllers/alerts.controller');
 const ruleController = require('./controllers/rules.controller');
 const multer = require('multer');
+const { successResponse } = require('../utils/response');
 
 // Configure multer for file upload
 const upload = multer({
@@ -30,11 +31,6 @@ function createRouter({
 
   router.post('/analyze-incident', async (req, res) => {
     const requestId = crypto.randomUUID();
-    const payloadLength = Number(req.headers['content-length'] || 0);
-
-    if (payloadLength > settings.maxPayloadSizeBytes) {
-      return res.status(413).json({ detail: 'Payload too large' });
-    }
 
     req.log.info(
       { requestId, keys: Object.keys(req.body || {}).slice(0, 30) },
@@ -44,7 +40,7 @@ function createRouter({
     try {
       const response = await analyzer.analyzeIncident(req.body || {});
       req.log.info({ requestId }, 'incident_analyzed');
-      return res.json(response);
+      return successResponse(res,response);
     } catch (error) {
       if (error?.name === 'ZodError') {
         req.log.warn({ requestId, error: error.message }, 'invalid_llm_output');
@@ -173,7 +169,7 @@ function createRouter({
         },
         'alert_analyzed',
       );
-      return res.json({
+      return successResponse(res,{
         alertId,
         aiStatus: 'analyzed',
         analysis: analyzed.analysis,

@@ -9,12 +9,11 @@ const { buildDetectionRuleContext } = require('../services/contextBuilder');
 const { getIncidentSignature } = require('../services/ruleResolver');
 const { AlertRepository } = require('../repositories/AlertRepository');
 const { createEventHash } = require('../services/eventHash');
-const { getAllAlerts } = require('./controllers/alerts.controller');
+const { createGetAllAlerts } = require('./controllers/alerts.controller');
 const ruleController = require('./controllers/rules.controller');
 const multer = require('multer');
 const { successResponse } = require('../utils/response');
 
-// Configure multer for file upload
 const upload = multer({
   dest: 'uploads/'
 });
@@ -99,7 +98,7 @@ function createRouter({
     }
   });
 
-  router.get('/alerts', getAllAlerts);
+  router.get('/alerts', createGetAllAlerts({ alertRepository }));
 
   router.post('/alerts/:id/analyze', async (req, res) => {
     const requestId = crypto.randomUUID();
@@ -112,11 +111,8 @@ function createRouter({
         return res.status(404).json({ detail: 'Alert not found' });
       }
 
-      // Analysis is persisted and reused. Do not call the LLM again for an
-      // alert that already has a completed analysis. A dedicated re-analysis
-      // action can be added later if an explicit fresh LLM run is required.
       if ((alert.aiStatus === 'analyzed' || alert.status === 'analyzed') && alert.fullAnalysis) {
-        return successResponse(res, {
+        const data = {
           alertId,
           aiStatus: 'analyzed',
           analysis: alert.fullAnalysis,
@@ -128,6 +124,13 @@ function createRouter({
             processingTimeMs: alert.processingTimeMs ?? null,
             cached: true,
           },
+        };
+        return res.status(200).json({
+          success: true,
+          message: 'Success',
+          data,
+          ...data,
+          timestamp: new Date().toISOString(),
         });
       }
 
@@ -188,13 +191,20 @@ function createRouter({
         },
         'alert_analyzed',
       );
-      return successResponse(res,{
+      const data = {
         alertId,
         aiStatus: 'analyzed',
         analysis: analyzed.analysis,
         ruleMatch: analyzed.ruleMatch,
         detectionRule: buildDetectionRuleContext(analyzed.ruleResolution),
         metadata: analyzed.metadata,
+      };
+      return res.status(200).json({
+        success: true,
+        message: 'Success',
+        data,
+        ...data,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       if (

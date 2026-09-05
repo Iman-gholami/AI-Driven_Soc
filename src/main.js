@@ -21,7 +21,13 @@ if (settings.enableRateLimiting) {
   app.use(rateLimit({ windowMs: 60 * 1000, limit: 60 }));
 }
 
-app.use("/panel", express.static(path.join(__dirname, "../public/panel")));
+// Serve the user's React panel after `cd panel-ui && npm ci && npm run build`.
+app.use("/panel", express.static(path.join(__dirname, "../panel-ui/dist")));
+app.get("/panel", (_req, res) => res.redirect("/panel/"));
+app.get("/panel/*", (req, res, next) => {
+  if (path.extname(req.path)) return next();
+  return res.sendFile(path.join(__dirname, "../panel-ui/dist/index.html"));
+});
 app.get("/", (_req, res) => res.redirect("/panel/"));
 app.use(router);
 

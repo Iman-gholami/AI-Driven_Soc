@@ -1,7 +1,57 @@
 const crypto = require('crypto');
 const { AlertRepository } = require('../../repositories/AlertRepository');
-const alertRepository = new AlertRepository();
+const defaultAlertRepository = new AlertRepository();
 const { successResponse } = require('../../utils/response');
+
+function createGetAllAlerts({ alertRepository = defaultAlertRepository } = {}) {
+  return async (req, res) => {
+    const requestId = crypto.randomUUID();
+
+    try {
+      const result = await alertRepository.listAlerts({
+        status: req.query.status,
+        aiStatus: req.query.aiStatus,
+        severity: req.query.severity,
+        createdAtFrom: req.query.createdAtFrom || req.query.from,
+        createdAtTo: req.query.createdAtTo || req.query.to,
+        page: req.query.page,
+        limit: req.query.limit,
+      });
+
+      const alerts = result.alerts.map(toAlertSummary);
+      req.log.info(
+        { requestId, count: alerts.length, filters: result.filters },
+        'alerts_listed',
+      );
+
+      // Keep the current success envelope while also exposing the legacy
+      // top-level list fields used by existing API consumers.
+      const data = {
+        alerts,
+        pagination: result.pagination,
+        filters: result.filters,
+        sort: result.sort,
+      };
+      return res.status(200).json({
+        success: true,
+        message: 'Success',
+        data,
+        alerts,
+        pagination: result.pagination,
+        filters: result.filters,
+        sort: result.sort,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      req.log.error({ requestId, err: error }, 'alerts_list_failed');
+      return res
+        .status(500)
+        .json({ detail: 'Internal error while listing alerts' });
+    }
+  };
+}
+
+const getAllAlerts = createGetAllAlerts();
 
 function toAlertSummary(alert) {
   const plain = toPlainObject(alert);
@@ -71,34 +121,7 @@ function toPlainObject(document) {
   return { ...document };
 }
 
-// Main Controller
-const getAllAlerts = async (req, res) => {
-  const requestId = crypto.randomUUID();
-
-  try {
-    const result = await alertRepository.listAlerts({
-      status: req.query.status,
-      aiStatus: req.query.aiStatus,
-      severity: req.query.severity,
-      createdAtFrom: req.query.createdAtFrom || req.query.from,
-      createdAtTo: req.query.createdAtTo || req.query.to,
-      page: req.query.page,
-      limit: req.query.limit,
-    });
-
-    req.log.info(
-      { requestId, count: result.alerts.length, filters: result.filters },
-      'alerts_listed',
-    );
-    return successResponse(res, result.alerts.map(toAlertSummary));
-  } catch (error) {
-    req.log.error({ requestId, err: error }, 'alerts_list_failed');
-    return res
-      .status(500)
-      .json({ detail: 'Internal error while listing alerts' });
-  }
-};
-
 module.exports = {
   getAllAlerts,
+  createGetAllAlerts,
 };

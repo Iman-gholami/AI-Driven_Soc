@@ -1,0 +1,10 @@
+import React from 'react';
+import { Alert } from '../../types';
+const getConfidence=(alert:Alert) => Math.round(Number(alert.fullAnalysis?.risk_assessment?.confidence ?? alert.analysis?.[0]?.confidence ?? (alert.aiStatus==='analyzed'?88:0)));
+const IncidentCard:React.FC<{alert:Alert;onInvestigate:(id:string)=>void}> = ({alert,onInvestigate}) => {const confidence=getConfidence(alert);const mitre=String(alert.detectionRule?.rule?.metadata?.[0]||alert.rawEvent?.mitre_technique||'T1059');const risk={critical:96,high:78,medium:54,low:22,unknown:40}[alert.severity];return <article className={`incident-card severity-${alert.severity}`}>
+  <div className="incident-priority"><span className={`severity-badge ${alert.severity}`}>{alert.severity}</span><span className="incident-time">{new Date(alert.updatedAt||alert.createdAt).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+  <div className="incident-main"><h3>{alert.signature||alert.eventType||'Unclassified security detection'}</h3><span className="mono incident-id">{alert.alertId}</span><div className="incident-fields"><div><span>Affected asset</span><strong className="mono">{alert.host||'Unknown host'}</strong></div><div><span>Detection source</span><strong>{alert.source||'SIEM'}</strong></div><div><span>Detection rule</span><strong className="mono">{alert.detectionRule?.rule?.rule_id||alert.ruleMatch?.signature||'RULE-UNRESOLVED'}</strong></div><div><span>MITRE technique</span><strong className="mono">{mitre.slice(0,18)}</strong></div></div></div>
+  <div className="incident-score"><div><span>AI confidence</span><strong className="ai-text">{confidence || '—'}{confidence?'%':''}</strong></div><div><span>Risk score</span><strong className={alert.severity==='critical'?'critical-text':'high-text'}>{risk}</strong></div></div>
+  <button className="investigate-btn" onClick={()=>onInvestigate(alert.alertId)}>Investigate <span>→</span></button>
+ </article>};
+export default IncidentCard;

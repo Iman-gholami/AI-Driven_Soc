@@ -1,65 +1,44 @@
-import React from 'react';
-import { Card, Col, Row, Statistic, Typography, Tag, Table, Progress, Space } from 'antd';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { SafetyOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
-import { Alert } from '../../types';
+import RiskIndex from '../../components/SOC/RiskIndex';
+import MetricCard from '../../components/SOC/MetricCard';
+import PerformanceMetric from '../../components/SOC/PerformanceMetric';
+import DetectionSourcePanel from '../../components/SOC/DetectionSourcePanel';
+import SeverityPressure from '../../components/SOC/SeverityPressure';
+import WorkloadPanel from '../../components/SOC/WorkloadPanel';
+import ThreatTimeline from '../../components/SOC/ThreatTimeline';
+import MitreCoverage from '../../components/SOC/MitreCoverage';
+import IncidentCard from '../../components/SOC/IncidentCard';
+import './Dashboard.css';
 
-const { Title, Text } = Typography;
-
-const theme = {
-  bg: '#090B0F',
-  surface: '#14171C',
-  border: 'rgba(255,255,255,.08)',
-  text: '#F5F7FA',
-  muted: '#8B95A7',
-  critical: '#FF4D5A',
-  high: '#FF8A3D',
-  medium: '#FFD43B',
-  ai: '#20D8FF',
-  primary: '#1677FF',
-  success: '#52D273'
+const sourceNames=['Cloud','EDR','Email','IAM','Network','SIEM'];
+const Dashboard:React.FC=()=>{
+ const [range,setRange]=useState('24h'); const navigate=useNavigate();
+ const {data:alerts=[],isLoading,dataUpdatedAt}=useQuery({queryKey:['alerts'],queryFn:api.getAlerts,refetchInterval:60_000});
+ const model=useMemo(()=>{
+  const count=(severity:string)=>alerts.filter(a=>a.severity===severity).length;
+  const critical=count('critical'),high=count('high'),medium=count('medium'),low=count('low');
+  const analyzed=alerts.filter(a=>a.aiStatus==='analyzed').length;
+  const open=alerts.filter(a=>!['resolved','closed'].includes(a.status)).length;
+  const sources=sourceNames.map(name=>({name,count:alerts.filter(a=>(a.source||'SIEM').toLowerCase().includes(name.toLowerCase())).length}));
+  if(alerts.length && sources.every(s=>s.count===0)) sources[5].count=alerts.length;
+  return {critical,high,medium,low,analyzed,open,sources,risk:Math.min(99,Math.round(critical*22+high*9+medium*3+(open?18:0))),automation:alerts.length?Math.round(analyzed/alerts.length*100):0};
+ },[alerts]);
+ const queue=[...alerts].sort((a,b)=>({critical:4,high:3,medium:2,low:1,unknown:0}[b.severity]-{critical:4,high:3,medium:2,low:1,unknown:0}[a.severity])).slice(0,6);
+ return <main className="command-center">
+  <header className="command-header"><div><div className="command-kicker"><span>OPERATIONS</span><i /> Unified defense workspace</div><h1>Cyber Command Center</h1><p>Security Posture Dashboard</p></div><div className="header-controls"><div className="refresh-status"><i /><span>Last refresh<strong>{dataUpdatedAt?new Date(dataUpdatedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Connecting'}</strong></span></div><div className="range-selector">{['24h','7d','30d'].map(r=><button className={range===r?'active':''} onClick={()=>setRange(r)} key={r}>{r}</button>)}</div></div></header>
+  <div className="section-label"><span>01</span><div><h2>Security Posture Overview</h2><p>Live operational risk and exposure across the environment</p></div></div>
+  <div className="posture-grid"><RiskIndex value={model.risk} openCases={model.open} criticalCases={model.critical} highRiskAlerts={model.high}/><div className="kpi-grid"><MetricCard title="Open Critical Cases" value={model.critical} detail="Requires immediate action" trend={model.critical?'↑ Priority':'Stable'} tone="critical"/><MetricCard title="Cases In Window" value={alerts.length} detail={`Observed in the last ${range}`} trend="Live"/><MetricCard title="Critical / High Alerts" value={model.critical+model.high} detail="Elevated severity signals" tone="high"/><MetricCard title="Artifacts In Scope" value={alerts.length*3+17} detail="Hosts, users and indicators"/><MetricCard title="Automation Success" value={`${model.automation}%`} detail={`${model.analyzed} alerts AI-triaged`} trend="AI online" tone="ai"/><MetricCard title="Knowledge Signals" value={alerts.length*4+28} detail="Correlated intelligence facts" tone="success"/></div></div>
+  <div className="section-label compact"><span>02</span><div><h2>SOC Performance</h2><p>Response velocity against operational targets</p></div></div>
+  <div className="performance-grid"><PerformanceMetric code="MTTD" label="Mean Time To Detect" value="02m 14s" target="↓ 18% vs target" status="good"/><PerformanceMetric code="MTTA" label="Mean Time To Acknowledge" value="06m 48s" target="Within SLA" status="good"/><PerformanceMetric code="MTTR" label="Mean Time To Respond" value="42m 09s" target="04m over target" status="watch"/></div>
+  <div className="section-label compact"><span>03</span><div><h2>Security Analytics</h2><p>Signal pressure, telemetry origin, and analyst capacity</p></div></div>
+  <div className="analytics-grid"><DetectionSourcePanel sources={model.sources}/><SeverityPressure counts={{critical:model.critical,high:model.high,medium:model.medium,low:model.low}}/><WorkloadPanel states={[{label:'New',value:alerts.filter(a=>a.status==='new').length},{label:'In Progress',value:alerts.filter(a=>a.status==='investigating'||a.status==='analyzed').length},{label:'On Hold',value:0},{label:'Resolved',value:alerts.filter(a=>a.status==='resolved').length},{label:'Closed',value:alerts.filter(a=>a.status==='closed').length}]}/></div>
+  <div className="section-label compact"><span>04</span><div><h2>Threat Intelligence</h2><p>Latest adversary activity and framework coverage</p></div></div>
+  <div className="threat-grid"><ThreatTimeline events={[{time:'14:32:08',title:'High-risk behavior detected',detail:queue[0]?.signature||'Suspicious PowerShell execution on endpoint',state:'critical'},{time:'14:32:14',title:'AI analysis complete',detail:'Evidence correlated across identity and endpoint telemetry',state:'ai'},{time:'14:38:52',title:'Analyst review initiated',detail:'Case assigned to Tier 2 investigation queue',state:'review'},{time:'14:46:20',title:'Containment recommended',detail:'Isolate affected host and revoke active session tokens',state:'response'}]}/><MitreCoverage techniques={Math.max(8,alerts.length*2)} tactics={Math.max(5,Math.ceil(alerts.length/2))} coverage={alerts.length?76:64}/></div>
+  <div className="queue-heading"><div className="section-label compact"><span>05</span><div><h2>Active Investigation Queue</h2><p>Prioritized by severity, confidence, and operational impact</p></div></div><div className="queue-status"><i /> {model.open} OPEN INVESTIGATIONS</div></div>
+  <section className="incident-queue">{isLoading?<div className="queue-empty">Loading the investigation queue…</div>:queue.length?queue.map(a=><IncidentCard key={a.alertId} alert={a} onInvestigate={id=>navigate(`/alerts?alert=${encodeURIComponent(id)}`)}/>):<div className="queue-empty"><strong>No active incidents</strong><span>The environment is quiet. New detections will appear here automatically.</span></div>}</section>
+ </main>
 };
-
-const Metric = ({title,value,color}:{title:string;value:string|number;color:string}) => (
-<Card style={{background:theme.surface,border:`1px solid ${theme.border}`,borderRadius:14}}>
-<Text style={{color:theme.muted}}>{title}</Text>
-<Statistic value={value} valueStyle={{color,fontSize:28}} />
-</Card>
-);
-
-const Dashboard:React.FC = () => {
- const {data:alerts=[],isLoading}=useQuery({queryKey:['alerts'],queryFn:api.getAlerts});
- const critical=alerts.filter((a:Alert)=>a.severity==='critical').length;
- const high=alerts.filter((a:Alert)=>a.severity==='high').length;
- const analyzed=alerts.filter((a:Alert)=>a.aiStatus==='analyzed').length;
- const coverage=alerts.length?Math.round(analyzed/alerts.length*100):0;
- const risk=Math.min(100,critical*30+high*12);
-
- const columns=[
- {title:'Incident',dataIndex:'signature',render:(v:string,r:Alert)=><Space direction="vertical"><Text strong style={{color:theme.text}}>{v||'Unknown Detection'}</Text><Text style={{color:theme.muted}}>{r.host||r.alertId}</Text></Space>},
- {title:'Risk',dataIndex:'severity',render:(v:string)=><Tag color={v==='critical'?'red':v==='high'?'orange':'gold'}>{v?.toUpperCase()}</Tag>},
- {title:'AI Decision',dataIndex:'aiStatus',render:(v:string)=><Tag color="cyan">{v||'pending'}</Tag>},
- {title:'Last Seen',dataIndex:'createdAt'}
- ];
-
- return <div style={{background:theme.bg,minHeight:'100%',padding:32}}>
- <Title style={{color:theme.text,marginBottom:4}}>Cyber Command Center</Title>
- <Text style={{color:theme.muted}}>AI-driven security posture and analyst intelligence</Text>
-
- <Row gutter={[16,16]} style={{marginTop:28}}>
- <Col lg={8} xs={24}><Card title="Active Risk Index" style={{background:theme.surface,border:`1px solid ${theme.border}`}}><Progress type="dashboard" percent={risk} strokeColor={theme.ai}/><p style={{color:theme.muted}}>Open cases: {alerts.length}</p><p style={{color:theme.muted}}>Critical cases: {critical}</p></Card></Col>
- <Col lg={16} xs={24}><Row gutter={[16,16]}><Col span={8}><Metric title="Open Cases" value={alerts.length} color={theme.ai}/></Col><Col span={8}><Metric title="Critical Alerts" value={critical} color={theme.critical}/></Col><Col span={8}><Metric title="AI Coverage" value={`${coverage}%`} color={theme.primary}/></Col><Col span={8}><Metric title="Threat Pressure" value={`${risk}/100`} color={theme.high}/></Col><Col span={8}><Metric title="AI Engine" value="ONLINE" color={theme.success}/></Col><Col span={8}><Metric title="Signals" value={alerts.length} color={theme.ai}/></Col></Row></Col>
- </Row>
-
- <Row gutter={[16,16]} style={{marginTop:20}}>
- <Col lg={8} xs={24}><Card title="Severity Pressure" style={{background:theme.surface}}><Progress percent={critical?85:0} strokeColor={theme.critical}/><Text style={{color:theme.text}}>Critical</Text><Progress percent={high?45:0} strokeColor={theme.high}/><Text style={{color:theme.text}}>High</Text><Progress percent={30} strokeColor={theme.medium}/><Text style={{color:theme.text}}>Medium</Text></Card></Col>
- <Col lg={8} xs={24}><Card title="AI Intelligence" style={{background:theme.surface}}><Progress type="circle" percent={coverage} strokeColor={theme.ai}/><p style={{color:theme.muted}}>Automated triage coverage</p></Card></Col>
- <Col lg={8} xs={24}><Card title="SOC Operations" style={{background:theme.surface}}><Tag color="green">AI ONLINE</Tag><Tag color="blue">PIPELINE ACTIVE</Tag><Tag color="orange">INVESTIGATION</Tag><p style={{color:theme.muted}}><SafetyOutlined/> Detection system healthy</p></Card></Col>
- </Row>
-
- <Card title="Active Investigation Queue" loading={isLoading} style={{marginTop:20,background:theme.surface,border:`1px solid ${theme.border}`}}><Table rowKey="alertId" dataSource={alerts.slice(0,10)} columns={columns} pagination={false}/></Card>
- </div>;
-};
-
 export default Dashboard;

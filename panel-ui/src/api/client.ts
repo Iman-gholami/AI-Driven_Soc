@@ -24,7 +24,8 @@ export const api = {
     // Backend returns a success envelope: { success, message, data: { alerts } }
     // Keep the UI contract as Alert[] so components can safely use filter/map.
     const payload = response.data;
-    return payload?.data?.alerts || payload?.alerts || [];
+    const legacyPayload = payload as unknown as { alerts?: Alert[] };
+    return payload?.data?.alerts || legacyPayload.alerts || [];
   },
 
   getAlertById: async (alertId: string): Promise<Alert> => {

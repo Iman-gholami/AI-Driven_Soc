@@ -20,7 +20,11 @@ export const api = {
       filters?: any;
       sort?: any;
     }>>('/alerts');
-    return response.data.data.alerts;
+
+    // Backend returns a success envelope: { success, message, data: { alerts } }
+    // Keep the UI contract as Alert[] so components can safely use filter/map.
+    const payload = response.data;
+    return payload?.data?.alerts || payload?.alerts || [];
   },
 
   getAlertById: async (alertId: string): Promise<Alert> => {

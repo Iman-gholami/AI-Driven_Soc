@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, Col, Row, Statistic, Typography, Tag, Table, Progress, Space } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import { AlertOutlined, RobotOutlined, WarningOutlined, RiseOutlined, SafetyOutlined } from '@ant-design/icons';
+import { SafetyOutlined } from '@ant-design/icons';
 import { api } from '../../api/client';
 import { Alert } from '../../types';
 

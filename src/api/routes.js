@@ -112,6 +112,25 @@ function createRouter({
         return res.status(404).json({ detail: 'Alert not found' });
       }
 
+      // Analysis is persisted and reused. Do not call the LLM again for an
+      // alert that already has a completed analysis. A dedicated re-analysis
+      // action can be added later if an explicit fresh LLM run is required.
+      if (alert.aiStatus === 'analyzed' && alert.fullAnalysis) {
+        return successResponse(res, {
+          alertId,
+          aiStatus: 'analyzed',
+          analysis: alert.fullAnalysis,
+          ruleMatch: alert.ruleMatch,
+          detectionRule: await resolveStoredDetectionRuleContext(analyzer, alert),
+          metadata: {
+            provider: alert.llmProvider || null,
+            model: alert.model || null,
+            processingTimeMs: alert.processingTimeMs ?? null,
+            cached: true,
+          },
+        });
+      }
+
       if (alert.aiStatus === 'analyzing') {
         return res.status(409).json({
           detail: 'Alert analysis is already in progress',
@@ -272,6 +291,19 @@ function createRouter({
   router.delete('/:ruleId', ruleController.deleteRule);
 
   return router;
+}
+
+async function resolveStoredDetectionRuleContext(analyzer, alert) {
+  if (typeof analyzer.resolveDetectionRule !== 'function') {
+    return alert.ruleMatch || null;
+  }
+
+  try {
+    const resolution = await analyzer.resolveDetectionRule(alert.rawEvent || {});
+    return buildDetectionRuleContext(resolution);
+  } catch (_) {
+    return alert.ruleMatch || null;
+  }
 }
 
 async function resolveRuleMatchForIngest(analyzer, alert) {

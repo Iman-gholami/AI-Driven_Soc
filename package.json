@@ -8,7 +8,9 @@
     "start": "node src/main.js",
     "dev": "node --watch src/main.js",
     "test": "node --test",
-    "import:rules": "node scripts/import-rules.js"
+    "import:rules": "node scripts/import-rules.js",
+    "panel:install": "npm --prefix panel-ui install",
+    "panel:build": "npm --prefix panel-ui run build"
   },
   "dependencies": {
     "cors": "^2.8.6",

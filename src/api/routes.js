@@ -115,7 +115,7 @@ function createRouter({
       // Analysis is persisted and reused. Do not call the LLM again for an
       // alert that already has a completed analysis. A dedicated re-analysis
       // action can be added later if an explicit fresh LLM run is required.
-      if (alert.aiStatus === 'analyzed' && alert.fullAnalysis) {
+      if ((alert.aiStatus === 'analyzed' || alert.status === 'analyzed') && alert.fullAnalysis) {
         return successResponse(res, {
           alertId,
           aiStatus: 'analyzed',

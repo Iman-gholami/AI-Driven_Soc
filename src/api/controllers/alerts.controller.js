@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { AlertRepository } = require('../../repositories/AlertRepository');
 const alertRepository = new AlertRepository();
 const { successResponse } = require('../../utils/response');
@@ -89,7 +90,7 @@ const getAllAlerts = async (req, res) => {
       { requestId, count: result.alerts.length, filters: result.filters },
       'alerts_listed',
     );
-    return successResponse(res, result.alerts.map(toAlertSummary))
+    return successResponse(res, result.alerts.map(toAlertSummary));
   } catch (error) {
     req.log.error({ requestId, err: error }, 'alerts_list_failed');
     return res

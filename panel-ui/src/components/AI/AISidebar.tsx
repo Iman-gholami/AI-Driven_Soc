@@ -1,5 +1,5 @@
 import React from 'react';
-import { Drawer, Button, Space, Typography, Card, Spin, message, Tag, Divider } from 'antd';
+import { Drawer, Button, Space, Typography, Card, Spin, message, Tag, Divider, Timeline } from 'antd';
 import { CloseOutlined, CopyOutlined, RobotOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { Alert as AlertType } from '../../types';
 
@@ -10,25 +10,73 @@ interface AISidebarProps { open:boolean; onClose:()=>void; alert:AlertType|null;
 const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false})=>{
  const analysis:any=alert?.fullAnalysis||{};
  const risk=analysis.risk_assessment||{};
- const decision=analysis.analyst_decision||{};
  const rule:any=alert?.detectionRule?.rule||{};
- const list=(items:any[])=>items?.length?<ul className="space-y-2">{items.map((x,i)=><li key={i} className="rounded bg-gray-50 dark:bg-gray-800 p-2">{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul>:<Text type="secondary">No data available</Text>;
+ const decision=analysis.analyst_decision||{};
+
+ const pretty=(value:any)=>typeof value==='string'?value:JSON.stringify(value,null,2);
+ const items=(arr:any[])=>arr?.length?arr:<Text type="secondary">No data available</Text>;
+
+ const evidence=analysis.observed_evidence||[];
+ const steps=analysis.recommended_investigation_steps||[];
+ const attackStory=analysis.attack_story?.length?analysis.attack_story:[
+  alert?.host ? `Host ${alert.host} generated suspicious activity` : 'Suspicious activity detected',
+  alert?.signature || 'Detection rule matched',
+  'Further investigation required'
+ ];
+
+ const mitre=analysis.attack_mapping;
+
  const copy=async()=>{await navigator.clipboard.writeText(JSON.stringify(alert,null,2));message.success('Incident copied')};
- return <Drawer title={<Space><RobotOutlined/>SOC AI Assessment</Space>} width={700} open={open} onClose={onClose} closeIcon={<CloseOutlined/>} extra={alert?<Button icon={<CopyOutlined/>} onClick={copy}>Copy</Button>:null}>
+
+ return <Drawer title={<Space><RobotOutlined/>SOC AI Assessment</Space>} width={760} open={open} onClose={onClose} closeIcon={<CloseOutlined/>} extra={alert?<Button icon={<CopyOutlined/>} onClick={copy}>Copy</Button>:null}>
  {!alert?<Text>Select an alert</Text>:loading?<Spin/>:<div className="space-y-4">
+
  <Card>
-  <Title level={4}>{alert.signature||'Security Alert'}</Title>
-  <Space wrap><Tag color="green"><CheckCircleOutlined/> AI {alert.aiStatus}</Tag><Tag color="red">Rule Severity: {(rule.metadata?.match(/signature_severity ([A-Za-z]+)/)?.[1]||alert.severity||'unknown').toUpperCase()}</Tag>{risk.severity&&<Tag color="orange">AI Risk: {String(risk.severity).toUpperCase()}</Tag>}{risk.confidence!==undefined&&<Tag>Confidence: {risk.confidence}%</Tag>}</Space>
+  <Title level={3}>{alert.signature||'Security Alert'}</Title>
+  <Space wrap>
+   <Tag color="green"><CheckCircleOutlined/> AI {alert.aiStatus}</Tag>
+   <Tag>Rule Severity: {String(rule.metadata||alert.severity||'UNKNOWN').toUpperCase()}</Tag>
+   <Tag color="orange">AI Risk: {String(risk.severity||'UNKNOWN').toUpperCase()}</Tag>
+   {risk.confidence!==undefined&&<Tag>Confidence: {risk.confidence}%</Tag>}
+  </Space>
  </Card>
- <Card title="SOC Decision"><Tag color="blue">{decision.action||'REVIEW'}</Tag><Paragraph>{decision.reason||analysis.final_soc_note||'No decision available'}</Paragraph></Card>
- <Card title="Executive Summary"><Paragraph>{analysis.one_line_summary||analysis.behavior_analysis?.description||'No summary available'}</Paragraph></Card>
- <Card title="Attack Story">{list(analysis.attack_story||[])}</Card>
- <Card title="Observed Evidence">{list(analysis.observed_evidence||[])}</Card>
- <Card title="Detection Analysis"><Paragraph>{typeof analysis.detection_analysis==='string'?analysis.detection_analysis:JSON.stringify(analysis.detection_analysis||{},null,2)}</Paragraph></Card>
- <Card title="MITRE Mapping">{list(Array.isArray(analysis.attack_mapping)?analysis.attack_mapping:[analysis.attack_mapping])}</Card>
- <Card title="False Positive Analysis">{list(analysis.false_positive_analysis?.plausible_explanations||analysis.false_positive_analysis||[])}</Card>
- <Card title="Recommended Investigation Steps">{list(analysis.recommended_investigation_steps||[])}</Card>
- <Divider/><Card title="Final SOC Note"><Paragraph>{analysis.final_soc_note||'—'}</Paragraph></Card>
+
+ <Card title="SOC Decision">
+  <Tag color="blue">{decision.action||'REVIEW'}</Tag>
+  <Paragraph>{decision.reason||analysis.final_soc_note||'No decision available'}</Paragraph>
+ </Card>
+
+ <Card title="Executive Summary">
+  <Paragraph>{analysis.one_line_summary || analysis.incident_summary?.description || analysis.behavior_analysis?.description || 'No summary available'}</Paragraph>
+ </Card>
+
+ <Card title="Attack Story">
+  <Timeline items={attackStory.map((x:any)=>({children:String(x)}))}/>
+ </Card>
+
+ <Card title="Observed Evidence">
+  {items(evidence).map ? <ul>{evidence.map((x:string,i:number)=><li key={i}>{x}</li>)}</ul>:items(evidence)}
+ </Card>
+
+ <Card title="Detection Analysis">
+  {analysis.detection_analysis?.matched_conditions && <><Text strong>Matched Conditions</Text><ul>{analysis.detection_analysis.matched_conditions.map((x:string,i:number)=><li key={i}>✓ {x}</li>)}</ul></>}
+  {analysis.detection_analysis?.unmatched_conditions && <><Text strong>Review Points</Text><ul>{analysis.detection_analysis.unmatched_conditions.map((x:string,i:number)=><li key={i}>⚠ {x}</li>)}</ul></>}
+ </Card>
+
+ <Card title="MITRE ATT&CK">
+  <Paragraph>{pretty(mitre)||'No MITRE mapping available'}</Paragraph>
+ </Card>
+
+ <Card title="False Positive Analysis">
+  {items(analysis.false_positive_analysis?.plausible_explanations||[])}
+ </Card>
+
+ <Card title="Recommended Investigation Steps">
+  <ol>{steps.map((x:string,i:number)=><li key={i}>{i+1}. {x}</li>)}</ol>
+ </Card>
+
+ <Divider/>
+ <Card title="Final SOC Note"><Paragraph>{analysis.final_soc_note||'—'}</Paragraph></Card>
  </div>}
  </Drawer>
 };

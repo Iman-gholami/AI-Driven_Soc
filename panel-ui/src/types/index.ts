@@ -24,8 +24,7 @@ export interface DashboardStats {
   userGrowth: { month: string; users: number }[];
 }
 
-export interface DetectionRuleContext {
-  status?: string;
+export interface DetectionRule {
   rule_id?: string;
   revision?: number;
   title?: string;
@@ -40,6 +39,16 @@ export interface DetectionRuleContext {
   source_file?: string;
   raw_rule?: string;
   action?: string;
+}
+
+export interface DetectionRuleContext {
+  status?: string;
+  match_type?: string | null;
+  candidate_count?: number;
+  reason?: string | null;
+  candidates?: unknown[];
+  resolution_evidence?: any[];
+  rule?: DetectionRule;
 }
 
 export interface RuleMatch {

@@ -29,6 +29,7 @@ const AISidebar: React.FC<AISidebarProps> = ({ open, onClose, alert, loading = f
 
   const analysis = alert?.fullAnalysis;
   const risk = analysis?.risk_assessment || {};
+  const detectionRule = alert?.detectionRule?.rule;
   const confidence = typeof risk.confidence === 'number' ? risk.confidence : null;
   const evidence = Array.isArray(analysis?.observed_evidence) ? analysis.observed_evidence : [];
   const recommendations = Array.isArray(analysis?.recommended_investigation_steps) ? analysis.recommended_investigation_steps : [];
@@ -44,7 +45,7 @@ const AISidebar: React.FC<AISidebarProps> = ({ open, onClose, alert, loading = f
       closeIcon={<CloseOutlined />}
     >
       {!alert ? <div className="text-center py-12"><InfoCircleOutlined style={{ fontSize: 42 }} /><Text type="secondary" className="block mt-4">Select an alert to inspect it.</Text></div> : loading ? (
-        <div className="flex flex-col items-center justify-center py-16"><Spin size="large" /><Text type="secondary" className="mt-4">Running deterministic rule resolution and AI triage…</Text></div>
+        <div className="flex flex-col items-center justify-center py-16"><Spin size="large" /><Text type="secondary" className="mt-4">Loading persisted alert analysis…</Text></div>
       ) : (
         <div className="space-y-4">
           <Card size="small">
@@ -62,10 +63,10 @@ const AISidebar: React.FC<AISidebarProps> = ({ open, onClose, alert, loading = f
           </Card>
 
           <Card title="Detection Logic" size="small">
-            {alert.ruleMatch?.status === 'matched' && alert.detectionRule ? <div className="space-y-2 text-sm">
-              <div><Text strong>Rule ID: </Text><Text code>{alert.detectionRule.rule_id}</Text></div><div><Text strong>Revision: </Text><Text>{alert.detectionRule.revision ?? '—'}</Text></div><div><Text strong>Title: </Text><Text>{alert.detectionRule.title || '—'}</Text></div><div><Text strong>Class type: </Text><Text>{alert.detectionRule.classtype || '—'}</Text></div><div><Text strong>Protocol: </Text><Text>{alert.detectionRule.protocol || '—'}</Text></div>
-              <Collapse className="mt-3" items={[{ key: 'logic', label: 'Rule content / PCRE', children: <pre className="whitespace-pre-wrap text-xs overflow-auto">{formatValue({ contents: alert.detectionRule.contents, pcre: alert.detectionRule.pcre, flow: alert.detectionRule.flow })}</pre> }, { key: 'raw-rule', label: 'Raw rule', children: <pre className="whitespace-pre-wrap text-xs overflow-auto">{alert.detectionRule.raw_rule || '—'}</pre> }]} />
-            </div> : <Text type="secondary">Rule resolution status: {alert.ruleMatch?.status || 'unresolved'}</Text>}
+            {alert.ruleMatch?.status === 'matched' && detectionRule ? <div className="space-y-2 text-sm">
+              <div><Text strong>Rule ID: </Text><Text code>{detectionRule.rule_id || '—'}</Text></div><div><Text strong>Revision: </Text><Text>{detectionRule.revision ?? '—'}</Text></div><div><Text strong>Title: </Text><Text>{detectionRule.title || '—'}</Text></div><div><Text strong>Class type: </Text><Text>{detectionRule.classtype || '—'}</Text></div><div><Text strong>Protocol: </Text><Text>{detectionRule.protocol || '—'}</Text></div>
+              <Collapse className="mt-3" items={[{ key: 'logic', label: 'Rule content / PCRE', children: <pre className="whitespace-pre-wrap text-xs overflow-auto">{formatValue({ contents: detectionRule.contents, pcre: detectionRule.pcre, flow: detectionRule.flow })}</pre> }, { key: 'raw-rule', label: 'Raw rule', children: <pre className="whitespace-pre-wrap text-xs overflow-auto">{detectionRule.raw_rule || '—'}</pre> }]} />
+            </div> : <Text type="secondary">Rule resolution status: {alert.ruleMatch?.status || alert.detectionRule?.status || 'unresolved'}</Text>}
           </Card>
 
           {analysis ? <Card title="AI Assessment" size="small">

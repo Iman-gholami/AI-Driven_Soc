@@ -14,8 +14,13 @@ apiClient.interceptors.request.use((config) => {
 
 export const api = {
   getAlerts: async (): Promise<Alert[]> => {
-    const response = await apiClient.get<ApiResponse<Alert[]>>('/alerts');
-    return response.data.data;
+    const response = await apiClient.get<ApiResponse<{
+      alerts: Alert[];
+      pagination?: any;
+      filters?: any;
+      sort?: any;
+    }>>('/alerts');
+    return response.data.data.alerts;
   },
 
   getAlertById: async (alertId: string): Promise<Alert> => {

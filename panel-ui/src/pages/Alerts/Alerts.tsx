@@ -33,12 +33,18 @@ const Alerts: React.FC = () => {
   });
 
   const handleAIAnalysis = async (alert: Alert) => {
-    setSelectedAlert(alert);
     setAiSidebarOpen(true);
-    if (alert.aiStatus === 'analyzed') return;
 
     try {
       setSidebarLoading(true);
+
+      if (alert.aiStatus === 'analyzed') {
+        // Reuse the persisted analysis; do not invoke the LLM again.
+        setSelectedAlert(await api.getAlertById(alert.alertId));
+        return;
+      }
+
+      setSelectedAlert(alert);
       await api.generateAIAnalysis(alert.alertId);
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
       setSelectedAlert(await api.getAlertById(alert.alertId));
@@ -104,7 +110,7 @@ const Alerts: React.FC = () => {
     { title: 'Severity', dataIndex: 'severity', key: 'severity', render: (severity: string) => <Badge status={getSeverityBadge(severity) as any} text={`${getSeverityIcon(severity)} ${severity.toUpperCase()}`} /> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={getStatusColor(status)} className="px-3 py-1">{getStatusIcon(status)} {status.toUpperCase()}</Tag> },
     { title: 'AI Status', dataIndex: 'aiStatus', key: 'aiStatus', render: (status: string, record: Alert) => <Tooltip title={record.aiEligibility.eligible ? 'Eligible for AI analysis' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Tag color={getAiStatusColor(status)}>{getAiStatusIcon(status)} {status.replace('_', ' ').toUpperCase()}</Tag>{!record.aiEligibility.eligible && <InfoCircleOutlined className="text-gray-400 ml-1" />}</Tooltip> },
-    { title: 'AI Action', key: 'aiAction', render: (_: unknown, record: Alert) => <Tooltip title={record.aiEligibility.eligible ? 'Run deterministic rule resolution and AI triage' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Button type="primary" icon={<RobotOutlined />} onClick={() => handleAIAnalysis(record)} size="middle">AI Analyze</Button></Tooltip> },
+    { title: 'AI Action', key: 'aiAction', render: (_: unknown, record: Alert) => <Tooltip title={record.aiStatus === 'analyzed' ? 'View persisted AI analysis (no new LLM call)' : record.aiEligibility.eligible ? 'Run deterministic rule resolution and AI triage' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Button type="primary" icon={<RobotOutlined />} onClick={() => handleAIAnalysis(record)} size="middle">{record.aiStatus === 'analyzed' ? 'View AI Analysis' : 'AI Analyze'}</Button></Tooltip> },
   ];
 
   return <div>

@@ -10,7 +10,9 @@
     "test": "node --test",
     "import:rules": "node scripts/import-rules.js",
     "panel:install": "npm --prefix panel-ui install",
-    "panel:build": "npm --prefix panel-ui run build"
+    "panel:build": "npm --prefix panel-ui run build",
+    "import:mitre": "node scripts/import-mitre.js",
+    "mitre:coverage": "node scripts/rebuild-mitre-coverage.js"
   },
   "dependencies": {
     "cors": "^2.8.6",

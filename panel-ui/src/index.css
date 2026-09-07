@@ -240,9 +240,9 @@ a:focus-visible,
 .soc-version-chip span {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  background: #34d399;
-  box-shadow: 0 0 0 3px rgba(52, 211, 153, .08);
+  border-radius: 2px;
+  background: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, .07);
 }
 
 .soc-collapse-btn,
@@ -361,6 +361,47 @@ a:focus-visible,
 
 .ant-tag {
   border-radius: 5px;
+}
+
+.soc-placeholder-page {
+  min-height: calc(100vh - 150px);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  padding: 36px;
+  text-align: center;
+}
+
+.soc-placeholder-page > span {
+  color: var(--panel-primary);
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .13em;
+}
+
+.soc-placeholder-page h1 {
+  margin: 9px 0 7px;
+  color: var(--panel-text);
+  font-size: 26px;
+  letter-spacing: -.035em;
+}
+
+.soc-placeholder-page p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--panel-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.soc-placeholder-page div {
+  margin-top: 18px;
+  padding: 6px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-surface);
+  color: var(--panel-muted-2);
+  font: 650 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .06em;
 }
 
 ::-webkit-scrollbar {

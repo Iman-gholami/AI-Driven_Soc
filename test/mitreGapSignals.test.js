@@ -54,9 +54,15 @@ test("gap signals identify network-observable internet connection discovery", ()
 
 test("gap signals respect the uncovered technique set", () => {
   assert.deepEqual(ids(
-    { title: "Keylogger activity and schtasks.exe Scheduled Task" },
+    { title: "Keylogger reporting activity and schtasks.exe /create suspicious task" },
     ["T1053.005"],
   ), ["T1053.005"]);
+});
+
+test("gap signals do not infer scheduled task creation from a generic mention", () => {
+  assert.deepEqual(ids({
+    title: "Windows Scheduled Task XML Response from Server",
+  }), []);
 });
 
 test("gap signals do not infer remote-services techniques from protocol alone", () => {

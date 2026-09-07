@@ -156,10 +156,10 @@ const MitreCoverage: React.FC = () => {
               <small>Every mapped rule keeps its source and evidence path.</small>
             </div>
             <div className="mitre-provenance-stats">
-              <span><i className="prov-explicit" /> <strong>{summary.rules.explicitReference.toLocaleString()}</strong> explicit / reference</span>
-              <span><i className="prov-curated" /> <strong>{summary.rules.curated.toLocaleString()}</strong> curated</span>
-              <span><i className="prov-gap" /> <strong>{summary.rules.gapCurated.toLocaleString()}</strong> gap-curated</span>
-              <span><i className="prov-legacy" /> <strong>{summary.rules.legacyOnly.toLocaleString()}</strong> legacy-only</span>
+              <span><i className="prov-explicit" /> <strong>{(summary.rules.explicitReference ?? 0).toLocaleString()}</strong> explicit / reference</span>
+              <span><i className="prov-curated" /> <strong>{(summary.rules.curated ?? 0).toLocaleString()}</strong> curated</span>
+              <span><i className="prov-gap" /> <strong>{(summary.rules.gapCurated ?? 0).toLocaleString()}</strong> gap-curated</span>
+              <span><i className="prov-legacy" /> <strong>{(summary.rules.legacyOnly ?? 0).toLocaleString()}</strong> legacy-only</span>
             </div>
           </section>
         ) : null}
@@ -315,7 +315,7 @@ const MitreCoverage: React.FC = () => {
               rowKey={(record) => `${record.ruleId}-${record.revision}`}
               loading={detail.isLoading}
               dataSource={detail.data?.rules || []}
-              scroll={{ x: 760 }}
+              scroll={{ x: 1000 }}
               columns={[
                 { title: 'Rule ID', dataIndex: 'ruleId', width: 105 },
                 { title: 'Rev', dataIndex: 'revision', width: 60 },

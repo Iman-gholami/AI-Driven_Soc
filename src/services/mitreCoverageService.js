@@ -227,13 +227,7 @@ class MitreCoverageService {
                       {
                         $size: {
                           $setIntersection: [
-                            {
-                              $map: {
-                                input: { $ifNull: ["$mitre.mappings", []] },
-                                as: "mapping",
-                                in: "$$mapping.source",
-                              },
-                            },
+                            mappingSourcesExpression(),
                             ["explicit", "reference"],
                           ],
                         },
@@ -252,13 +246,7 @@ class MitreCoverageService {
                   {
                     $in: [
                       "curated",
-                      {
-                        $map: {
-                          input: { $ifNull: ["$mitre.mappings", []] },
-                          as: "mapping",
-                          in: "$mapping.source",
-                        },
-                      },
+                      mappingSourcesExpression(),
                     ],
                   },
                   1,
@@ -272,13 +260,7 @@ class MitreCoverageService {
                   {
                     $in: [
                       "curated-gap",
-                      {
-                        $map: {
-                          input: { $ifNull: ["$mitre.mappings", []] },
-                          as: "mapping",
-                          in: "$mapping.source",
-                        },
-                      },
+                      mappingSourcesExpression(),
                     ],
                   },
                   1,
@@ -522,6 +504,16 @@ function tacticRank(tacticId) {
   return index === -1 ? 999 : index;
 }
 
+function mappingSourcesExpression() {
+  return {
+    $map: {
+      input: { $ifNull: ["$mitre.mappings", []] },
+      as: "mapping",
+      in: "$mapping.source",
+    },
+  };
+}
+
 function mostCommon(values) {
   if (!values.length) return null;
   const counts = new Map();
@@ -529,4 +521,9 @@ function mostCommon(values) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
-module.exports = { MitreCoverageService, normalizeTier, TACTIC_ORDER };
+module.exports = {
+  MitreCoverageService,
+  normalizeTier,
+  TACTIC_ORDER,
+  mappingSourcesExpression,
+};

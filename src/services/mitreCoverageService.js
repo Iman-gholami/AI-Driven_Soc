@@ -509,7 +509,7 @@ function mappingSourcesExpression() {
     $map: {
       input: { $ifNull: ["$mitre.mappings", []] },
       as: "mapping",
-      in: "$mapping.source",
+      in: "$" + "$mapping.source",
     },
   };
 }

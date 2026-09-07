@@ -6,6 +6,8 @@ import {
   AlertListParams,
   AlertListResult,
   DashboardStats,
+  MitreCoverageSnapshot,
+  MitreTechniqueRulesResult,
 } from '../types';
 
 const apiClient = axios.create({
@@ -48,6 +50,24 @@ export const api = {
     const response = await apiClient.get<ApiResponse<DashboardStats>>('/dashboard/stats', {
       params: cleanParams(params),
     });
+    return response.data.data;
+  },
+
+  getMitreCoverage: async (tier: 'all' | 'native' | 'imported' | 'community' = 'all'): Promise<MitreCoverageSnapshot> => {
+    const response = await apiClient.get<ApiResponse<MitreCoverageSnapshot>>('/mitre/coverage', {
+      params: { tier },
+    });
+    return response.data.data;
+  },
+
+  getMitreTechniqueRules: async (
+    techniqueId: string,
+    params: { tier?: 'all' | 'native' | 'imported' | 'community'; page?: number; limit?: number } = {},
+  ): Promise<MitreTechniqueRulesResult> => {
+    const response = await apiClient.get<ApiResponse<MitreTechniqueRulesResult>>(
+      `/mitre/techniques/${encodeURIComponent(techniqueId)}/rules`,
+      { params: cleanParams(params) },
+    );
     return response.data.data;
   },
 

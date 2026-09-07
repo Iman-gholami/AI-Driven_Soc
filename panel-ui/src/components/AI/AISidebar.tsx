@@ -5,6 +5,17 @@ import { Alert as AlertType } from '../../types';
 
 const { Title, Text, Paragraph } = Typography;
 
+function renderValue(value:any, fallback='—') {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try { return JSON.stringify(value, null, 2); } catch { return String(value); }
+}
+
+function confidencePercent(value:any) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.min(100, Math.max(0, numeric)) : 0;
+}
+
 interface AISidebarProps {
   open: boolean;
   onClose: () => void;
@@ -22,9 +33,25 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
   const evidence = list(analysis.observed_evidence);
   const steps = list(analysis.recommended_investigation_steps);
   const story = list(analysis.attack_story);
-  const falsePositives = list(analysis.false_positive_analysis);
-  const mapping = list(analysis.attack_mapping);
-  const triggerEvidence = list(analysis.why_alert_triggered?.evidence);
+  const falsePositives = list(analysis.false_positive_analysis).length
+    ? list(analysis.false_positive_analysis)
+    : list(analysis.false_positive_analysis?.conditions);
+  const mapping = list(analysis.attack_mapping).length
+    ? list(analysis.attack_mapping)
+    : list(analysis.attack_mapping?.mitre_techniques);
+  const triggerEvidence = list(analysis.why_alert_triggered?.evidence).length
+    ? list(analysis.why_alert_triggered?.evidence)
+    : list(analysis.detection_analysis?.evidence);
+  const summary = analysis.one_line_summary
+    || analysis.incident_summary?.what_happened
+    || analysis.incident_summary?.summary
+    || analysis.final_soc_note
+    || 'No summary available';
+  const behavior = analysis.behavior_analysis || 'No behavior analysis available';
+  const ruleLogic = analysis.detection_analysis?.rule_logic || analysis.detection_analysis?.trigger_reason;
+  const limitations = analysis.detection_analysis?.limitations || analysis.detection_analysis?.gaps;
+  const riskReasoning = risk.reasoning || risk.rationale || 'No risk reasoning available.';
+  const confidence = confidencePercent(risk.confidence);
   const copy = async () => {
     if (!alert) return;
     await navigator.clipboard.writeText(JSON.stringify(alert,null,2));
@@ -46,7 +73,7 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
           <Tag color={alert.aiStatus==='analyzed'?'green':alert.aiStatus==='failed'?'red':'default'}><CheckCircleOutlined/> AI {alert.aiStatus}</Tag>
           <Tag>Rule: {rule.rule_id || alert.ruleMatch?.ruleId || 'UNRESOLVED'}</Tag>
           <Tag color="orange">AI Risk: {String(risk.severity||'UNKNOWN').toUpperCase()}</Tag>
-          {risk.confidence!==undefined && <Tag>Confidence {Number(risk.confidence)}%</Tag>}
+          {risk.confidence!==undefined && <Tag>Confidence {confidence}%</Tag>}
           {alert.analysisCount!==undefined && <Tag>Analyses {alert.analysisCount}</Tag>}
         </Space>
       </Card>
@@ -58,26 +85,26 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
       <Card title="Detection Logic">
         <Paragraph><Text strong>Matched rule:</Text> {rule.title || alert.signature || 'Unavailable'}</Paragraph>
         {rule.rule_id && <Paragraph><Text strong>Rule ID / revision:</Text> {rule.rule_id}{rule.revision!==undefined?` / ${rule.revision}`:''}</Paragraph>}
-        {analysis.detection_analysis?.rule_logic && <Paragraph><Text strong>Rule logic:</Text> {analysis.detection_analysis.rule_logic}</Paragraph>}
-        {analysis.detection_analysis?.limitations && <Paragraph><Text strong>Limitations:</Text> {analysis.detection_analysis.limitations}</Paragraph>}
+        {ruleLogic && <Paragraph><Text strong>Rule logic:</Text> {renderValue(ruleLogic)}</Paragraph>}
+        {limitations && <Paragraph><Text strong>Limitations:</Text> {renderValue(limitations)}</Paragraph>}
         {triggerEvidence.length > 0 && <><Divider/><Text strong>Trigger evidence</Text>{triggerEvidence.map((item:any,index:number)=><div key={index}>✓ {String(item)}</div>)}</>}
         {rule.raw_rule && <Collapse items={[{key:'raw-rule',label:'Raw detection rule',children:<Paragraph code copyable>{rule.raw_rule}</Paragraph>}]}/>}      
       </Card>
 
       <Card title="AI Assessment">
-        <Paragraph><Text strong>Verdict:</Text> {analysis.verdict || 'UNKNOWN'}</Paragraph>
-        <Paragraph><Text strong>Summary:</Text> {analysis.one_line_summary || analysis.final_soc_note || 'No summary available'}</Paragraph>
-        <Paragraph><Text strong>Behavior:</Text> {analysis.behavior_analysis || 'No behavior analysis available'}</Paragraph>
+        <Paragraph><Text strong>Verdict:</Text> {renderValue(analysis.verdict, 'UNKNOWN')}</Paragraph>
+        <Paragraph><Text strong>Summary:</Text> {renderValue(summary)}</Paragraph>
+        <Paragraph style={{ whiteSpace: 'pre-wrap' }}><Text strong>Behavior:</Text> {renderValue(behavior)}</Paragraph>
       </Card>
 
       <Card title="Risk Overview">
-        <Progress percent={Number(risk.confidence||0)} />
-        <Paragraph>{risk.reasoning || 'No risk reasoning available.'}</Paragraph>
+        <Progress percent={confidence} />
+        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{renderValue(riskReasoning)}</Paragraph>
       </Card>
 
       <Card title="SOC Decision">
-        <Tag color="blue">{decision.action||'UNKNOWN'}</Tag>
-        <Paragraph>{decision.reason||'No analyst decision returned by the model.'}</Paragraph>
+        <Tag color="blue">{renderValue(decision.action, 'UNKNOWN')}</Tag>
+        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{renderValue(decision.reason, 'No analyst decision returned by the model.')}</Paragraph>
       </Card>
 
       <Card title="Attack Story">
@@ -85,11 +112,11 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
       </Card>
 
       <Card title="MITRE ATT&CK">
-        {mapping.length ? mapping.map((item:any,index:number)=><div key={index}><Text code>{item.technique || item.id || 'Unknown'}</Text>{item.name ? ` — ${item.name}` : ''}</div>) : <Text type="secondary">No MITRE technique was mapped from the supplied evidence.</Text>}
+        {mapping.length ? mapping.map((item:any,index:number)=><div key={index}><Text code>{renderValue(item?.technique || item?.id || item, 'Unknown')}</Text>{item?.name ? ` — ${renderValue(item.name)}` : ''}</div>) : <Text type="secondary">No MITRE technique was mapped from the supplied evidence.</Text>}
       </Card>
 
       <Card title="False-positive Analysis">
-        {falsePositives.length ? falsePositives.map((item:any,index:number)=><div key={index}>• {String(item)}</div>) : <Text type="secondary">No false-positive scenarios were returned.</Text>}
+        {falsePositives.length ? falsePositives.map((item:any,index:number)=><div key={index}>• {renderValue(item)}</div>) : <Text type="secondary">No false-positive scenarios were returned.</Text>}
       </Card>
 
       <Card title="Recommended Investigation Steps">
@@ -97,7 +124,7 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
       </Card>
 
       <Divider/>
-      <Card title="Final SOC Note"><Paragraph>{analysis.final_soc_note||'—'}</Paragraph></Card>
+      <Card title="Final SOC Note"><Paragraph style={{ whiteSpace: 'pre-wrap' }}>{renderValue(analysis.final_soc_note)}</Paragraph></Card>
     </div>}
   </Drawer>;
 };

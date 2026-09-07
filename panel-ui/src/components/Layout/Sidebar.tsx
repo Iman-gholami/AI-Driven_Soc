@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { DashboardOutlined, FileTextOutlined, SettingOutlined, MenuFoldOutlined, MenuUnfoldOutlined, BarChartOutlined } from '@ant-design/icons';
+import { DashboardOutlined, FileTextOutlined, SettingOutlined, MenuFoldOutlined, MenuUnfoldOutlined, BarChartOutlined, RadarChartOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const { Sider } = Layout;
@@ -13,6 +13,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const menuItems = [
     { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
     { key: '/alerts', icon: <FileTextOutlined />, label: 'Alerts' },
+    { key: '/mitre-coverage', icon: <RadarChartOutlined />, label: 'MITRE Coverage' },
     { key: '/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
     { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
   ];

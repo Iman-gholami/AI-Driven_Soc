@@ -227,6 +227,14 @@ export interface MitreRuleSummary {
     mapped?: boolean;
     techniqueIds?: string[];
     tacticIds?: string[];
+    mappings?: {
+      techniqueId?: string;
+      source?: string;
+      mappingRuleId?: string;
+      confidence?: number;
+      reviewed?: boolean;
+      evidence?: string[];
+    }[];
   };
 }
 

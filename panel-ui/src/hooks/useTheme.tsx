@@ -5,7 +5,7 @@ interface ThemeContextValue { mode: ThemeMode; toggleTheme: () => void; }
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [mode, setMode] = useState<ThemeMode>(() => (localStorage.getItem('soc-theme') as ThemeMode) || 'light');
+  const [mode, setMode] = useState<ThemeMode>(() => (localStorage.getItem('soc-theme') as ThemeMode) || 'dark');
   useEffect(() => localStorage.setItem('soc-theme', mode), [mode]);
   return <ThemeContext.Provider value={{ mode, toggleTheme: () => setMode(v => v === 'dark' ? 'light' : 'dark') }}>{children}</ThemeContext.Provider>;
 };

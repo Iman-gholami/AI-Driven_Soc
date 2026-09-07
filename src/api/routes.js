@@ -17,6 +17,7 @@ const {
   toPlainObject,
 } = require('./controllers/alerts.controller');
 const ruleController = require('./controllers/rules.controller');
+const mitreController = require('./controllers/mitre.controller');
 const multer = require('multer');
 const { successResponse } = require('../utils/response');
 
@@ -348,6 +349,12 @@ function createRouter({
       return res.status(500).json({ detail: 'Internal error while retrieving alert' });
     }
   });
+
+  // Rule-level MITRE ATT&CK coverage.
+  router.get('/mitre/coverage', mitreController.getCoverage.bind(mitreController));
+  router.post('/mitre/coverage/rebuild', mitreController.rebuildCoverage.bind(mitreController));
+  router.get('/mitre/techniques/:techniqueId', mitreController.getTechnique.bind(mitreController));
+  router.get('/mitre/techniques/:techniqueId/rules', mitreController.getTechniqueRules.bind(mitreController));
 
   // Detection rules use the same DetectionRule model/repository/parser as the AI resolver.
   router.post('/rules/import', upload.single('rulesFile'), ruleController.importRules.bind(ruleController));

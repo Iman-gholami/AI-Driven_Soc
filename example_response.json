@@ -1,35 +1,45 @@
 {
-  "incident_summary": {
-    "rule_name": "Suspicious PowerShell Download",
-    "what_happened": "PowerShell executed with obfuscated command line from an Office parent process."
-  },
-  "detection_analysis": {
-    "trigger_reason": "The detection likely matched encoded PowerShell execution with suspicious parent-child process chain.",
-    "evidence": ["powershell.exe", "-enc", "parent_process=winword.exe"]
-  },
-  "behavior_analysis": {
-    "assessment": "Execution pattern is consistent with scripted post-exploitation or phishing payload staging.",
-    "gaps": ["No network destination observed in provided data", "No child process tree provided"]
-  },
-  "attack_mapping": {
-    "mitre_techniques": [
-      {"id": "T1059.001", "name": "PowerShell", "confidence": "medium"}
+  "verdict": "SUSPICIOUS",
+  "one_line_summary": "PowerShell executed with an encoded command from an Office parent process.",
+  "attack_story": [
+    "An Office process launched PowerShell.",
+    "The supplied command line contains encoded PowerShell execution."
+  ],
+  "why_alert_triggered": {
+    "rule": "Suspicious PowerShell Download",
+    "evidence": [
+      "The supplied event contains the matched detection signature.",
+      "The supplied command line includes encoded PowerShell execution."
     ]
   },
+  "observed_evidence": [
+    "PowerShell is present in the supplied process data.",
+    "The supplied command line is encoded."
+  ],
+  "detection_analysis": {
+    "rule_logic": "The matched rule detects suspicious PowerShell execution patterns.",
+    "limitations": "The supplied event does not prove payload download or successful compromise."
+  },
+  "behavior_analysis": "The process relationship and encoded command warrant investigation, but the supplied evidence alone does not prove compromise.",
+  "attack_mapping": [
+    { "technique": "T1059.001", "name": "PowerShell" }
+  ],
   "risk_assessment": {
     "severity": "high",
-    "confidence": "medium",
-    "rationale": "Encoded command and Office parent are strong suspicious indicators, but outcome is unconfirmed."
+    "confidence": 82,
+    "reasoning": "The observed process and command-line evidence are consistent with suspicious PowerShell use."
   },
-  "false_positive_analysis": {
-    "possible": true,
-    "conditions": ["Known administrative automation", "Approved script deployment tooling"]
+  "analyst_decision": {
+    "action": "INVESTIGATE",
+    "reason": "Validate the parent/child process chain and any related network or file activity."
   },
-  "recommended_investigation_steps": [
-    "Decode and review the PowerShell command safely.",
-    "Collect full process tree for the affected host.",
-    "Review EDR telemetry for network connections by powershell.exe.",
-    "Check user activity and email artifacts around execution time."
+  "false_positive_analysis": [
+    "Authorized administrative automation may use encoded PowerShell."
   ],
-  "final_soc_note": "Prioritize triage within high-severity queue and validate script intent before containment actions."
+  "recommended_investigation_steps": [
+    "Review the complete process tree.",
+    "Decode and inspect the PowerShell command.",
+    "Check related network and file telemetry."
+  ],
+  "final_soc_note": "Investigate the encoded PowerShell activity and correlate it with endpoint and network telemetry."
 }

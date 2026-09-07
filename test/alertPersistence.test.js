@@ -73,11 +73,14 @@ test("Alert model defines required persistence indexes", () => {
 
     assert.deepEqual(indexes, [
       { alertId: 1 },
-      { status: 1 },
-      { createdAt: -1 },
-      { severity: 1 },
-      { "analysis.severity": 1 },
       { eventHash: 1 },
+      { createdAt: -1 },
+      { status: 1, createdAt: -1 },
+      { aiStatus: 1, createdAt: -1 },
+      { severity: 1, createdAt: -1 },
+      { source: 1, createdAt: -1 },
+      { "ruleMatch.status": 1, createdAt: -1 },
+      { "analysis.severity": 1 },
     ]);
   } finally {
     mock.restore();
@@ -135,7 +138,11 @@ test("IncidentAnalyzer returns analysis even when persistence fails", async () =
 
     const response = await analyzer.analyzeIncident({ id: "alert-1", rule_name: "Suspicious PowerShell" });
 
-    assert.deepEqual(response, llmResponse);
+    assert.equal(response.one_line_summary, "Suspicious PowerShell execution");
+    assert.equal(response.risk_assessment.severity, "high");
+    assert.equal(response.verdict, "UNKNOWN");
+    assert.deepEqual(response.attack_mapping, []);
+    assert.ok(Array.isArray(response.false_positive_analysis));
     assert.equal(errors.length, 1);
     assert.equal(errors[0].message, "Alert storage failure");
   } finally {

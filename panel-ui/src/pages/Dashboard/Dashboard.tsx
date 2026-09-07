@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
+import { Alert, DashboardStats } from '../../types';
 import RiskIndex from '../../components/SOC/RiskIndex';
 import MetricCard from '../../components/SOC/MetricCard';
 import PerformanceMetric from '../../components/SOC/PerformanceMetric';
@@ -13,32 +14,100 @@ import MitreCoverage from '../../components/SOC/MitreCoverage';
 import IncidentCard from '../../components/SOC/IncidentCard';
 import './Dashboard.css';
 
-const sourceNames=['Cloud','EDR','Email','IAM','Network','SIEM'];
-const Dashboard:React.FC=()=>{
- const [range,setRange]=useState('24h'); const navigate=useNavigate();
- const {data:alerts=[],isLoading,dataUpdatedAt}=useQuery({queryKey:['alerts'],queryFn:api.getAlerts,refetchInterval:60_000});
- const model=useMemo(()=>{
-  const count=(severity:string)=>alerts.filter(a=>a.severity===severity).length;
-  const critical=count('critical'),high=count('high'),medium=count('medium'),low=count('low');
-  const analyzed=alerts.filter(a=>a.aiStatus==='analyzed').length;
-  const open=alerts.filter(a=>!['resolved','closed'].includes(a.status)).length;
-  const sources=sourceNames.map(name=>({name,count:alerts.filter(a=>(a.source||'SIEM').toLowerCase().includes(name.toLowerCase())).length}));
-  if(alerts.length && sources.every(s=>s.count===0)) sources[5].count=alerts.length;
-  return {critical,high,medium,low,analyzed,open,sources,risk:Math.min(99,Math.round(critical*22+high*9+medium*3+(open?18:0))),automation:alerts.length?Math.round(analyzed/alerts.length*100):0};
- },[alerts]);
- const queue=[...alerts].sort((a,b)=>({critical:4,high:3,medium:2,low:1,unknown:0}[b.severity]-{critical:4,high:3,medium:2,low:1,unknown:0}[a.severity])).slice(0,6);
- return <main className="command-center">
-  <header className="command-header"><div><div className="command-kicker"><span>OPERATIONS</span><i /> Unified defense workspace</div><h1>Cyber Command Center</h1><p>Security Posture Dashboard</p></div><div className="header-controls"><div className="refresh-status"><i /><span>Last refresh<strong>{dataUpdatedAt?new Date(dataUpdatedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Connecting'}</strong></span></div><div className="range-selector">{['24h','7d','30d'].map(r=><button className={range===r?'active':''} onClick={()=>setRange(r)} key={r}>{r}</button>)}</div></div></header>
-  <div className="section-label"><span>01</span><div><h2>Security Posture Overview</h2><p>Live operational risk and exposure across the environment</p></div></div>
-  <div className="posture-grid"><RiskIndex value={model.risk} openCases={model.open} criticalCases={model.critical} highRiskAlerts={model.high}/><div className="kpi-grid"><MetricCard title="Open Critical Cases" value={model.critical} detail="Requires immediate action" trend={model.critical?'↑ Priority':'Stable'} tone="critical"/><MetricCard title="Cases In Window" value={alerts.length} detail={`Observed in the last ${range}`} trend="Live"/><MetricCard title="Critical / High Alerts" value={model.critical+model.high} detail="Elevated severity signals" tone="high"/><MetricCard title="Artifacts In Scope" value={alerts.length*3+17} detail="Hosts, users and indicators"/><MetricCard title="Automation Success" value={`${model.automation}%`} detail={`${model.analyzed} alerts AI-triaged`} trend="AI online" tone="ai"/><MetricCard title="Knowledge Signals" value={alerts.length*4+28} detail="Correlated intelligence facts" tone="success"/></div></div>
-  <div className="section-label compact"><span>02</span><div><h2>SOC Performance</h2><p>Response velocity against operational targets</p></div></div>
-  <div className="performance-grid"><PerformanceMetric code="MTTD" label="Mean Time To Detect" value="02m 14s" target="↓ 18% vs target" status="good"/><PerformanceMetric code="MTTA" label="Mean Time To Acknowledge" value="06m 48s" target="Within SLA" status="good"/><PerformanceMetric code="MTTR" label="Mean Time To Respond" value="42m 09s" target="04m over target" status="watch"/></div>
-  <div className="section-label compact"><span>03</span><div><h2>Security Analytics</h2><p>Signal pressure, telemetry origin, and analyst capacity</p></div></div>
-  <div className="analytics-grid"><DetectionSourcePanel sources={model.sources}/><SeverityPressure counts={{critical:model.critical,high:model.high,medium:model.medium,low:model.low}}/><WorkloadPanel states={[{label:'New',value:alerts.filter(a=>a.status==='new').length},{label:'In Progress',value:alerts.filter(a=>a.status==='investigating'||a.status==='analyzed').length},{label:'On Hold',value:0},{label:'Resolved',value:alerts.filter(a=>a.status==='resolved').length},{label:'Closed',value:alerts.filter(a=>a.status==='closed').length}]}/></div>
-  <div className="section-label compact"><span>04</span><div><h2>Threat Intelligence</h2><p>Latest adversary activity and framework coverage</p></div></div>
-  <div className="threat-grid"><ThreatTimeline events={[{time:'14:32:08',title:'High-risk behavior detected',detail:queue[0]?.signature||'Suspicious PowerShell execution on endpoint',state:'critical'},{time:'14:32:14',title:'AI analysis complete',detail:'Evidence correlated across identity and endpoint telemetry',state:'ai'},{time:'14:38:52',title:'Analyst review initiated',detail:'Case assigned to Tier 2 investigation queue',state:'review'},{time:'14:46:20',title:'Containment recommended',detail:'Isolate affected host and revoke active session tokens',state:'response'}]}/><MitreCoverage techniques={Math.max(8,alerts.length*2)} tactics={Math.max(5,Math.ceil(alerts.length/2))} coverage={alerts.length?76:64}/></div>
-  <div className="queue-heading"><div className="section-label compact"><span>05</span><div><h2>Active Investigation Queue</h2><p>Prioritized by severity, confidence, and operational impact</p></div></div><div className="queue-status"><i /> {model.open} OPEN INVESTIGATIONS</div></div>
-  <section className="incident-queue">{isLoading?<div className="queue-empty">Loading the investigation queue…</div>:queue.length?queue.map(a=><IncidentCard key={a.alertId} alert={a} onInvestigate={id=>navigate(`/alerts?alert=${encodeURIComponent(id)}`)}/>):<div className="queue-empty"><strong>No active incidents</strong><span>The environment is quiet. New detections will appear here automatically.</span></div>}</section>
- </main>
+const EMPTY_STATS: DashboardStats = {
+  window: { from: null, to: null },
+  totals: { alerts: 0, uniqueHosts: 0, sources: 0 },
+  severity: { critical: 0, high: 0, medium: 0, low: 0, info: 0, unknown: 0 },
+  aiStatus: { analyzed: 0, analyzing: 0, failed: 0, notAnalyzed: 0 },
+  sources: [],
+  performance: { aiCoveragePercent: 0, ruleMatchCoveragePercent: 0, avgProcessingTimeMs: 0 },
+  posture: { severityPressureIndex: 0, matchedRules: 0 },
+  mitre: { techniqueCount: 0, mappedAlertCount: 0, analyzedAlertCount: 0, coveragePercent: 0 },
+  recentAlerts: [],
 };
+
+const Dashboard:React.FC=()=>{
+  const [range,setRange]=useState<'24h'|'7d'|'30d'>('24h');
+  const navigate=useNavigate();
+  const rangeStart = useMemo(() => getRangeStart(range), [range]);
+  const {data,isLoading,dataUpdatedAt}=useQuery({
+    queryKey:['dashboard-stats',range],
+    queryFn:()=>api.getDashboardStats({createdAtFrom:rangeStart.toISOString()}),
+    refetchInterval:60_000,
+  });
+  const stats = data || EMPTY_STATS;
+  const queue = stats.recentAlerts.slice(0,6);
+  const timeline = stats.recentAlerts.slice(0,4).map((alert) => ({
+    time: new Date(alert.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),
+    title: alert.signature || alert.eventType || 'Unclassified detection',
+    detail: `${alert.source || 'unknown source'}${alert.host ? ` · ${alert.host}` : ''} · AI ${alert.aiStatus.replace('_',' ')}`,
+    state: toTimelineState(alert),
+  }));
+
+  return <main className="command-center">
+    <header className="command-header"><div><div className="command-kicker"><span>OPERATIONS</span><i /> Stored SOC telemetry</div><h1>Cyber Command Center</h1><p>Security posture from your alert and AI-analysis data</p></div><div className="header-controls"><div className="refresh-status"><i /><span>Last refresh<strong>{dataUpdatedAt?new Date(dataUpdatedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Connecting'}</strong></span></div><div className="range-selector">{(['24h','7d','30d'] as const).map(r=><button className={range===r?'active':''} onClick={()=>setRange(r)} key={r}>{r}</button>)}</div></div></header>
+
+    <div className="section-label"><span>01</span><div><h2>Security Posture Overview</h2><p>Calculated from alerts stored in MongoDB for the selected time window</p></div></div>
+    <div className="posture-grid">
+      <RiskIndex value={stats.posture.severityPressureIndex} totalAlerts={stats.totals.alerts} criticalAlerts={stats.severity.critical} highAlerts={stats.severity.high}/>
+      <div className="kpi-grid">
+        <MetricCard title="Total Alerts" value={stats.totals.alerts} detail={`Stored during the last ${range}`} trend="Live data"/>
+        <MetricCard title="Critical Alerts" value={stats.severity.critical} detail="Critical severity detections" tone="critical"/>
+        <MetricCard title="High Alerts" value={stats.severity.high} detail="High severity detections" tone="high"/>
+        <MetricCard title="AI Analyzed" value={stats.aiStatus.analyzed} detail={`${stats.performance.aiCoveragePercent}% of alerts in window`} trend="Persisted results" tone="ai"/>
+        <MetricCard title="Unique Hosts" value={stats.totals.uniqueHosts} detail="Distinct affected hosts observed"/>
+        <MetricCard title="Detection Sources" value={stats.totals.sources} detail="Distinct alert source values" tone="success"/>
+      </div>
+    </div>
+
+    <div className="section-label compact"><span>02</span><div><h2>Analysis Performance</h2><p>Operational values derived from persisted analysis metadata</p></div></div>
+    <div className="performance-grid">
+      <PerformanceMetric code="AI" label="Analysis Coverage" value={`${stats.performance.aiCoveragePercent}%`} target={`${stats.aiStatus.analyzed} analyzed`} status={stats.performance.aiCoveragePercent>=70?'good':'watch'}/>
+      <PerformanceMetric code="LLM" label="Average Processing Time" value={formatDuration(stats.performance.avgProcessingTimeMs)} target="Stored processingTimeMs" status="good"/>
+      <PerformanceMetric code="RULE" label="Deterministic Match Coverage" value={`${stats.performance.ruleMatchCoveragePercent}%`} target={`${stats.posture.matchedRules} matched alerts`} status={stats.performance.ruleMatchCoveragePercent>=70?'good':'watch'}/>
+    </div>
+
+    <div className="section-label compact"><span>03</span><div><h2>Security Analytics</h2><p>Severity, telemetry origin, and AI triage state from stored alerts</p></div></div>
+    <div className="analytics-grid">
+      <DetectionSourcePanel sources={stats.sources}/>
+      <SeverityPressure counts={stats.severity}/>
+      <WorkloadPanel states={[
+        {label:'Failed',value:stats.aiStatus.failed},
+        {label:'Analyzing',value:stats.aiStatus.analyzing},
+        {label:'Not analyzed',value:stats.aiStatus.notAnalyzed},
+        {label:'Analyzed',value:stats.aiStatus.analyzed},
+      ]}/>
+    </div>
+
+    <div className="section-label compact"><span>04</span><div><h2>Threat Context</h2><p>Recent real detections and MITRE techniques persisted by AI analysis</p></div></div>
+    <div className="threat-grid">
+      <ThreatTimeline events={timeline} onViewAll={()=>navigate('/alerts')}/>
+      <MitreCoverage techniques={stats.mitre.techniqueCount} mappedAlerts={stats.mitre.mappedAlertCount} analyzedAlerts={stats.mitre.analyzedAlertCount} coverage={stats.mitre.coveragePercent}/>
+    </div>
+
+    <div className="queue-heading"><div className="section-label compact"><span>05</span><div><h2>Recent Investigation Queue</h2><p>Most recently ingested alerts in the selected time window</p></div></div><div className="queue-status"><i /> {stats.aiStatus.notAnalyzed + stats.aiStatus.failed} NEED AI REVIEW</div></div>
+    <section className="incident-queue">{isLoading?<div className="queue-empty">Loading the investigation queue…</div>:queue.length?queue.map(alert=><IncidentCard key={alert.alertId} alert={alert} onInvestigate={id=>navigate(`/alerts?alert=${encodeURIComponent(id)}`)}/>):<div className="queue-empty"><strong>No alerts in this window</strong><span>Choose a wider time range or wait for new detections.</span></div>}</section>
+  </main>;
+};
+
+function getRangeStart(range:'24h'|'7d'|'30d') {
+  const now = Date.now();
+  const hours = range === '24h' ? 24 : range === '7d' ? 24 * 7 : 24 * 30;
+  return new Date(now - hours * 60 * 60 * 1000);
+}
+
+function formatDuration(ms:number) {
+  if (!ms) return '—';
+  if (ms < 1000) return `${ms} ms`;
+  return `${(ms/1000).toFixed(ms < 10000 ? 1 : 0)} s`;
+}
+
+function toTimelineState(alert: Alert): 'critical'|'high'|'medium'|'low'|'neutral' {
+  if (alert.severity === 'critical') return 'critical';
+  if (alert.severity === 'high') return 'high';
+  if (alert.severity === 'medium') return 'medium';
+  if (alert.severity === 'low' || alert.severity === 'info') return 'low';
+  return 'neutral';
+}
+
 export default Dashboard;

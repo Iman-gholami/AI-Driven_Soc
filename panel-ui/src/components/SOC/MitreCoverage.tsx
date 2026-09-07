@@ -1,3 +1,17 @@
 import React from 'react';
-const MitreCoverage:React.FC<{techniques:number;tactics:number;coverage:number}> = ({techniques,tactics,coverage}) => <section className="soc-panel mitre-panel"><div className="panel-heading"><div><span className="eyebrow">Threat framework</span><h2>MITRE ATT&amp;CK Coverage</h2></div><span className="mono">v15.1</span></div><div className="coverage-ring" style={{'--coverage':`${coverage*3.6}deg`} as React.CSSProperties}><div><strong>{coverage}%</strong><span>coverage</span></div></div><div className="mitre-stats"><div><strong>{techniques}</strong><span>Techniques detected</span></div><div><strong>{tactics}</strong><span>Tactics observed</span></div></div><div className="coverage-foot"><span>Coverage health</span><strong>{coverage>70?'STRONG':'DEVELOPING'}</strong></div></section>;
+
+interface Props {
+  techniques: number;
+  mappedAlerts: number;
+  analyzedAlerts: number;
+  coverage: number;
+}
+
+const MitreCoverage:React.FC<Props> = ({techniques,mappedAlerts,analyzedAlerts,coverage}) => <section className="soc-panel mitre-panel">
+  <div className="panel-heading"><div><span className="eyebrow">AI analysis mappings</span><h2>MITRE ATT&amp;CK Mapping</h2></div></div>
+  <div className="coverage-ring" style={{'--coverage':`${coverage*3.6}deg`} as React.CSSProperties}><div><strong>{coverage}%</strong><span>mapped analyses</span></div></div>
+  <div className="mitre-stats"><div><strong>{techniques}</strong><span>Unique techniques</span></div><div><strong>{mappedAlerts}</strong><span>Mapped alerts</span></div></div>
+  <div className="coverage-foot"><span>Analyzed alerts</span><strong>{analyzedAlerts}</strong></div>
+</section>;
+
 export default MitreCoverage;

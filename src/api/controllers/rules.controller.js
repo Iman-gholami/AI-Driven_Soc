@@ -1,159 +1,139 @@
-const ruleService = require('../../services/rule.service');
+const fs = require('node:fs/promises');
+const { DetectionRuleRepository } = require('../../repositories/DetectionRuleRepository');
+const { mapSourceRule } = require('../../services/ruleParser');
 const { successResponse, errorResponse } = require('../../utils/response');
 
 class RuleController {
-  /**
-   * Import rules from JSON file
-   * POST /api/rules/import
-   * Accepts multipart/form-data with file field 'rulesFile'
-   */
+  constructor({ repository = new DetectionRuleRepository() } = {}) {
+    this.repository = repository;
+  }
+
   async importRules(req, res, next) {
-    let tempFilePath = null;
+    const tempFilePath = req.file?.path || null;
 
     try {
-      // Check if file was uploaded
       if (!req.file) {
-        return errorResponse(
-          res,
-          'No file uploaded. Please provide a rules file.',
-          400,
-        );
+        return errorResponse(res, 'No file uploaded. Please provide a rules file.', 400);
       }
 
-      // Get file path
-      tempFilePath = req.file.path;
-
-      // Read file content
       const fileContent = await fs.readFile(tempFilePath, 'utf8');
-
-      // Parse JSON file - handle both array and line-by-line JSON
-      let rulesData;
-      try {
-        // Try parsing as JSON array first
-        const parsed = JSON.parse(fileContent);
-        if (Array.isArray(parsed)) {
-          // If it's an array of objects, convert to string lines
-          rulesData = parsed.map(item => JSON.stringify(item));
-        } else {
-          // If it's a single object, make it an array
-          rulesData = [JSON.stringify(parsed)];
-        }
-      } catch (parseError) {
-        // If not valid JSON array, try line-by-line JSON
-        const lines = fileContent
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => line.length > 0);
-
-        // Validate each line is valid JSON
-        const validLines = [];
-        for (const line of lines) {
-          try {
-            JSON.parse(line);
-            validLines.push(line);
-          } catch (e) {
-            // Skip invalid lines
-            console.warn(
-              `Skipping invalid JSON line: ${line.substring(0, 50)}...`,
-            );
-          }
-        }
-
-        if (validLines.length === 0) {
-          return errorResponse(res, 'No valid JSON data found in file', 400);
-        }
-
-        rulesData = validLines;
+      const records = parseRuleFile(fileContent);
+      if (records.length === 0) {
+        return errorResponse(res, 'No valid JSON rule records found in file', 400);
       }
 
-      const { batchSize } = req.query;
+      const requestedBatchSize = Number(req.query.batchSize || 1000);
+      const batchSize = Math.min(Math.max(requestedBatchSize || 1000, 1), 5000);
+      const stats = {
+        processed: 0,
+        invalid: 0,
+        batches: 0,
+        upserted: 0,
+        modified: 0,
+        errors: [],
+      };
 
-      // Import rules
-      const stats = await ruleService.importRules(
-        rulesData,
-        parseInt(batchSize) || 1000,
-      );
+      let batch = [];
+      const flush = async () => {
+        if (batch.length === 0) return;
+        const result = await this.repository.bulkUpsert(batch);
+        stats.batches += 1;
+        stats.upserted += Number(result?.upsertedCount || 0);
+        stats.modified += Number(result?.modifiedCount || 0);
+        batch = [];
+      };
 
-      // Clean up temp file
-      if (tempFilePath && req.file) {
-        await fs.unlink(tempFilePath).catch(() => {});
+      for (const record of records) {
+        try {
+          batch.push(mapSourceRule(record));
+          stats.processed += 1;
+          if (batch.length >= batchSize) await flush();
+        } catch (error) {
+          stats.invalid += 1;
+          if (stats.errors.length < 10) stats.errors.push(error.message);
+        }
       }
+      await flush();
 
       return successResponse(res, {
-        message: 'Rules imported successfully',
+        message: 'Detection rules imported successfully',
         fileName: req.file.originalname,
         fileSize: req.file.size,
         stats,
       });
     } catch (error) {
-      // Clean up temp file on error
-      if (tempFilePath) {
-        await fs.unlink(tempFilePath).catch(() => {});
-      }
-      next(error);
+      return next(error);
+    } finally {
+      if (tempFilePath) await fs.unlink(tempFilePath).catch(() => {});
     }
   }
 
-  /**
-   * Get all rules with pagination
-   * GET /api/rules
-   */
   async getRules(req, res, next) {
     try {
-      const { page = 1, limit = 50, action, protocol, search } = req.query;
-
-      const result = await ruleService.getRules(
-        { action, protocol, search },
-        parseInt(page),
-        parseInt(limit),
-      );
-
+      const result = await this.repository.list({
+        page: req.query.page,
+        limit: req.query.limit,
+        action: req.query.action,
+        protocol: req.query.protocol,
+        search: req.query.search || req.query.q,
+      });
       return successResponse(res, result);
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
-  /**
-   * Get rule by ID
-   * GET /api/rules/:ruleId
-   */
   async getRuleById(req, res, next) {
     try {
-      const { ruleId } = req.params;
-      const rule = await ruleService.getRuleById(ruleId);
-
-      if (!rule) {
-        return errorResponse(res, 'Rule not found', 404);
-      }
-
-      return successResponse(res, { rule });
+      const rules = await this.repository.findByRuleId(req.params.ruleId, req.query.revision);
+      if (!rules.length) return errorResponse(res, 'Rule not found', 404);
+      return successResponse(res, {
+        rule: rules[0],
+        revisions: rules,
+      });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
-  /**
-   * Delete rule by ID
-   * DELETE /api/rules/:ruleId
-   */
   async deleteRule(req, res, next) {
     try {
-      const { ruleId } = req.params;
-      const rule = await ruleService.deleteRule(ruleId);
-
-      if (!rule) {
-        return errorResponse(res, 'Rule not found', 404);
-      }
-
+      const result = await this.repository.deleteByRuleId(req.params.ruleId, req.query.revision);
+      if (!result?.deletedCount) return errorResponse(res, 'Rule not found', 404);
       return successResponse(res, {
-        message: 'Rule deleted successfully',
-        ruleId,
+        message: 'Detection rule deleted successfully',
+        ruleId: req.params.ruleId,
+        deletedCount: result.deletedCount,
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 }
 
+function parseRuleFile(fileContent) {
+  const text = String(fileContent || '').trim();
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (_) {
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch (_) {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  }
+}
+
 module.exports = new RuleController();
+module.exports.RuleController = RuleController;
+module.exports.parseRuleFile = parseRuleFile;

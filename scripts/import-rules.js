@@ -6,42 +6,9 @@ const mongoose = require("mongoose");
 
 const { settings } = require("../src/core/config");
 const { DetectionRuleRepository } = require("../src/repositories/DetectionRuleRepository");
-const { normalizeTitle, parseRawRule } = require("../src/services/ruleParser");
+const { mapSourceRule } = require("../src/services/ruleParser");
 
 const DEFAULT_BATCH_SIZE = 1000;
-
-function mapSourceRule(source) {
-  if (!source || typeof source !== "object") throw new Error("Rule record must be an object");
-  if (!source.rule_id || !source.title || !source.raw_rule) {
-    throw new Error("Rule is missing rule_id, title, or raw_rule");
-  }
-
-  const revision = Number(source.rev || 0);
-  const parsedRule = parseRawRule(source.raw_rule);
-  if ((!parsedRule.pcre || parsedRule.pcre.length === 0) && source.pcre) {
-    parsedRule.pcre = [String(source.pcre)];
-  }
-
-  return {
-    ruleId: String(source.rule_id),
-    action: String(source.raw_rule).trim().split(/\s+/, 1)[0].toLowerCase(),
-    revision: Number.isFinite(revision) ? revision : 0,
-    title: String(source.title).trim(),
-    normalizedTitle: normalizeTitle(source.title),
-    classtype: source.classtype ? String(source.classtype) : undefined,
-    protocol: source.protocol ? String(source.protocol).toLowerCase() : undefined,
-    src: source.src ? String(source.src) : undefined,
-    srcPort: source.src_port ? String(source.src_port) : undefined,
-    direction: source.direction ? String(source.direction) : undefined,
-    dst: source.dst ? String(source.dst) : undefined,
-    dstPort: source.dst_port ? String(source.dst_port) : undefined,
-    sourceContents: Array.isArray(source.contents) ? source.contents.map(String) : [],
-    sourcePcre: source.pcre ? String(source.pcre) : undefined,
-    rawRule: String(source.raw_rule),
-    sourceFile: source.source_file ? String(source.source_file) : undefined,
-    parsedRule,
-  };
-}
 
 async function importRules(filePath, { batchSize = DEFAULT_BATCH_SIZE, repository = new DetectionRuleRepository() } = {}) {
   const input = fs.createReadStream(filePath, { encoding: "utf8" });
@@ -106,4 +73,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { mapSourceRule, importRules };
+module.exports = { importRules };

@@ -9,14 +9,18 @@ const { buildDetectionRuleContext } = require('../services/contextBuilder');
 const { getIncidentSignature } = require('../services/ruleResolver');
 const { AlertRepository } = require('../repositories/AlertRepository');
 const { createEventHash } = require('../services/eventHash');
-const { createGetAllAlerts } = require('./controllers/alerts.controller');
+const {
+  createGetAllAlerts,
+  toAlertSummary,
+  getAiStatus,
+  getAiEligibility,
+  toPlainObject,
+} = require('./controllers/alerts.controller');
 const ruleController = require('./controllers/rules.controller');
 const multer = require('multer');
 const { successResponse } = require('../utils/response');
 
-const upload = multer({
-  dest: 'uploads/'
-});
+const upload = multer({ dest: 'uploads/' });
 
 function createRouter({
   analyzer = new IncidentAnalyzer(),
@@ -24,22 +28,21 @@ function createRouter({
 } = {}) {
   const router = express.Router();
 
-  router.get('/health', (_, res) => {
+  router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
 
   router.post('/analyze-incident', async (req, res) => {
     const requestId = crypto.randomUUID();
-
     req.log.info(
       { requestId, keys: Object.keys(req.body || {}).slice(0, 30) },
-      'incident_received',
+     'incident_received',
     );
 
     try {
       const response = await analyzer.analyzeIncident(req.body || {});
       req.log.info({ requestId }, 'incident_analyzed');
-      return successResponse(res,response);
+      return successResponse(res, response);
     } catch (error) {
       if (error?.name === 'ZodError') {
         req.log.warn({ requestId, error: error.message }, 'invalid_llm_output');
@@ -83,26 +86,91 @@ function createRouter({
         storedAlerts.push(toAlertSummary(stored));
       }
 
-      req.log.info(
-        { requestId, count: storedAlerts.length },
-        'webhook_alert_stored',
-      );
-      return res
-        .status(201)
-        .json({ count: storedAlerts.length, alerts: storedAlerts });
+      req.log.info({ requestId, count: storedAlerts.length }, 'webhook_alert_stored');
+      return res.status(201).json({ count: storedAlerts.length, alerts: storedAlerts });
     } catch (error) {
       req.log.error({ requestId, err: error }, 'webhook_alert_storage_failed');
-      return res
-        .status(500)
-        .json({ detail: 'Internal error during alert storage' });
+      return res.status(500).json({ detail: 'Internal error during alert storage' });
     }
   });
 
   router.get('/alerts', createGetAllAlerts({ alertRepository }));
 
+  router.get('/dashboard/stats', async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const result = await alertRepository.getDashboardStats({
+        createdAtFrom: req.query.createdAtFrom || req.query.from,
+        createdAtTo: req.query.createdAtTo || req.query.to,
+        recentLimit: req.query.recentLimit,
+      });
+      const summary = result.summary;
+      const total = Number(summary.total || 0);
+      const analyzed = Number(summary.analyzed || 0);
+      const weightedSeverity =
+        Number(summary.critical || 0) * 100 +
+        Number(summary.high || 0) * 75 +
+        Number(summary.medium || 0) * 50 +
+        Number(summary.low || 0) * 25 +
+        Number(summary.info || 0) * 10 +
+        Number(summary.unknown || 0) * 10;
+      const severityPressureIndex = total ? Math.round(weightedSeverity / total) : 0;
+      const mitreCoveragePercent = analyzed
+        ? Math.round((Number(result.mitre.mappedAlertCount || 0) / analyzed) * 100)
+        : 0;
+
+      const data = {
+        window: result.window,
+        totals: {
+          alerts: total,
+          uniqueHosts: Number(summary.uniqueHosts || 0),
+          sources: result.sources.length,
+        },
+        severity: {
+          critical: Number(summary.critical || 0),
+          high: Number(summary.high || 0),
+          medium: Number(summary.medium || 0),
+          low: Number(summary.low || 0),
+          info: Number(summary.info || 0),
+          unknown: Number(summary.unknown || 0),
+        },
+        aiStatus: {
+          analyzed,
+          analyzing: Number(summary.analyzing || 0),
+          failed: Number(summary.failed || 0),
+          notAnalyzed: Number(summary.notAnalyzed || 0),
+        },
+        sources: result.sources,
+        performance: {
+          aiCoveragePercent: percent(analyzed, total),
+          ruleMatchCoveragePercent: percent(Number(summary.matchedRules || 0), total),
+          avgProcessingTimeMs: Math.round(Number(summary.avgProcessingTimeMs || 0)),
+        },
+        posture: {
+          severityPressureIndex,
+          matchedRules: Number(summary.matchedRules || 0),
+        },
+        mitre: {
+          techniqueCount: Number(result.mitre.techniqueCount || 0),
+          mappedAlertCount: Number(result.mitre.mappedAlertCount || 0),
+          analyzedAlertCount: analyzed,
+          coveragePercent: mitreCoveragePercent,
+        },
+        recentAlerts: result.recentAlerts.map(toAlertSummary),
+      };
+
+      req.log.info({ requestId, total, window: result.window }, 'dashboard_stats_loaded');
+      return successResponse(res, data);
+    } catch (error) {
+      req.log.error({ requestId, err: error }, 'dashboard_stats_failed');
+      return res.status(500).json({ detail: 'Internal error while loading dashboard statistics' });
+    }
+  });
+
   router.post('/alerts/:id/analyze', async (req, res) => {
     const requestId = crypto.randomUUID();
     const alertId = req.params.id;
+    const force = req.body?.force === true || req.query.force === 'true' || req.query.force === '1';
     let analysisStarted = false;
 
     try {
@@ -111,7 +179,7 @@ function createRouter({
         return res.status(404).json({ detail: 'Alert not found' });
       }
 
-      if ((alert.aiStatus === 'analyzed' || alert.status === 'analyzed') && alert.fullAnalysis) {
+      if (!force && (alert.aiStatus === 'analyzed' || alert.status === 'analyzed') && alert.fullAnalysis) {
         const data = {
           alertId,
           aiStatus: 'analyzed',
@@ -123,6 +191,7 @@ function createRouter({
             model: alert.model || null,
             processingTimeMs: alert.processingTimeMs ?? null,
             cached: true,
+            analysisCount: Array.isArray(alert.analysis) ? alert.analysis.length : 1,
           },
         };
         return res.status(200).json({
@@ -144,21 +213,17 @@ function createRouter({
       const signature = getIncidentSignature(alert.rawEvent || {});
       if (!signature) {
         return res.status(422).json({
-          detail:
-            'AI analysis for alerts without a signature is not supported in V1 yet',
+          detail: 'AI analysis for alerts without a signature is not supported in V1 yet',
           aiStatus: getAiStatus(alert),
           analysisScenario: 'signature_rule_v1',
           reason: 'missing_signature',
         });
       }
 
-      const ruleResolution = await analyzer.resolveDetectionRule(
-        alert.rawEvent || {},
-      );
+      const ruleResolution = await analyzer.resolveDetectionRule(alert.rawEvent || {});
       if (ruleResolution.status !== 'matched') {
         return res.status(422).json({
-          detail:
-            'A deterministic detection rule match is required before AI analysis in V1',
+          detail: 'A deterministic detection rule match is required before AI analysis in V1',
           aiStatus: getAiStatus(alert),
           analysisScenario: 'signature_rule_v1',
           reason: ruleResolution.reason || ruleResolution.status,
@@ -178,26 +243,31 @@ function createRouter({
         analysisStarted = true;
       }
 
-      const analyzed = await analyzer.analyzeStoredAlert(alert, {
-        ruleResolution,
-      });
-      await alertRepository.updateAnalysis(alertId, analyzed.persistence);
+      const analyzedResult = await analyzer.analyzeStoredAlert(alert, { ruleResolution });
+      const updatedAlert = await alertRepository.updateAnalysis(alertId, analyzedResult.persistence);
 
       req.log.info(
         {
           requestId,
           alertId,
-          processingTimeMs: analyzed.metadata.processingTimeMs,
+          processingTimeMs: analyzedResult.metadata.processingTimeMs,
+          force,
         },
         'alert_analyzed',
       );
       const data = {
         alertId,
         aiStatus: 'analyzed',
-        analysis: analyzed.analysis,
-        ruleMatch: analyzed.ruleMatch,
-        detectionRule: buildDetectionRuleContext(analyzed.ruleResolution),
-        metadata: analyzed.metadata,
+        analysis: analyzedResult.analysis,
+        ruleMatch: analyzedResult.ruleMatch,
+        detectionRule: buildDetectionRuleContext(analyzedResult.ruleResolution),
+        metadata: {
+          ...analyzedResult.metadata,
+          cached: false,
+          analysisCount: Array.isArray(updatedAlert?.analysis)
+            ? updatedAlert.analysis.length
+            : (Array.isArray(alert.analysis) ? alert.analysis.length + 1 : 1),
+        },
       };
       return res.status(200).json({
         success: true,
@@ -207,10 +277,7 @@ function createRouter({
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      if (
-        analysisStarted &&
-        typeof alertRepository.markAnalysisFailed === 'function'
-      ) {
+      if (analysisStarted && typeof alertRepository.markAnalysisFailed === 'function') {
         try {
           await alertRepository.markAnalysisFailed(alertId, error);
         } catch (persistenceError) {
@@ -226,21 +293,14 @@ function createRouter({
           { requestId, alertId, error: error.message },
           'invalid_llm_output',
         );
-        return res
-          .status(502)
-          .json({ detail: 'Invalid model output', aiStatus: 'failed' });
+        return res.status(502).json({ detail: 'Invalid model output', aiStatus: 'failed' });
       }
 
-      req.log.error(
-        { requestId, alertId, err: error },
-        'alert_analysis_failed',
-      );
-      return res
-        .status(500)
-        .json({
-          detail: 'Internal error during alert analysis',
-          aiStatus: 'failed',
-        });
+      req.log.error({ requestId, alertId, err: error }, 'alert_analysis_failed');
+      return res.status(500).json({
+        detail: 'Internal error during alert analysis',
+        aiStatus: 'failed',
+      });
     }
   });
 
@@ -255,15 +315,14 @@ function createRouter({
 
       const response = toPlainObject(alert);
       response.aiStatus = getAiStatus(response);
+      response.analysisCount = Array.isArray(response.analysis) ? response.analysis.length : 0;
       response.aiEligibility = getAiEligibility({
         signature: getIncidentSignature(response.rawEvent || {}),
         ruleMatch: response.ruleMatch,
       });
 
       if (typeof analyzer.resolveDetectionRule === 'function') {
-        const ruleResolution = await analyzer.resolveDetectionRule(
-          response.rawEvent || {},
-        );
+        const ruleResolution = await analyzer.resolveDetectionRule(response.rawEvent || {});
         response.detectionRule = buildDetectionRuleContext(ruleResolution);
         response.aiEligibility = getAiEligibility({
           signature: getIncidentSignature(response.rawEvent || {}),
@@ -285,20 +344,25 @@ function createRouter({
       );
       return res.json(response);
     } catch (error) {
-      req.log.error(
-        { requestId, alertId: req.params.id, err: error },
-        'alert_retrieve_failed',
-      );
-      return res
-        .status(500)
-        .json({ detail: 'Internal error while retrieving alert' });
+      req.log.error({ requestId, alertId: req.params.id, err: error }, 'alert_retrieve_failed');
+      return res.status(500).json({ detail: 'Internal error while retrieving alert' });
     }
   });
 
-  router.post('/import', upload.single('rulesFile'), ruleController.importRules);
-  router.get('/', ruleController.getRules);
-  router.get('/:ruleId', ruleController.getRuleById);
-  router.delete('/:ruleId', ruleController.deleteRule);
+  // Detection rules use the same DetectionRule model/repository/parser as the AI resolver.
+  router.post('/rules/import', upload.single('rulesFile'), ruleController.importRules.bind(ruleController));
+  router.get('/rules', ruleController.getRules.bind(ruleController));
+  router.get('/rules/:ruleId', ruleController.getRuleById.bind(ruleController));
+  router.delete('/rules/:ruleId', ruleController.deleteRule.bind(ruleController));
+
+  // Backward-compatible import alias.
+  router.post('/import', upload.single('rulesFile'), ruleController.importRules.bind(ruleController));
+
+  router.use((error, req, res, next) => {
+    if (res.headersSent) return next(error);
+    req.log?.error({ err: error }, 'unhandled_route_error');
+    return res.status(500).json({ detail: 'Internal server error' });
+  });
 
   return router;
 }
@@ -352,75 +416,7 @@ function getAlertSource(payload) {
 }
 
 function getAlertSeverity(payload) {
-  return payload?.severity ? String(payload.severity) : undefined;
-}
-
-function toPlainObject(document) {
-  if (!document) return document;
-  if (typeof document.toObject === 'function')
-    return document.toObject({ getters: true, virtuals: false });
-  return { ...document };
-}
-
-function toAlertSummary(alert) {
-  const plain = toPlainObject(alert);
-  const signature =
-    plain.signature ||
-    plain.rawEvent?.signature ||
-    plain.rawEvent?.Signature ||
-    plain.rawEvent?.rule_name ||
-    plain.ruleMatch?.title ||
-    null;
-
-  const summary = {
-    alertId: plain.alertId,
-    source: plain.source,
-    signature,
-    eventType: plain.eventType || plain.rawEvent?.eventtype || null,
-    host: plain.host || plain.rawEvent?.host || null,
-    status: plain.status,
-    aiStatus: getAiStatus(plain),
-    aiEligibility: getAiEligibility({ signature, ruleMatch: plain.ruleMatch }),
-    severity: plain.severity || plain.analysis?.severity || 'unknown',
-    createdAt: plain.createdAt,
-    updatedAt: plain.updatedAt,
-    eventHash: plain.eventHash,
-  };
-
-  if (plain.ruleMatch) summary.ruleMatch = plain.ruleMatch;
-  if (plain.processing?.lastError)
-    summary.analysisError = plain.processing.lastError;
-  return summary;
-}
-
-function getAiStatus(alert) {
-  if (alert?.aiStatus) return alert.aiStatus;
-  if (alert?.status === 'analyzed' || alert?.fullAnalysis) return 'analyzed';
-  return 'not_analyzed';
-}
-
-function getAiEligibility({ signature, ruleMatch } = {}) {
-  if (!signature) {
-    return {
-      eligible: false,
-      scenario: 'signature_rule_v1',
-      reason: 'missing_signature',
-    };
-  }
-
-  if (ruleMatch?.status !== 'matched') {
-    return {
-      eligible: false,
-      scenario: 'signature_rule_v1',
-      reason: ruleMatch?.status || ruleMatch?.reason || 'rule_not_matched',
-    };
-  }
-
-  return {
-    eligible: true,
-    scenario: 'signature_rule_v1',
-    reason: null,
-  };
+  return payload?.severity ? String(payload.severity).toLowerCase() : undefined;
 }
 
 function getRequestedSocFields(query) {
@@ -435,13 +431,18 @@ function getRequestedSocFields(query) {
   if (typeof socFields === 'string') {
     for (const field of socFields
       .split(',')
-      .map(item => item.trim())
+      .map((item) => item.trim())
       .filter(Boolean)) {
       if (allowed.includes(field)) fields.add(field);
     }
   }
 
   return [...fields];
+}
+
+function percent(part, total) {
+  if (!total) return 0;
+  return Math.round((part / total) * 100);
 }
 
 const router = createRouter();

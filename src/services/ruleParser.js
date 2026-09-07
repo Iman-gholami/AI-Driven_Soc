@@ -33,7 +33,7 @@ function splitRuleOptions(rawRule) {
 
     if (char === '"') {
       current += char;
-      inQuote = !inQuote;
+      inQuote = !inQuoue;
       continue;
     }
 
@@ -149,9 +149,6 @@ function parseRawRule(rawRule) {
     }
   }
 
-  // Some community rules contain an unescaped quote inside PCRE. Direct field
-  // extraction keeps msg/sid/rev/content parsing reliable even when option
-  // tokenization becomes ambiguous around that PCRE.
   const directMessage = String(rawRule || "").match(/\bmsg\s*:\s*"((?:\\.|[^"])*)"\s*;/i);
   const directSid = String(rawRule || "").match(/\bsid\s*:\s*(\d+)\s*;/i);
   const directRevision = String(rawRule || "").match(/\brev\s*:\s*(\d+)\s*;/i);
@@ -180,6 +177,39 @@ function parseRawRule(rawRule) {
   };
 }
 
+function mapSourceRule(source) {
+  if (!source || typeof source !== "object") throw new Error("Rule record must be an object");
+  if (!source.rule_id || !source.title || !source.raw_rule) {
+    throw new Error("Rule is missing rule_id, title, or raw_rule");
+  }
+
+  const revision = Number(source.rev || 0);
+  const parsedRule = parseRawRule(source.raw_rule);
+  if ((!parsedRule.pcre || parsedRule.pcre.length === 0) && source.pcre) {
+    parsedRule.pcre = [String(source.pcre)];
+  }
+
+  return {
+    ruleId: String(source.rule_id),
+    action: String(source.raw_rule).trim().split(/\s+/, 1)[0].toLowerCase(),
+    revision: Number.isFinite(revision) ? revision : 0,
+    title: String(source.title).trim(),
+    normalizedTitle: normalizeTitle(source.title),
+    classtype: source.classtype ? String(source.classtype) : undefined,
+    protocol: source.protocol ? String(source.protocol).toLowerCase() : undefined,
+    src: source.src ? String(source.src) : undefined,
+    srcPort: source.src_port ? String(source.src_port) : undefined,
+    direction: source.direction ? String(source.direction) : undefined,
+    dst: source.dst ? String(source.dst) : undefined,
+    dstPort: source.dst_port ? String(source.dst_port) : undefined,
+    sourceContents: Array.isArray(source.contents) ? source.contents.map(String) : [],
+    sourcePcre: source.pcre ? String(source.pcre) : undefined,
+    rawRule: String(source.raw_rule),
+    sourceFile: source.source_file ? String(source.source_file) : undefined,
+    parsedRule,
+  };
+}
+
 function extractSearchableContent(value) {
   const text = String(value || "").trim();
   if (text.length < 3) return null;
@@ -192,5 +222,6 @@ module.exports = {
   normalizeTitle,
   splitRuleOptions,
   parseRawRule,
+  mapSourceRule,
   extractSearchableContent,
 };

@@ -5,7 +5,10 @@ const { LLMService } = require("./llmService");
 const { RuleResolver } = require("./ruleResolver");
 const { createLogger } = require("../core/logging");
 const { settings } = require("../core/config");
-const { analysisResponseSchema } = require("../models/incidentSchema");
+const {
+  analysisResponseSchema,
+  normalizeAnalysisPayload,
+} = require("../models/incidentSchema");
 const { AlertRepository } = require("../repositories/AlertRepository");
 
 class IncidentAnalyzer {
@@ -53,7 +56,8 @@ class IncidentAnalyzer {
     const ruleResolution = providedRuleResolution || await this.resolveDetectionRule(payload);
     const context = buildContext(payload, ruleResolution);
     const result = await this.llm.analyze(context);
-    const response = analysisResponseSchema.parse(result);
+    const normalized = normalizeAnalysisPayload(result);
+    const response = analysisResponseSchema.parse(normalized);
     const processingTimeMs = Date.now() - startedAt;
     const providerMetadata = this.llm.getMetadata ? this.llm.getMetadata() : {};
 
@@ -163,6 +167,10 @@ function mapAnalysisSummary(analysisResult) {
     severity: getSeverity(analysisResult),
     summary: getSummary(analysisResult),
     recommendations: analysisResult.recommended_investigation_steps || [],
+    verdict: analysisResult.verdict || "UNKNOWN",
+    confidence: Number(analysisResult.risk_assessment?.confidence || 0),
+    action: analysisResult.analyst_decision?.action || "UNKNOWN",
+    analyzedAt: new Date(),
   };
 }
 
@@ -175,10 +183,14 @@ function getSeverity(analysisResult) {
 }
 
 function getSummary(analysisResult) {
+  if (typeof analysisResult.one_line_summary === "string" && analysisResult.one_line_summary.trim()) {
+    return analysisResult.one_line_summary.trim();
+  }
+
   const incidentSummary = analysisResult.incident_summary;
   if (typeof incidentSummary === "string") return incidentSummary;
   if (incidentSummary && typeof incidentSummary === "object") {
-    return incidentSummary.what_happened || incidentSummary.summary || JSON.stringify(incidentSummary);
+    return incidentSummary.what_happened || incidentSummary.summary || incidentSummary.description || JSON.stringify(undefined);
   }
   return analysisResult.final_soc_note || "";
 }

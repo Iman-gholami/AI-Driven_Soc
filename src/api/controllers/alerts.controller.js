@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const { AlertRepository } = require('../../repositories/AlertRepository');
 const defaultAlertRepository = new AlertRepository();
-const { successResponse } = require('../../utils/response');
 
 function createGetAllAlerts({ alertRepository = defaultAlertRepository } = {}) {
   return async (req, res) => {
@@ -12,10 +11,14 @@ function createGetAllAlerts({ alertRepository = defaultAlertRepository } = {}) {
         status: req.query.status,
         aiStatus: req.query.aiStatus,
         severity: req.query.severity,
+        source: req.query.source,
+        search: req.query.search || req.query.q,
         createdAtFrom: req.query.createdAtFrom || req.query.from,
         createdAtTo: req.query.createdAtTo || req.query.to,
         page: req.query.page,
         limit: req.query.limit,
+        sortBy: req.query.sortBy,
+        sortDirection: req.query.sortDirection || req.query.order,
       });
 
       const alerts = result.alerts.map(toAlertSummary);
@@ -24,8 +27,6 @@ function createGetAllAlerts({ alertRepository = defaultAlertRepository } = {}) {
         'alerts_listed',
       );
 
-      // Keep the current success envelope while also exposing the legacy
-      // top-level list fields used by existing API consumers.
       const data = {
         alerts,
         pagination: result.pagination,
@@ -72,16 +73,32 @@ function toAlertSummary(alert) {
     status: plain.status,
     aiStatus: getAiStatus(plain),
     aiEligibility: getAiEligibility({ signature, ruleMatch: plain.ruleMatch }),
-    severity: plain.severity || plain.analysis?.severity || 'unknown',
+    severity: plain.severity && plain.severity !== 'unknown'
+      ? plain.severity
+      : (getLatestAnalysis(plain)?.severity || 'unknown'),
     createdAt: plain.createdAt,
     updatedAt: plain.updatedAt,
     eventHash: plain.eventHash,
   };
 
+  if (plain.processingTimeMs !== undefined && plain.processingTimeMs !== null) summary.processingTimeMs = plain.processingTimeMs;
   if (plain.ruleMatch) summary.ruleMatch = plain.ruleMatch;
-  if (plain.processing?.lastError)
-    summary.analysisError = plain.processing.lastError;
+  if (plain.processing?.lastError) summary.analysisError = plain.processing.lastError;
+  if (plain.fullAnalysis?.risk_assessment || plain.fullAnalysis?.attack_mapping) {
+    summary.fullAnalysis = {
+      risk_assessment: plain.fullAnalysis?.risk_assessment,
+      attack_mapping: plain.fullAnalysis?.attack_mapping,
+    };
+  }
+  if (Array.isArray(plain.analysis) && plain.analysis.length > 0) {
+    summary.analysis = plain.analysis;
+  }
   return summary;
+}
+
+function getLatestAnalysis(alert) {
+  if (!Array.isArray(alert?.analysis) || alert.analysis.length === 0) return null;
+  return alert.analysis[alert.analysis.length - 1];
 }
 
 function getAiStatus(alert) {
@@ -103,7 +120,7 @@ function getAiEligibility({ signature, ruleMatch } = {}) {
     return {
       eligible: false,
       scenario: 'signature_rule_v1',
-      reason: ruleMatch?.status || ruleMatch?.reason || 'rule_not_matched',
+      reason: ruleMatch?.reason || ruleMatch?.status || 'rule_not_matched',
     };
   }
 
@@ -116,12 +133,17 @@ function getAiEligibility({ signature, ruleMatch } = {}) {
 
 function toPlainObject(document) {
   if (!document) return document;
-  if (typeof document.toObject === 'function')
+  if (typeof document.toObject === 'function') {
     return document.toObject({ getters: true, virtuals: false });
+  }
   return { ...document };
 }
 
 module.exports = {
   getAllAlerts,
   createGetAllAlerts,
+  toAlertSummary,
+  getAiStatus,
+  getAiEligibility,
+  toPlainObject,
 };

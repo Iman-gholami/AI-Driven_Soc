@@ -42,7 +42,7 @@ const MitreCoverage: React.FC = () => {
       label: 'Rules With MITRE',
       value: summary?.rules.withMitre ?? 0,
       detail: summary?.rules.total
-        ? `${summary.rules.mappingCoveragePercent}% mapped · ${summary.rules.withActiveMitre ?? 0} active · ${summary.rules.legacyOnly ?? 0} legacy-only`
+        ? `${summary.rules.mappingCoveragePercent}% mapped · ${summary.rules.explicitReference ?? 0} explicit/ref · ${summary.rules.curated ?? 0} curated · ${summary.rules.legacyOnly ?? 0} legacy-only`
         : 'No current rules in this scope',
     },
     {
@@ -184,6 +184,15 @@ const MitreCoverage: React.FC = () => {
             { title: 'Rev', dataIndex: 'revision', width: 65 },
             { title: 'Title', dataIndex: 'title' },
             { title: 'Tier', dataIndex: 'tier', width: 100, render: (value: string | undefined) => <Tag>{value || 'imported'}</Tag> },
+            {
+              title: 'Mapping',
+              key: 'mapping',
+              width: 120,
+              render: (_value: unknown, record) => {
+                const sources = [...new Set((record.mitre?.mappings || []).map((mapping: any) => mapping.source))];
+                return sources.map((source) => <Tag key={source}>{source}</Tag>);
+              },
+            },
             { title: 'Protocol', dataIndex: 'protocol', width: 100 },
           ]}
           pagination={{

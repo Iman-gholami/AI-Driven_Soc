@@ -17,7 +17,7 @@ test("curated mapping maps phishing family to parent Phishing technique", () => 
   }), ["T1566"]);
 });
 
-test("curated mapping maps DNS and HTTP C2 to protocol sub-techniques", () => {
+test("curated mapping maps explicit DNS and HTTP C2 semantics to protocol sub-techniques", () => {
   assert.deepEqual(techniqueIds({
     sourceFile: "malware.rules",
     classtype: "command-and-control",
@@ -33,6 +33,24 @@ test("curated mapping maps DNS and HTTP C2 to protocol sub-techniques", () => {
     title: "CnC Server Acknowledgement",
     parsedRule: {},
   }), ["T1071.001"]);
+});
+
+test("curated C2 mapping rejects misleading classifications without explicit C2 semantics", () => {
+  assert.deepEqual(techniqueIds({
+    sourceFile: "activex.rules",
+    classtype: "command-and-control",
+    protocol: "http",
+    title: "Cisco Linksys ActiveX Control PlayerPT.ocx Access",
+    parsedRule: {},
+  }), []);
+
+  assert.deepEqual(techniqueIds({
+    sourceFile: "attack_response.rules",
+    classtype: "domain-c2",
+    protocol: "dns",
+    title: "DNS Query for Observed CVE-2021-44228 Security Scanner Domain",
+    parsedRule: {},
+  }), []);
 });
 
 test("curated mapping recognizes explicit process hollowing semantics", () => {

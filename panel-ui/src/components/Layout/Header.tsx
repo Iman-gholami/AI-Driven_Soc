@@ -8,11 +8,11 @@ const { Header: AntHeader } = Layout;
 const { Text } = Typography;
 
 const PAGE_META: Record<string, { eyebrow: string; title: string }> = {
-  '/dashboard': { eyebrow: 'OPERATIONS', title: 'Command Center' },
-  '/alerts': { eyebrow: 'DETECTION', title: 'Security Alerts' },
-  '/mitre-coverage': { eyebrow: 'DETECTION ENGINE', title: 'MITRE ATT&CK Coverage' },
-  '/analytics': { eyebrow: 'ANALYTICS', title: 'Security Analytics' },
-  '/settings': { eyebrow: 'SYSTEM', title: 'Settings' },
+  '/dashboard': { eyebrow: 'OPERATIONS', title: 'Overview' },
+  '/alerts': { eyebrow: 'DETECTION', title: 'Investigation queue' },
+  '/mitre-coverage': { eyebrow: 'DETECTION ENGINE', title: 'ATT&CK matrix' },
+  '/analytics': { eyebrow: 'ANALYTICS', title: 'Workspace' },
+  '/settings': { eyebrow: 'SYSTEM', title: 'Configuration' },
 };
 
 const Header: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {

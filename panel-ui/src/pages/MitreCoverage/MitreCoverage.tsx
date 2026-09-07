@@ -71,7 +71,7 @@ const MitreCoverage: React.FC = () => {
       label: 'Detection Rules',
       value: summary?.rules.total ?? 0,
       detail: `Native ${tierCounts.native} · Imported ${tierCounts.imported} · Community ${tierCounts.community}`,
-      percent: 100,
+      percent: null,
       tone: 'neutral',
       icon: <DatabaseOutlined />,
     },
@@ -104,6 +104,11 @@ const MitreCoverage: React.FC = () => {
       }))
       .filter((tactic) => tactic.techniques.length > 0);
   }, [snapshot?.tactics, search, coverageFilter]);
+
+  const visibleTechniqueCount = filteredTactics.reduce(
+    (total, tactic) => total + tactic.techniques.length,
+    0,
+  );
 
   const openTechnique = (technique: MitreTechniqueCoverage) => {
     setRulePage(1);
@@ -142,9 +147,11 @@ const MitreCoverage: React.FC = () => {
               </div>
               <strong>{Number(item.value).toLocaleString()}</strong>
               <small>{item.detail}</small>
-              <div className="mitre-card-meter" aria-hidden="true">
-                <i style={{ width: `${Math.max(0, Math.min(100, item.percent))}%` }} />
-              </div>
+              {typeof item.percent === 'number' && (
+                <div className="mitre-card-meter" aria-hidden="true">
+                  <i style={{ width: `${Math.max(0, Math.min(100, item.percent))}%` }} />
+                </div>
+              )}
             </Card>
           ))}
         </section>
@@ -218,6 +225,7 @@ const MitreCoverage: React.FC = () => {
               <div>
                 <span>ATT&amp;CK MATRIX</span>
                 <strong>Coverage by tactic and technique</strong>
+                <small>{visibleTechniqueCount.toLocaleString()} techniques visible</small>
               </div>
               <div className="mitre-legend" aria-label="Heat legend">
                 <span>Rule density</span>

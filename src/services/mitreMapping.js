@@ -62,6 +62,8 @@ function extractMitreMapping(source = {}, parsedRule = {}) {
     tacticIds,
     mappings,
     mapped: techniqueIds.length > 0,
+    enrichmentVersion: 1,
+    lastEnrichedAt: new Date(),
   };
 }
 

@@ -30,9 +30,9 @@ const ThemeApplier: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
           colorPrimary: dark ? '#4c8dff' : '#2f6fed',
-          colorInfo: dark ? '#3ac0d9' : '#1688a3',
-          colorSuccess: dark ? '#3bcf91' : '#148b5b',
-          colorWarning: dark ? '#e2b45b' : '#b7791f',
+          colorInfo: dark ? '#3ac0d9' : '#0f7188',
+          colorSuccess: dark ? '#3bcf91' : '#0f7a4e',
+          colorWarning: dark ? '#e2b45b' : '#946115',
           colorError: dark ? '#ec6b78' : '#c84b5d',
           colorBgBase: dark ? '#0a1016' : '#f5f7fa',
           colorBgContainer: dark ? '#101820' : '#ffffff',

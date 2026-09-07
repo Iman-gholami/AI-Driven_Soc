@@ -6,6 +6,7 @@ import { ThemeProvider, useTheme } from './hooks/useTheme';
 import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Alerts from './pages/Alerts/Alerts';
+import MitreCoverage from './pages/MitreCoverage/MitreCoverage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +32,7 @@ function AppContent() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="alerts" element={<Alerts />} />
+            <Route path="mitre-coverage" element={<MitreCoverage />} />
             <Route path="analytics" element={<div className="p-6">Analytics Page Coming Soon</div>} />
             <Route path="settings" element={<div className="p-6">Settings Page Coming Soon</div>} />
           </Route>

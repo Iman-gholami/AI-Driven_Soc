@@ -179,15 +179,21 @@ class MitreCoverageService {
       if (row.tier in byTier) byTier[row.tier] = Number(row.count || 0);
     }
 
-    const techniqueStats = techniques.map((technique) => ({
-      techniqueId: technique.techniqueId,
-      name: technique.name,
-      isSubTechnique: Boolean(technique.isSubTechnique),
-      parentTechniqueId: technique.parentTechniqueId || null,
-      tactics: Array.isArray(technique.tactics) ? technique.tactics : [],
-      platforms: Array.isArray(technique.platforms) ? technique.platforms : [],
-      ruleCount: ruleCounts.get(technique.techniqueId) || 0,
-    }));
+    const techniqueById = new Map(techniques.map((item) => [item.techniqueId, item]));
+    const techniqueStats = techniques.map((technique) => {
+      const ownTactics = Array.isArray(technique.tactics) ? technique.tactics : [];
+      const parent = technique.parentTechniqueId ? techniqueById.get(technique.parentTechniqueId) : null;
+      const inheritedTactics = parent && Array.isArray(parent.tactics) ? parent.tactics : [];
+      return {
+        techniqueId: technique.techniqueId,
+        name: technique.name,
+        isSubTechnique: Boolean(technique.isSubTechnique),
+        parentTechniqueId: technique.parentTechniqueId || null,
+        tactics: ownTactics.length ? ownTactics : inheritedTactics,
+        platforms: Array.isArray(technique.platforms) ? technique.platforms : [],
+        ruleCount: ruleCounts.get(technique.techniqueId) || 0,
+      };
+    });
 
     const covered = techniqueStats.filter((item) => item.ruleCount > 0).length;
     const tacticsById = new Map();

@@ -295,10 +295,12 @@ const MitreCoverage: React.FC = () => {
                   <small>detection rules</small>
                 </div>
                 <Space wrap>
-                  <Tag color={selected.ruleCount ? 'cyan' : 'default'}>{selected.ruleCount ? 'Covered' : 'Coverage gap'}</Tag>
-                  {selected.isSubTechnique && <Tag>Sub-technique</Tag>}
+                  <Tag className={selected.ruleCount ? 'mitre-status-tag is-covered' : 'mitre-status-tag is-gap'}>
+                    {selected.ruleCount ? 'Covered' : 'Coverage gap'}
+                  </Tag>
+                  {selected.isSubTechnique && <Tag className="mitre-neutral-tag">Sub-technique</Tag>}
                   {detail.data?.technique.tactics?.map((tactic) => (
-                    <Tag color="blue" key={tactic.id}>{tactic.id} {tactic.name}</Tag>
+                    <Tag className="mitre-tactic-tag" key={tactic.id}>{tactic.id} {tactic.name}</Tag>
                   ))}
                 </Space>
               </div>
@@ -337,7 +339,9 @@ const MitreCoverage: React.FC = () => {
                   render: (_value: unknown, record) => {
                     const sources = [...new Set((record.mitre?.mappings || []).map((mapping: any) => mapping.source))];
                     return sources.map((source) => (
-                      <Tag color={mappingColor(source)} key={source}>{mappingLabel(source)}</Tag>
+                      <Tag className={`mitre-mapping-tag mapping-${mappingClass(source)}`} key={source}>
+                        {mappingLabel(source)}
+                      </Tag>
                     ));
                   },
                 },
@@ -372,12 +376,12 @@ function heatWidth(count: number) {
   return Math.min(100, 18 + Math.log2(count + 1) * 13);
 }
 
-function mappingColor(source?: string) {
-  if (source === 'explicit') return 'blue';
-  if (source === 'reference') return 'cyan';
-  if (source === 'curated') return 'purple';
-  if (source === 'curated-gap') return 'gold';
-  return 'default';
+function mappingClass(source?: string) {
+  if (source === 'explicit') return 'explicit';
+  if (source === 'reference') return 'reference';
+  if (source === 'curated') return 'curated';
+  if (source === 'curated-gap') return 'gap';
+  return 'unknown';
 }
 
 function mappingLabel(source?: string) {

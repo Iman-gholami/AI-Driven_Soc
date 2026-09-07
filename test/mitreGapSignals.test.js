@@ -22,14 +22,15 @@ test("gap signals identify behavioral keylogging semantics", () => {
   }), []);
 });
 
-test("gap signals identify credential dumping sub-techniques only from explicit titles", () => {
+test("gap signals identify credential dumping sub-techniques only from explicit behavior", () => {
   assert.deepEqual(ids({ title: "Mimikatz LSASS credential dump" }), ["T1003.001"]);
   assert.deepEqual(ids({ title: "Microsoft Windows LSASS Remote Memory Corruption CVE" }), []);
   assert.deepEqual(ids({ title: "Possible DCSync activity" }), ["T1003.006"]);
+  assert.deepEqual(ids({ title: "Dump SAM Script Retrieval" }), []);
   assert.deepEqual(ids({
     title: "Possible /etc/passwd via HTTP",
     sourceFile: "attack_response.rules",
-  }), ["T1003.008"]);
+  }), []);
   assert.deepEqual(ids({
     title: "/etc/shadow Detected in URI",
     sourceFile: "web_server.rules",
@@ -48,8 +49,9 @@ test("gap signals identify exact process injection variants", () => {
   assert.deepEqual(ids({ title: "Observed Process Doppelganging behavior" }), ["T1055.013"]);
 });
 
-test("gap signals identify network-observable internet connection discovery", () => {
-  assert.deepEqual(ids({ title: "Malware checking whatismyip service" }), ["T1016.001"]);
+test("gap signals do not infer internet connection discovery from generic IP-check traffic", () => {
+  assert.deepEqual(ids({ title: "Malware checking whatismyip service" }), []);
+  assert.deepEqual(ids({ title: "ET POLICY Possible IP Check api.ipify.org" }), []);
 });
 
 test("gap signals respect the uncovered technique set", () => {

@@ -14,6 +14,14 @@ test("gap signals identify behavioral keylogging semantics", () => {
   }), ["T1056.001"]);
 
   assert.deepEqual(ids({
+    title: "ET MALWARE HawkEye Keylogger Report SMTP",
+  }), ["T1056.001"]);
+
+  assert.deepEqual(ids({
+    title: "ET MALWARE Generic Keylogger SMTP",
+  }), []);
+
+  assert.deepEqual(ids({
     title: "ETPRO ATTACK_RESPONSE Snake Keylogger Config Inbound",
   }), []);
 

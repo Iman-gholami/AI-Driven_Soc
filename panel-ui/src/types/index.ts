@@ -156,6 +156,86 @@ export interface DashboardStats {
   recentAlerts: Alert[];
 }
 
+export interface MitreTechniqueCoverage {
+  techniqueId: string;
+  name: string;
+  isSubTechnique: boolean;
+  parentTechniqueId: string | null;
+  ruleCount: number;
+}
+
+export interface MitreTacticCoverage {
+  tacticId: string;
+  name: string;
+  shortName: string;
+  totalTechniques: number;
+  coveredTechniques: number;
+  coveragePercent: number;
+  techniques: MitreTechniqueCoverage[];
+}
+
+export interface MitreCoverageSnapshot {
+  scopeTier: 'all' | 'native' | 'imported' | 'community';
+  generatedAt: string;
+  attackVersion?: string | null;
+  summary: {
+    rules: {
+      total: number;
+      withMitre: number;
+      unmapped: number;
+      quarantined: number;
+      mappingCoveragePercent: number;
+      byTier: { native: number; imported: number; community: number };
+    };
+    techniques: {
+      total: number;
+      covered: number;
+      uncovered: number;
+      coveragePercent: number;
+    };
+  };
+  tactics: MitreTacticCoverage[];
+  techniqueStats: MitreTechniqueCoverage[];
+}
+
+export interface MitreTechniqueDetail {
+  techniqueId: string;
+  name: string;
+  description?: string;
+  tactics: { id: string; name: string; shortName: string }[];
+  platforms: string[];
+  isSubTechnique: boolean;
+  parentTechniqueId?: string | null;
+  attackVersion?: string;
+}
+
+export interface MitreRuleSummary {
+  ruleId: string;
+  revision: number;
+  title: string;
+  protocol?: string;
+  classtype?: string;
+  sourceFile?: string;
+  tier?: 'native' | 'imported' | 'community';
+  quarantined?: boolean;
+  mitre?: {
+    mapped?: boolean;
+    techniqueIds?: string[];
+    tacticIds?: string[];
+  };
+}
+
+export interface MitreTechniqueRulesResult {
+  technique: MitreTechniqueDetail;
+  rules: MitreRuleSummary[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
 export interface AIAlertResponse {
   id: string;
   alertId: string;

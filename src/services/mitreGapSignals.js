@@ -1,12 +1,16 @@
-const GAP_SIGNAL_VERSION = 1;
+const GAP_SIGNAL_VERSION = 2;
 
 const GAP_SIGNALS = [
-  signal("T1056.001", "keylogging-title-v1", 0.99, (ctx) =>
-    /\bkeylog(?:ger|ging)?\b|\bkeystroke(?:s)?\b/i.test(ctx.title)),
+  signal("T1056.001", "keylogging-behavior-v2", 0.99, (ctx) => {
+    const keylogging = /\bkeylog(?:ger|ging)?\b|\bkeystrokes?\b/i.test(ctx.title);
+    const behavior = /\b(?:storing|stored|capture|captured|record|recorded|logging|logged|report|reporting|upload|uploading|send|sending)\b/i.test(ctx.title);
+    const excluded = /\b(?:config|configuration|external ip check|style external ip check)\b/i.test(ctx.title);
+    return keylogging && behavior && !excluded;
+  }),
 
-  signal("T1003.001", "lsass-credential-dump-title-v1", 0.99, (ctx) =>
+  signal("T1003.001", "lsass-credential-dump-title-v2", 0.99, (ctx) =>
     /\blsass(?:\.exe)?\b/i.test(ctx.title)
-      && /\b(?:dump|memory|credential|mimikatz|sekurlsa)\b/i.test(ctx.title)),
+      && /\b(?:dump|dumping|mimikatz|sekurlsa|minidump|comsvcs)\b/i.test(ctx.title)),
 
   signal("T1003.002", "sam-credential-dump-title-v1", 0.99, (ctx) =>
     /\bSAM\b/.test(ctx.title)
@@ -24,19 +28,30 @@ const GAP_SIGNALS = [
   signal("T1003.006", "dcsync-title-v1", 0.99, (ctx) =>
     /\bdcsync\b/i.test(ctx.title)),
 
-  signal("T1003.008", "unix-password-file-title-v1", 0.99, (ctx) =>
-    /\/etc\/(?:passwd|shadow)\b/i.test(ctx.title)),
+  signal("T1003.008", "unix-password-file-transfer-v2", 0.99, (ctx) =>
+    /\/etc\/(?:passwd|shadow)\b/i.test(ctx.title)
+      && !/\b(?:uri|url|request|path traversal)\b/i.test(ctx.title)
+      && (
+        ctx.sourceFile === "attack_response.rules"
+        || /\b(?:via|response|outbound|downloaded|transferred)\b/i.test(ctx.title)
+      )),
 
-  signal("T1047", "wmi-execution-title-v1", 0.97, (ctx) =>
+  signal("T1047", "wmi-execution-title-v2", 0.99, (ctx) =>
     /\b(?:WMI|WMIC)\b/i.test(ctx.title)
-      && /\b(?:exec(?:ute|ution)?|process|command|remote|spawn)\b/i.test(ctx.title)),
+      && (
+        /\bprocess\s+call\s+create\b/i.test(ctx.title)
+        || /\bWin32_Process\b.*\bCreate\b/i.test(ctx.title)
+        || /\bremote\s+(?:WMI|WMIC)\s+execution\b/i.test(ctx.title)
+      )),
 
   signal("T1053.003", "cron-title-v1", 0.98, (ctx) =>
     /\b(?:cron|crontab)\b/i.test(ctx.title)
       && /\b(?:job|task|schedule|scheduled|command|persistence)\b/i.test(ctx.title)),
 
-  signal("T1053.005", "scheduled-task-title-v1", 0.99, (ctx) =>
-    /\bschtasks(?:\.exe)?\b|\bscheduled tasks?\b/i.test(ctx.title)),
+  signal("T1053.005", "scheduled-task-create-title-v2", 0.99, (ctx) =>
+    /\bschtasks(?:\.exe)?\b[^\n]*\/create\b/i.test(ctx.title)
+      || /\bcreat(?:e|es|ed|ing)\s+(?:a\s+)?scheduled task\b/i.test(ctx.title)
+      || /\bscheduled task creation\b/i.test(ctx.title)),
 
   signal("T1055.001", "dll-injection-title-v1", 0.99, (ctx) =>
     /\b(?:DLL|dynamic[- ]link library) injection\b/i.test(ctx.title)),

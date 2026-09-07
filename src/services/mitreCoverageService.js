@@ -256,7 +256,27 @@ class MitreCoverageService {
                         $map: {
                           input: { $ifNull: ["$mitre.mappings", []] },
                           as: "mapping",
-                          in: "$$mapping.source",
+                          in: "$mapping.source",
+                        },
+                      },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            gapCurated: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      "curated-gap",
+                      {
+                        $map: {
+                          input: { $ifNull: ["$mitre.mappings", []] },
+                          as: "mapping",
+                          in: "$mapping.source",
                         },
                       },
                     ],
@@ -291,6 +311,7 @@ class MitreCoverageService {
             withActiveMitre: 1,
             explicitReference: 1,
             curated: 1,
+            gapCurated: 1,
             legacyOnly: 1,
             quarantined: 1,
           },
@@ -320,6 +341,7 @@ class MitreCoverageService {
       withActiveMitre: 0,
       explicitReference: 0,
       curated: 0,
+      gapCurated: 0,
       legacyOnly: 0,
       quarantined: 0,
     };
@@ -395,6 +417,7 @@ class MitreCoverageService {
         withActiveMitre: Number(ruleSummary.withActiveMitre || 0),
         explicitReference: Number(ruleSummary.explicitReference || 0),
         curated: Number(ruleSummary.curated || 0),
+        gapCurated: Number(ruleSummary.gapCurated || 0),
         legacyOnly: Number(ruleSummary.legacyOnly || 0),
         unmapped: Math.max(Number(ruleSummary.total || 0) - Number(ruleSummary.withMitre || 0), 0),
         quarantined: Number(ruleSummary.quarantined || 0),

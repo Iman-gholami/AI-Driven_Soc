@@ -45,6 +45,7 @@ async function main() {
       invalidTechniqueMappings: 0,
       uniqueTechniqueIds: [],
       byMappingRule: {},
+      byMappingRuleSource: {},
       samples: {},
     };
 
@@ -77,6 +78,10 @@ async function main() {
         techniqueIds.add(mapping.techniqueId);
         const key = mapping.mappingRuleId;
         stats.byMappingRule[key] = (stats.byMappingRule[key] || 0) + 1;
+        if (!stats.byMappingRuleSource[key]) stats.byMappingRuleSource[key] = {};
+        const sourceKey = rule.sourceFile || "unknown";
+        stats.byMappingRuleSource[key][sourceKey] =
+          (stats.byMappingRuleSource[key][sourceKey] || 0) + 1;
         if (!stats.samples[key]) stats.samples[key] = [];
         if (stats.samples[key].length < 5) {
           stats.samples[key].push({
@@ -129,6 +134,12 @@ async function main() {
     stats.uniqueTechniqueIds = [...techniqueIds].sort();
     stats.byMappingRule = Object.fromEntries(
       Object.entries(stats.byMappingRule).sort((a, b) => b[1] - a[1]),
+    );
+    stats.byMappingRuleSource = Object.fromEntries(
+      Object.entries(stats.byMappingRuleSource).map(([mappingRuleId, sources]) => [
+        mappingRuleId,
+        Object.fromEntries(Object.entries(sources).sort((a, b) => b[1] - a[1])),
+      ]),
     );
 
     process.stdout.write(JSON.stringify(stats, null, 2) + "\n");

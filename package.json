@@ -15,7 +15,8 @@
     "mitre:coverage": "node scripts/rebuild-mitre-coverage.js",
     "mitre:profile": "node scripts/profile-unmapped-mitre.js",
     "mitre:curated:preview": "node scripts/curate-mitre-mappings.js",
-    "mitre:curated:apply": "node scripts/curate-mitre-mappings.js --apply"
+    "mitre:curated:apply": "node scripts/curate-mitre-mappings.js --apply",
+    "mitre:gaps:preview": "node scripts/profile-mitre-gaps.js"
   },
   "dependencies": {
     "cors": "^2.8.6",

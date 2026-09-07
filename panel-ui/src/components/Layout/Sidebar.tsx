@@ -39,6 +39,8 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
       theme="dark"
       width={232}
       collapsedWidth={76}
+      breakpoint="lg"
+      onBreakpoint={(broken) => { if (broken) setCollapsed(true); }}
       className="soc-sidebar"
       trigger={null}
     >

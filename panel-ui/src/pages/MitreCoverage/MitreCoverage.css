@@ -35,7 +35,7 @@
   gap: 7px;
   margin-bottom: 8px;
   color: var(--mitre-accent);
-  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .12em;
 }
 
@@ -71,7 +71,7 @@
   align-items: center;
   gap: 7px;
   color: var(--mitre-muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: .055em;
   text-transform: uppercase;
@@ -101,7 +101,7 @@
   align-items: center;
   gap: 5px;
   color: var(--mitre-muted-2);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .mitre-summary-grid {
@@ -147,7 +147,7 @@
 
 .mitre-card-label {
   color: var(--mitre-muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 720;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -181,7 +181,7 @@
   min-height: 28px;
   margin-top: 7px;
   color: var(--mitre-muted);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.45;
 }
 
@@ -232,7 +232,7 @@
 .mitre-provenance-strip > div:first-child > small {
   margin-top: 2px;
   color: var(--mitre-muted-2);
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .mitre-provenance-stats {
@@ -248,7 +248,7 @@
   align-items: center;
   gap: 5px;
   color: var(--mitre-muted);
-  font-size: 9px;
+  font-size: 10px;
   white-space: nowrap;
 }
 
@@ -294,7 +294,7 @@
 .mitre-control-block label {
   padding-left: 2px;
   color: var(--mitre-muted-2);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -349,7 +349,7 @@
 
 .mitre-matrix-heading > div:first-child span {
   color: var(--mitre-accent);
-  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .12em;
 }
 
@@ -360,7 +360,7 @@
 
 .mitre-matrix-heading > div:first-child small {
   color: var(--mitre-muted-2);
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .mitre-legend {
@@ -368,7 +368,7 @@
   align-items: center;
   gap: 6px;
   color: var(--mitre-muted);
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .mitre-legend > span {
@@ -427,7 +427,7 @@
 
 .mitre-tactic-code {
   color: var(--mitre-accent);
-  font: 650 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 650 9px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .08em;
 }
 
@@ -442,7 +442,7 @@
 
 .mitre-tactic-column header > small {
   color: var(--mitre-muted-2);
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .mitre-tactic-meter {
@@ -504,7 +504,7 @@
   overflow: hidden;
   margin-top: 1px;
   opacity: .82;
-  font-size: 8px;
+  font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -618,7 +618,7 @@
 .mitre-detail-summary > div:first-child span {
   grid-column: 1 / -1;
   color: var(--panel-muted-2);
-  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .1em;
 }
 
@@ -630,7 +630,7 @@
 
 .mitre-detail-summary > div:first-child small {
   color: var(--panel-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .mitre-status-tag.ant-tag,
@@ -639,7 +639,7 @@
 .mitre-mapping-tag.ant-tag {
   margin-inline-end: 0;
   border-radius: 5px;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 20px;
 }
 
@@ -725,7 +725,7 @@
 
 .mitre-rule-table-heading span {
   color: var(--panel-primary);
-  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .11em;
 }
 

@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const { settings } = require("../src/core/config");
 const { DetectionRuleRepository } = require("../src/repositories/DetectionRuleRepository");
 const { mapSourceRule } = require("../src/services/ruleParser");
+const MitreCoverageSnapshot = require("../src/models/MitreCoverageSnapshot");
 
 const DEFAULT_BATCH_SIZE = 1000;
 
@@ -60,6 +61,7 @@ async function main() {
 
   try {
     const stats = await importRules(resolved);
+    await MitreCoverageSnapshot.deleteMany({});
     process.stdout.write(`${JSON.stringify({ file: resolved, ...stats })}\n`);
   } finally {
     await mongoose.disconnect();

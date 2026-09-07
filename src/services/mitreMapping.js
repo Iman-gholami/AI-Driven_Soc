@@ -16,6 +16,20 @@ function extractIds(value, regex) {
   return [...new Set((text.match(regex) || []).map((item) => item.toUpperCase()))];
 }
 
+function extractTechniqueIds(value) {
+  const text = Array.isArray(value) ? value.join(" ") : String(value || "");
+  const urlPattern = /attack\.mitre\.org\/techniques\/(T\d{4})\/(\d{3})(?:\/|\b)/gi;
+  const subTechniques = [];
+  const sanitized = text.replace(urlPattern, (_match, parent, child) => {
+    subTechniques.push(`${String(parent).toUpperCase()}.${child}`);
+    return " ";
+  });
+  return [...new Set([
+    ...(sanitized.match(TECHNIQUE_RE) || []).map((item) => item.toUpperCase()),
+    ...subTechniques,
+  ])];
+}
+
 function extractMitreMapping(source = {}, parsedRule = {}) {
   const explicitValues = [
     source.mitre,
@@ -41,8 +55,8 @@ function extractMitreMapping(source = {}, parsedRule = {}) {
   const explicitText = explicitValues.map(toText).join(" ");
   const referenceText = referenceValues.map(toText).join(" ");
 
-  const explicitTechniqueIds = extractIds(explicitText, TECHNIQUE_RE);
-  const referenceTechniqueIds = extractIds(referenceText, TECHNIQUE_RE);
+  const explicitTechniqueIds = extractTechniqueIds(explicitText);
+  const referenceTechniqueIds = extractTechniqueIds(referenceText);
   const techniqueIds = [...new Set([...explicitTechniqueIds, ...referenceTechniqueIds])];
 
   const tacticIds = [...new Set([

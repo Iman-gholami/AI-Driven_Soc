@@ -33,7 +33,7 @@ function splitRuleOptions(rawRule) {
 
     if (char === '"') {
       current += char;
-      inQuote = !inQuoue;
+      inQuote = !inQuote;
       continue;
     }
 

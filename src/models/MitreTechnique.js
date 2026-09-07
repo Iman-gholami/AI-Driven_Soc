@@ -22,6 +22,7 @@ const mitreTechniqueSchema = new Schema(
     dataSources: { type: [String], default: [] },
     isSubTechnique: { type: Boolean, default: false },
     parentTechniqueId: { type: String, default: undefined, trim: true },
+    replacementTechniqueId: { type: String, default: undefined, trim: true },
     revoked: { type: Boolean, default: false },
     deprecated: { type: Boolean, default: false },
     modified: { type: Date, default: undefined },
@@ -37,5 +38,6 @@ const mitreTechniqueSchema = new Schema(
 mitreTechniqueSchema.index({ "tactics.id": 1 });
 mitreTechniqueSchema.index({ isSubTechnique: 1 });
 mitreTechniqueSchema.index({ revoked: 1, deprecated: 1 });
+mitreTechniqueSchema.index({ replacementTechniqueId: 1 });
 
 module.exports = mongoose.models.MitreTechnique || mongoose.model("MitreTechnique", mitreTechniqueSchema);

@@ -219,6 +219,53 @@ class MitreCoverageService {
                 ],
               },
             },
+            explicitReference: {
+              $sum: {
+                $cond: [
+                  {
+                    $gt: [
+                      {
+                        $size: {
+                          $setIntersection: [
+                            {
+                              $map: {
+                                input: { $ifNull: ["$mitre.mappings", []] },
+                                as: "mapping",
+                                in: "$mapping.source",
+                              },
+                            },
+                            ["explicit", "reference"],
+                          ],
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            curated: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      "curated",
+                      {
+                        $map: {
+                          input: { $ifNull: ["$mitre.mappings", []] },
+                          as: "mapping",
+                          in: "$mapping.source",
+                        },
+                      },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
             legacyOnly: {
               $sum: {
                 $cond: [
@@ -236,7 +283,18 @@ class MitreCoverageService {
             quarantined: { $sum: { $cond: ["$quarantined", 1, 0] } },
           },
         },
-        { $project: { _id: 0, total: 1, withMitre: 1, withActiveMitre: 1, legacyOnly: 1, quarantined: 1 } },
+        {
+          $project: {
+            _id: 0,
+            total: 1,
+            withMitre: 1,
+            withActiveMitre: 1,
+            explicitReference: 1,
+            curated: 1,
+            legacyOnly: 1,
+            quarantined: 1,
+          },
+        },
       ]).exec(),
       this.detectionRuleModel.aggregate([
         { $match: { isCurrent: true } },
@@ -260,6 +318,8 @@ class MitreCoverageService {
       total: 0,
       withMitre: 0,
       withActiveMitre: 0,
+      explicitReference: 0,
+      curated: 0,
       legacyOnly: 0,
       quarantined: 0,
     };
@@ -333,6 +393,8 @@ class MitreCoverageService {
         total: Number(ruleSummary.total || 0),
         withMitre: Number(ruleSummary.withMitre || 0),
         withActiveMitre: Number(ruleSummary.withActiveMitre || 0),
+        explicitReference: Number(ruleSummary.explicitReference || 0),
+        curated: Number(ruleSummary.curated || 0),
         legacyOnly: Number(ruleSummary.legacyOnly || 0),
         unmapped: Math.max(Number(ruleSummary.total || 0) - Number(ruleSummary.withMitre || 0), 0),
         quarantined: Number(ruleSummary.quarantined || 0),

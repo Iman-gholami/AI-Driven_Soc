@@ -71,11 +71,7 @@ class MitreCoverageService {
 
   async enrichStoredRules() {
     const query = {
-      $or: [
-        { "mitre.mapped": { $exists: false } },
-        { "mitre.techniqueIds": { $exists: false } },
-        { "mitre.techniqueIds.0": { $exists: false } },
-      ],
+      "mitre.enrichmentVersion": { $ne: 1 },
     };
 
     const cursor = this.detectionRuleModel
@@ -276,7 +272,13 @@ class MitreCoverageService {
     const safeTier = normalizeTier(tier);
     const snapshot = await this.snapshotModel.findOne({ scopeTier: safeTier }).lean().exec();
     if (snapshot) return snapshot;
+    await this.prepareRules({ enrich: false });
     return this.rebuildTier(safeTier);
+  }
+
+  async invalidateSnapshots() {
+    const result = await this.snapshotModel.deleteMany({});
+    return { deletedCount: Number(result.deletedCount || 0) };
   }
 
   async getTechnique(techniqueId) {

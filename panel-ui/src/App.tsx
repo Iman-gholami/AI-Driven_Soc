@@ -69,12 +69,23 @@ function AppContent() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="alerts" element={<Alerts />} />
             <Route path="mitre-coverage" element={<MitreCoverage />} />
-            <Route path="analytics" element={<div className="p-6">Analytics Page Coming Soon</div>} />
-            <Route path="settings" element={<div className="p-6">Settings Page Coming Soon</div>} />
+            <Route path="analytics" element={<PlaceholderPage eyebrow="ANALYTICS" title="Security Analytics" description="Advanced trend analysis and reporting will live here. The current dashboard continues to show production-backed operational metrics." />} />
+            <Route path="settings" element={<PlaceholderPage eyebrow="SYSTEM" title="Settings" description="Panel and integration settings are not exposed in V1 yet. Existing runtime configuration remains server-managed." />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </ThemeApplier>
+  );
+}
+
+function PlaceholderPage({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
+  return (
+    <section className="soc-placeholder-page">
+      <span>{eyebrow}</span>
+      <h1>{title}</h1>
+      <p>{description}</p>
+      <div>V1 · Planned workspace</div>
+    </section>
   );
 }
 

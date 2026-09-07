@@ -208,6 +208,9 @@ class MitreCoverageService {
             _id: null,
             total: { $sum: 1 },
             withMitre: {
+              $sum: { $cond: [{ $eq: ["$mitre.mapped", true] }, 1, 0] },
+            },
+            withActiveMitre: {
               $sum: {
                 $cond: [
                   { $gt: [{ $size: { $ifNull: ["$mitre.techniqueIds", []] } }, 0] },
@@ -216,10 +219,24 @@ class MitreCoverageService {
                 ],
               },
             },
+            legacyOnly: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$mitre.mapped", true] },
+                      { $eq: [{ $size: { $ifNull: ["$mitre.techniqueIds", []] } }, 0] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
             quarantined: { $sum: { $cond: ["$quarantined", 1, 0] } },
           },
         },
-        { $project: { _id: 0, total: 1, withMitre: 1, quarantined: 1 } },
+        { $project: { _id: 0, total: 1, withMitre: 1, withActiveMitre: 1, legacyOnly: 1, quarantined: 1 } },
       ]).exec(),
       this.detectionRuleModel.aggregate([
         { $match: { isCurrent: true } },
@@ -239,7 +256,13 @@ class MitreCoverageService {
         .exec(),
     ]);
 
-    const ruleSummary = summaryRows[0] || { total: 0, withMitre: 0, quarantined: 0 };
+    const ruleSummary = summaryRows[0] || {
+      total: 0,
+      withMitre: 0,
+      withActiveMitre: 0,
+      legacyOnly: 0,
+      quarantined: 0,
+    };
     const ruleCounts = new Map(techniqueRows.map((item) => [item.techniqueId, Number(item.ruleCount || 0)]));
     const byTier = Object.fromEntries(["native", "imported", "community"].map((name) => [name, 0]));
     for (const row of tierRows) {
@@ -309,9 +332,12 @@ class MitreCoverageService {
       rules: {
         total: Number(ruleSummary.total || 0),
         withMitre: Number(ruleSummary.withMitre || 0),
+        withActiveMitre: Number(ruleSummary.withActiveMitre || 0),
+        legacyOnly: Number(ruleSummary.legacyOnly || 0),
         unmapped: Math.max(Number(ruleSummary.total || 0) - Number(ruleSummary.withMitre || 0), 0),
         quarantined: Number(ruleSummary.quarantined || 0),
         mappingCoveragePercent: percent(Number(ruleSummary.withMitre || 0), Number(ruleSummary.total || 0)),
+        activeMappingCoveragePercent: percent(Number(ruleSummary.withActiveMitre || 0), Number(ruleSummary.total || 0)),
         byTier,
       },
       techniques: {

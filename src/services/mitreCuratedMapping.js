@@ -1,4 +1,4 @@
-const CURATION_VERSION = 1;
+const CURATION_VERSION = 2;
 
 function deriveCuratedMitreMappings(rule = {}) {
   const sourceFile = lower(rule.sourceFile);
@@ -33,18 +33,34 @@ function deriveCuratedMitreMappings(rule = {}) {
     ]);
   }
 
-  // C2 traffic over an identified application-layer protocol.
-  if (["command-and-control", "domain-c2"].includes(classtype) && protocol === "dns") {
-    add("T1071.004", "c2-dns-v1", 0.99, [
+  // C2 mappings require both classification/protocol AND explicit C2 semantics in
+  // the detection title. This intentionally sacrifices recall for precision.
+  const c2TitleEvidence = /\b(?:c2|c&c|cnc|command[- ]and[- ]control|command[- ]control|check[- ]?in|beacon(?:ing)?|botnet)\b/i.test(title);
+  const c2SourceExcluded = ["attack_response.rules", "activex.rules", "scan.rules"].includes(sourceFile);
+
+  if (
+    ["command-and-control", "domain-c2"].includes(classtype)
+    && protocol === "dns"
+    && c2TitleEvidence
+    && !c2SourceExcluded
+  ) {
+    add("T1071.004", "c2-dns-v2", 0.99, [
       `classtype=${classtype}`,
       "protocol=dns",
+      "title=explicit-c2-indicator",
     ]);
   }
 
-  if (classtype === "command-and-control" && protocol === "http") {
-    add("T1071.001", "c2-http-v1", 0.99, [
+  if (
+    classtype === "command-and-control"
+    && protocol === "http"
+    && c2TitleEvidence
+    && !c2SourceExcluded
+  ) {
+    add("T1071.001", "c2-http-v2", 0.99, [
       "classtype=command-and-control",
       "protocol=http",
+      "title=explicit-c2-indicator",
     ]);
   }
 

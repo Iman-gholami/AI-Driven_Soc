@@ -24,10 +24,12 @@ async function main() {
   const bundle = await response.json();
   const objects = Array.isArray(bundle?.objects) ? bundle.objects : [];
   const tactics = buildTacticMap(objects);
-  const parentByChild = buildSubTechniqueParents(objects);
+  const techniqueIdByStix = buildTechniqueIdByStix(objects);
+  const parentByChild = buildSubTechniqueParents(objects, techniqueIdByStix);
+  const replacementByTechnique = buildRevokedByMap(objects, techniqueIdByStix);
   const techniques = objects
     .filter((obj) => obj?.type === "attack-pattern")
-    .map((obj) => mapTechnique(obj, tactics, parentByChild))
+    .map((obj) => mapTechnique(obj, tactics, parentByChild, replacementByTechnique))
     .filter(Boolean);
 
   if (!techniques.length) throw new Error("No Enterprise ATT&CK techniques were found");
@@ -84,14 +86,17 @@ function buildTacticMap(objects) {
   return map;
 }
 
-function buildSubTechniqueParents(objects) {
+function buildTechniqueIdByStix(objects) {
   const techniqueIdByStix = new Map();
   for (const obj of objects) {
     if (obj?.type !== "attack-pattern") continue;
     const external = getMitreExternalReference(obj);
     if (external?.external_id) techniqueIdByStix.set(obj.id, external.external_id);
   }
+  return techniqueIdByStix;
+}
 
+function buildSubTechniqueParents(objects, techniqueIdByStix) {
   const parentByChild = new Map();
   for (const obj of objects) {
     if (obj?.type !== "relationship" || obj.relationship_type !== "subtechnique-of") continue;
@@ -102,7 +107,18 @@ function buildSubTechniqueParents(objects) {
   return parentByChild;
 }
 
-function mapTechnique(obj, tacticMap, parentByChild) {
+function buildRevokedByMap(objects, techniqueIdByStix) {
+  const replacements = new Map();
+  for (const obj of objects) {
+    if (obj?.type !== "relationship" || obj.relationship_type !== "revoked-by") continue;
+    const source = techniqueIdByStix.get(obj.source_ref);
+    const target = techniqueIdByStix.get(obj.target_ref);
+    if (source && target) replacements.set(source, target);
+  }
+  return replacements;
+}
+
+function mapTechnique(obj, tacticMap, parentByChild, replacementByTechnique) {
   const external = getMitreExternalReference(obj);
   const techniqueId = external?.external_id;
   if (!/^T\d{4}(?:\.\d{3})?$/.test(String(techniqueId || ""))) return null;
@@ -121,6 +137,7 @@ function mapTechnique(obj, tacticMap, parentByChild) {
     dataSources: Array.isArray(obj.x_mitre_data_sources) ? obj.x_mitre_data_sources : [],
     isSubTechnique: Boolean(obj.x_mitre_is_subtechnique || techniqueId.includes(".")),
     parentTechniqueId: parentByChild.get(techniqueId),
+    replacementTechniqueId: replacementByTechnique.get(techniqueId),
     revoked: Boolean(obj.revoked),
     deprecated: Boolean(obj.x_mitre_deprecated),
     modified: obj.modified ? new Date(obj.modified) : undefined,

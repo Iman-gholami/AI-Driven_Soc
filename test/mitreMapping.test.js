@@ -27,6 +27,15 @@ test("extractMitreMapping reads ATT&CK references from parsed rules", () => {
   assert.equal(mapping.mappings[0].source, "reference");
 });
 
+test("extractMitreMapping preserves sub-technique IDs from ATT&CK URLs", () => {
+  const parsed = parseRawRule(
+    'alert tcp any any -> any any (msg:"Mapped sub-technique"; reference:url,attack.mitre.org/techniques/T1059/001/; sid:900003; rev:1;)',
+  );
+  const mapping = extractMitreMapping({}, parsed);
+
+  assert.deepEqual(mapping.techniqueIds, ["T1059.001"]);
+});
+
 test("mapSourceRule stores deterministic MITRE mapping and tier", () => {
   const rule = mapSourceRule({
     rule_id: "900002",

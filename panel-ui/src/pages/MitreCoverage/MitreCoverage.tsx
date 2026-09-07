@@ -42,7 +42,7 @@ const MitreCoverage: React.FC = () => {
       label: 'Rules With MITRE',
       value: summary?.rules.withMitre ?? 0,
       detail: summary?.rules.total
-        ? `${summary.rules.mappingCoveragePercent}% mapped · ${summary.rules.withActiveMitre} active · ${summary.rules.legacyOnly} legacy-only`
+        ? `${summary.rules.mappingCoveragePercent}% mapped · ${summary.rules.withActiveMitre ?? 0} active · ${summary.rules.legacyOnly ?? 0} legacy-only`
         : 'No current rules in this scope',
     },
     {

@@ -182,9 +182,12 @@ export interface MitreCoverageSnapshot {
     rules: {
       total: number;
       withMitre: number;
+      withActiveMitre: number;
+      legacyOnly: number;
       unmapped: number;
       quarantined: number;
       mappingCoveragePercent: number;
+      activeMappingCoveragePercent: number;
       byTier: { native: number; imported: number; community: number };
     };
     techniques: {

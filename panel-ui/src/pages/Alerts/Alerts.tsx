@@ -182,7 +182,7 @@ const Alerts: React.FC = () => {
       <div className="alerts-expanded-grid grid grid-cols-2 gap-4 mb-4">
         <div><Text strong>Alert ID:</Text><Text code className="ml-2 text-xs">{record.alertId}</Text></div>
         <div><Text strong>Event Hash:</Text><Text code className="ml-2 text-xs">{record.eventHash}</Text></div>
-        <div><Text strong>Source:</Text><Tag color="blue" className="ml-2">{record.source}</Tag></div>
+        <div><Text strong>Source:</Text><Tag className="alerts-meta-tag ml-2">{record.source}</Tag></div>
         <div><Text strong>Host:</Text><Text className="ml-2">{record.host || 'N/A'}</Text></div>
         <div className="col-span-2"><Text strong>Signature:</Text><Text className="ml-2">{record.signature || 'No signature'}</Text></div>
       </div>
@@ -198,8 +198,8 @@ const Alerts: React.FC = () => {
 
   const columns = [
     { title: 'Alert ID', dataIndex: 'alertId', key: 'alertId', render: (text: string) => <Text code className="text-xs">{text.length > 14 ? `${text.substring(0, 14)}…` : text}</Text> },
-    { title: 'Signature / Event', dataIndex: 'signature', key: 'signature', render: (signature: string | null, record: Alert) => <div><div className="font-medium">{signature || 'No Signature'}</div>{record.eventType && <Tag color="purple" className="text-xs mt-1">{record.eventType}</Tag>}{record.host && <Tag color="cyan" className="text-xs mt-1">{record.host}</Tag>}</div> },
-    { title: 'Source', dataIndex: 'source', key: 'source', render: (source: string) => <Tag color="blue">{source}</Tag> },
+    { title: 'Signature / Event', dataIndex: 'signature', key: 'signature', render: (signature: string | null, record: Alert) => <div><div className="font-medium">{signature || 'No Signature'}</div>{record.eventType && <Tag className="alerts-meta-tag text-xs mt-1">{record.eventType}</Tag>}{record.host && <Tag className="alerts-meta-tag text-xs mt-1">{record.host}</Tag>}</div> },
+    { title: 'Source', dataIndex: 'source', key: 'source', render: (source: string) => <Tag className="alerts-meta-tag">{source}</Tag> },
     { title: 'Severity', dataIndex: 'severity', key: 'severity', render: (severity: string) => <Badge status={getSeverityBadge(severity) as any} text={severity.toUpperCase()} /> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={getStatusColor(status)} className="px-3 py-1">{getStatusIcon(status)} {status.toUpperCase()}</Tag> },
     { title: 'AI Status', dataIndex: 'aiStatus', key: 'aiStatus', render: (status: string, record: Alert) => <Tooltip title={record.aiEligibility.eligible ? 'Eligible for AI analysis' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Tag color={getAiStatusColor(status)}>{getAiStatusIcon(status)} {status.replace('_', ' ').toUpperCase()}</Tag>{!record.aiEligibility.eligible && <InfoCircleOutlined className="text-gray-400 ml-1" />}</Tooltip> },

@@ -33,6 +33,8 @@ const detectionRuleSchema = new Schema(
       techniqueIds: { type: [String], default: [] },
       tacticIds: { type: [String], default: [] },
       mappings: { type: [Schema.Types.Mixed], default: [] },
+      enrichmentVersion: { type: Number, default: 1 },
+      lastEnrichedAt: { type: Date, default: Date.now },
     },
     parsedRule: { type: Schema.Types.Mixed, default: () => ({}) },
   },

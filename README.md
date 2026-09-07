@@ -262,3 +262,38 @@ npm run panel:build
 ```
 
 Backend tests cover event hashing, model indexes, LLM contract normalization, duplicate-ingest history preservation, queue filtering/pagination, AI eligibility, analysis caching/re-analysis, rule resolution, alert detail, and dashboard statistics.
+
+
+## MITRE ATT&CK rule coverage
+
+The panel includes a rule-level MITRE ATT&CK coverage matrix at `/panel/mitre-coverage`.
+Coverage is calculated from the latest revision of each detection rule, not from AI alert analysis.
+
+Initial setup:
+
+```bash
+npm run import:mitre
+npm run mitre:coverage
+npm run panel:build
+```
+
+- `npm run import:mitre` imports the current Enterprise ATT&CK STIX bundle from the official MITRE ATT&CK data repository into MongoDB.
+- `npm run mitre:coverage` marks the latest revision of each rule, performs deterministic MITRE extraction from explicit metadata/references, and builds precomputed coverage snapshots for all/native/imported/community tiers.
+- Rules without explicit/reference ATT&CK identifiers remain unmapped; the coverage engine does not fabricate mappings from titles or LLM guesses.
+
+Coverage endpoints:
+
+```text
+GET  /mitre/coverage?tier=all
+POST /mitre/coverage/rebuild
+GET  /mitre/techniques/:techniqueId
+GET  /mitre/techniques/:techniqueId/rules?page=1&limit=50&tier=all
+```
+
+Optional override for the ATT&CK bundle source:
+
+```bash
+MITRE_ATTACK_URL=https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json
+```
+
+Rule imports invalidate existing coverage snapshots. Run `npm run mitre:coverage` after large rule-set changes so the matrix is rebuilt before validation.

@@ -1,12 +1,9 @@
-const GAP_SIGNAL_VERSION = 3;
+const GAP_SIGNAL_VERSION = 4;
 
 const GAP_SIGNALS = [
-  signal("T1056.001", "keylogging-behavior-v3", 0.99, (ctx) => {
+  signal("T1056.001", "keylogging-behavior-v4", 0.99, (ctx) => {
     const keylogging = /\bkeylog(?:ger|ging)?\b|\bkeystrokes?\b/i.test(ctx.title);
-    const behavior =
-      /\b(?:storing|stored|capture|captured|record|recorded|logging|logged)\s+(?:the\s+)?(?:key(?:stroke|press)(?:s)?|keystrokes?)\b/i.test(ctx.title)
-      || /\bkeylog(?:ger|ging)?\b[^\n]*\b(?:log|logs|report|reporting|upload|uploading|send|sending|smtp|ftp|email)\b/i.test(ctx.title)
-      || /\b(?:log|logs|report|reporting|upload|uploading|send|sending)\b[^\n]*\bkeylog(?:ger|ging)?\b/i.test(ctx.title);
+    const behavior = /\b(?:storing|stored|capture|captured|record|recorded|logging|logged|report|reporting|upload|uploading|send|sending)\b/i.test(ctx.title);
     const excluded = /\b(?:config|configuration|external ip check|style external ip check)\b/i.test(ctx.title);
     return keylogging && behavior && !excluded;
   }),

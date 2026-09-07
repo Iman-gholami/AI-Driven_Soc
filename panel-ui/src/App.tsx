@@ -94,7 +94,7 @@ function App() {
       <ThemeProvider>
         <AppContent />
       </ThemeProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {import.meta.env.DEV ? <ReactQueryDevtools initialIsOpen={false} /> : null}
     </QueryClientProvider>
   );
 }

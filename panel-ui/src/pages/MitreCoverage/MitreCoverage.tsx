@@ -42,7 +42,7 @@ const MitreCoverage: React.FC = () => {
       label: 'Rules With MITRE',
       value: summary?.rules.withMitre ?? 0,
       detail: summary?.rules.total
-        ? `${summary.rules.mappingCoveragePercent}% mapped · ${summary.rules.explicitReference ?? 0} explicit/ref · ${summary.rules.curated ?? 0} curated · ${summary.rules.legacyOnly ?? 0} legacy-only`
+        ? `${summary.rules.mappingCoveragePercent}% mapped · ${summary.rules.explicitReference ?? 0} explicit/ref · ${summary.rules.curated ?? 0} curated · ${summary.rules.gapCurated ?? 0} gap-curated · ${summary.rules.legacyOnly ?? 0} legacy-only`
         : 'No current rules in this scope',
     },
     {

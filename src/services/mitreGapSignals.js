@@ -1,9 +1,12 @@
-const GAP_SIGNAL_VERSION = 2;
+const GAP_SIGNAL_VERSION = 3;
 
 const GAP_SIGNALS = [
-  signal("T1056.001", "keylogging-behavior-v2", 0.99, (ctx) => {
+  signal("T1056.001", "keylogging-behavior-v3", 0.99, (ctx) => {
     const keylogging = /\bkeylog(?:ger|ging)?\b|\bkeystrokes?\b/i.test(ctx.title);
-    const behavior = /\b(?:storing|stored|capture|captured|record|recorded|logging|logged|report|reporting|upload|uploading|send|sending)\b/i.test(ctx.title);
+    const behavior =
+      /\b(?:storing|stored|capture|captured|record|recorded|logging|logged)\s+(?:the\s+)?(?:key(?:stroke|press)(?:s)?|keystrokes?)\b/i.test(ctx.title)
+      || /\bkeylog(?:ger|ging)?\b[^\n]*\b(?:log|logs|report|reporting|upload|uploading|send|sending|smtp|ftp|email)\b/i.test(ctx.title)
+      || /\b(?:log|logs|report|reporting|upload|uploading|send|sending)\b[^\n]*\bkeylog(?:ger|ging)?\b/i.test(ctx.title);
     const excluded = /\b(?:config|configuration|external ip check|style external ip check)\b/i.test(ctx.title);
     return keylogging && behavior && !excluded;
   }),
@@ -11,11 +14,6 @@ const GAP_SIGNALS = [
   signal("T1003.001", "lsass-credential-dump-title-v2", 0.99, (ctx) =>
     /\blsass(?:\.exe)?\b/i.test(ctx.title)
       && /\b(?:dump|dumping|mimikatz|sekurlsa|minidump|comsvcs)\b/i.test(ctx.title)),
-
-  signal("T1003.002", "sam-credential-dump-title-v1", 0.99, (ctx) =>
-    /\bSAM\b/.test(ctx.title)
-      && /\b(?:dump|credential|hash|secret|secrets)\b/i.test(ctx.title)),
-
   signal("T1003.003", "ntds-credential-dump-title-v1", 0.99, (ctx) =>
     /\bNTDS(?:\.dit)?\b/i.test(ctx.title)),
 
@@ -27,15 +25,6 @@ const GAP_SIGNALS = [
 
   signal("T1003.006", "dcsync-title-v1", 0.99, (ctx) =>
     /\bdcsync\b/i.test(ctx.title)),
-
-  signal("T1003.008", "unix-password-file-transfer-v2", 0.99, (ctx) =>
-    /\/etc\/(?:passwd|shadow)\b/i.test(ctx.title)
-      && !/\b(?:uri|url|request|path traversal)\b/i.test(ctx.title)
-      && (
-        ctx.sourceFile === "attack_response.rules"
-        || /\b(?:via|response|outbound|downloaded|transferred)\b/i.test(ctx.title)
-      )),
-
   signal("T1047", "wmi-execution-title-v2", 0.99, (ctx) =>
     /\b(?:WMI|WMIC)\b/i.test(ctx.title)
       && (
@@ -70,10 +59,6 @@ const GAP_SIGNALS = [
 
   signal("T1055.015", "listplanting-title-v1", 0.99, (ctx) =>
     /\blistplanting\b/i.test(ctx.title)),
-
-  signal("T1016.001", "internet-connection-discovery-title-v1", 0.98, (ctx) =>
-    /\bwhat(?:\s+is|s)?\s*my\s*ip\b|\bwhatismyip\b|\bipify\b|\bip-api\.com\b|\bifconfig\.me\b|\bicanhazip\b|\bcheckip\.amazonaws\.com\b/i.test(ctx.title)),
-
   signal("T1027.006", "html-smuggling-title-v1", 0.99, (ctx) =>
     /\bHTML smuggling\b/i.test(ctx.title)),
 

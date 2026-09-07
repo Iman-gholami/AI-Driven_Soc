@@ -80,6 +80,13 @@
   text-transform: uppercase;
 }
 
+.alerts-meta-tag.ant-tag {
+  border-color: var(--panel-border);
+  background: var(--panel-surface-soft);
+  color: var(--panel-muted);
+  font-size: 9px;
+}
+
 .alerts-table-card .ant-card-body {
   padding: 0;
 }

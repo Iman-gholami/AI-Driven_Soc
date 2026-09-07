@@ -1,3 +1,5 @@
+const { extractMitreMapping, inferRuleTier } = require("./mitreMapping");
+
 function normalizeTitle(value) {
   return String(value || "")
     .normalize("NFKC")
@@ -189,6 +191,8 @@ function mapSourceRule(source) {
     parsedRule.pcre = [String(source.pcre)];
   }
 
+  const mitre = extractMitreMapping(source, parsedRule);
+
   return {
     ruleId: String(source.rule_id),
     action: String(source.raw_rule).trim().split(/\s+/, 1)[0].toLowerCase(),
@@ -206,6 +210,10 @@ function mapSourceRule(source) {
     sourcePcre: source.pcre ? String(source.pcre) : undefined,
     rawRule: String(source.raw_rule),
     sourceFile: source.source_file ? String(source.source_file) : undefined,
+    tier: inferRuleTier(source),
+    quarantined: source.quarantined === true,
+    isCurrent: true,
+    mitre,
     parsedRule,
   };
 }

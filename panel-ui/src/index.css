@@ -14,6 +14,7 @@
   /* One interaction hue, one analytical hue, semantic colors only for state. */
   --panel-primary: #2f6fed;
   --panel-primary-strong: #245cc7;
+  --panel-on-primary: #ffffff;
   --panel-primary-soft: rgba(47, 111, 237, .08);
   --panel-cyan: #1688a3;
   --panel-cyan-soft: rgba(22, 136, 163, .08);
@@ -45,6 +46,7 @@ html.dark {
 
   --panel-primary: #4c8dff;
   --panel-primary-strong: #70a5ff;
+  --panel-on-primary: #081018;
   --panel-primary-soft: rgba(76, 141, 255, .10);
   --panel-cyan: #3ac0d9;
   --panel-cyan-soft: rgba(58, 192, 217, .10);

@@ -43,13 +43,12 @@ const ThemeApplier: React.FC<{ children: React.ReactNode }> = ({ children }) => 
           colorTextSecondary: dark ? '#8da0b4' : '#637286',
           borderRadius: 10,
           borderRadiusLG: 14,
+          controlHeight: 36,
+          controlHeightSM: 30,
           fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         },
         components: {
-          Card: { paddingLG: 20 },
-          Button: { controlHeight: 36 },
-          Input: { controlHeight: 36 },
-          Select: { controlHeight: 36 },
+          Card: { bodyPadding: 20 },
           Table: { headerBg: dark ? '#101923' : '#f8fafc' },
         },
       }}

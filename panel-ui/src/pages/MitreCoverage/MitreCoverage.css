@@ -394,21 +394,25 @@
 .level-high { background: var(--heat-high); }
 
 .mitre-matrix {
+  position: relative;
+  isolation: isolate;
   max-height: 720px;
   display: flex;
   align-items: flex-start;
   gap: 8px;
   overflow: auto;
-  padding: 10px 10px 14px;
+  padding: 0 10px 14px;
   scroll-snap-type: x proximity;
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: stable;
 }
 
 .mitre-tactic-column {
+  position: relative;
   flex: 0 0 232px;
   overflow: visible;
   border: 1px solid var(--mitre-border);
-  border-radius: 9px;
+  border-top: 0;
+  border-radius: 0 0 9px 9px;
   background: var(--mitre-panel);
   scroll-snap-align: start;
 }
@@ -416,13 +420,15 @@
 .mitre-tactic-column > header {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 10px 10px 9px;
+  border-top: 1px solid var(--mitre-border);
   border-bottom: 1px solid var(--mitre-border);
   background: var(--mitre-panel-raised);
+  box-shadow: 0 8px 14px color-mix(in srgb, var(--panel-bg) 58%, transparent);
 }
 
 .mitre-tactic-code {
@@ -461,6 +467,8 @@
 }
 
 .mitre-technique-list {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 5px;

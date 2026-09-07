@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Button, Card, Drawer, Empty, Space, Spin, Table, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
-import { MitreCoverageSnapshot, MitreTechniqueCoverage } from '../../types';
+import { MitreTechniqueCoverage } from '../../types';
 import './MitreCoverage.css';
 
 const { Title, Text, Paragraph } = Typography;
@@ -183,7 +183,7 @@ const MitreCoverage: React.FC = () => {
             { title: 'Rule ID', dataIndex: 'ruleId', width: 110 },
             { title: 'Rev', dataIndex: 'revision', width: 65 },
             { title: 'Title', dataIndex: 'title' },
-            { title: 'Tier', dataIndex: 'tier', width: 100, render: (value) => <Tag>{value || 'imported'}</Tag> },
+            { title: 'Tier', dataIndex: 'tier', width: 100, render: (value: string | undefined) => <Tag>{value || 'imported'}</Tag> },
             { title: 'Protocol', dataIndex: 'protocol', width: 100 },
           ]}
           pagination={{

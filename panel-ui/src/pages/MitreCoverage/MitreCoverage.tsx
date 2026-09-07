@@ -319,7 +319,7 @@ const MitreCoverage: React.FC = () => {
               columns={[
                 { title: 'Rule ID', dataIndex: 'ruleId', width: 105 },
                 { title: 'Rev', dataIndex: 'revision', width: 60 },
-                { title: 'Title', dataIndex: 'title', minWidth: 280 },
+                { title: 'Title', dataIndex: 'title', width: 320 },
                 { title: 'Source', dataIndex: 'sourceFile', width: 150, render: (value: string | undefined) => value || '—' },
                 { title: 'Tier', dataIndex: 'tier', width: 95, render: (value: string | undefined) => <Tag>{value || 'imported'}</Tag> },
                 {

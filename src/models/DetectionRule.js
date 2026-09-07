@@ -20,6 +20,20 @@ const detectionRuleSchema = new Schema(
     sourcePcre: { type: String, default: undefined },
     rawRule: { type: String, required: true },
     sourceFile: { type: String, trim: true },
+    tier: {
+      type: String,
+      enum: ["native", "imported", "community"],
+      default: "imported",
+      index: true,
+    },
+    quarantined: { type: Boolean, default: false, index: true },
+    isCurrent: { type: Boolean, default: true, index: true },
+    mitre: {
+      mapped: { type: Boolean, default: false },
+      techniqueIds: { type: [String], default: [] },
+      tacticIds: { type: [String], default: [] },
+      mappings: { type: [Schema.Types.Mixed], default: [] },
+    },
     parsedRule: { type: Schema.Types.Mixed, default: () => ({}) },
   },
   {
@@ -33,5 +47,8 @@ detectionRuleSchema.index({ title: 1 });
 detectionRuleSchema.index({ normalizedTitle: 1 });
 detectionRuleSchema.index({ protocol: 1 });
 detectionRuleSchema.index({ sourceFile: 1 });
+detectionRuleSchema.index({ isCurrent: 1, tier: 1 });
+detectionRuleSchema.index({ isCurrent: 1, "mitre.mapped": 1 });
+detectionRuleSchema.index({ isCurrent: 1, "mitre.techniqueIds": 1 });
 
 module.exports = mongoose.models.DetectionRule || mongoose.model("DetectionRule", detectionRuleSchema);

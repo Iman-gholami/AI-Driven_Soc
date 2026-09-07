@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const MitreTechnique = require("../src/models/MitreTechnique");
+const MitreCoverageSnapshot = require("../src/models/MitreCoverageSnapshot");
 const { connectMongo, disconnectMongo } = require("../src/database/mongo");
 const { createLogger } = require("../src/core/logging");
 
@@ -51,6 +52,8 @@ async function main() {
       "mitre_batch_imported",
     );
   }
+
+  await MitreCoverageSnapshot.deleteMany({});
 
   logger.info(
     {

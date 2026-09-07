@@ -8,21 +8,39 @@ function ids(rule, uncovered = null) {
     .map((item) => item.techniqueId);
 }
 
-test("gap signals identify explicit keylogging semantics", () => {
+test("gap signals identify behavioral keylogging semantics", () => {
   assert.deepEqual(ids({
-    title: "ET MALWARE SC-KeyLog Keylogger Installed - Sending Initial Email Report",
+    title: "ET MALWARE PerfectKeylogger Storing Keystrokes Via FTP",
   }), ["T1056.001"]);
+
+  assert.deepEqual(ids({
+    title: "ETPRO ATTACK_RESPONSE Snake Keylogger Config Inbound",
+  }), []);
+
+  assert.deepEqual(ids({
+    title: "ET INFO Keylogger Style External IP Check",
+  }), []);
 });
 
 test("gap signals identify credential dumping sub-techniques only from explicit titles", () => {
   assert.deepEqual(ids({ title: "Mimikatz LSASS credential dump" }), ["T1003.001"]);
+  assert.deepEqual(ids({ title: "Microsoft Windows LSASS Remote Memory Corruption CVE" }), []);
   assert.deepEqual(ids({ title: "Possible DCSync activity" }), ["T1003.006"]);
-  assert.deepEqual(ids({ title: "Attempt to read /etc/shadow" }), ["T1003.008"]);
+  assert.deepEqual(ids({
+    title: "Possible /etc/passwd via HTTP",
+    sourceFile: "attack_response.rules",
+  }), ["T1003.008"]);
+  assert.deepEqual(ids({
+    title: "/etc/shadow Detected in URI",
+    sourceFile: "web_server.rules",
+  }), []);
 });
 
 test("gap signals identify scheduled task and WMI execution semantics", () => {
-  assert.deepEqual(ids({ title: "Remote WMIC process execution" }), ["T1047"]);
-  assert.deepEqual(ids({ title: "schtasks.exe Scheduled Task creation" }), ["T1053.005"]);
+  assert.deepEqual(ids({ title: "Remote WMI execution" }), ["T1047"]);
+  assert.deepEqual(ids({ title: "WMIC OS get Microsoft Windows DOS prompt command exit" }), []);
+  assert.deepEqual(ids({ title: "schtasks.exe /create suspicious task" }), ["T1053.005"]);
+  assert.deepEqual(ids({ title: "Windows Scheduled Task XML Response from Server" }), []);
 });
 
 test("gap signals identify exact process injection variants", () => {

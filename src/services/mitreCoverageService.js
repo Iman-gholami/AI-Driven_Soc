@@ -3,6 +3,7 @@ const MitreTechnique = require("../models/MitreTechnique");
 const MitreCoverageSnapshot = require("../models/MitreCoverageSnapshot");
 const { parseRawRule } = require("./ruleParser");
 const { extractMitreMapping } = require("./mitreMapping");
+const { normalizeTechniqueIds } = require("./mitreNormalization");
 
 const TIERS = ["all", "native", "imported", "community"];
 const TACTIC_ORDER = [
@@ -35,11 +36,13 @@ class MitreCoverageService {
 
     const current = await this.refreshCurrentFlags();
     const enrichment = enrich ? await this.enrichStoredRules() : { scanned: 0, mapped: 0, modified: 0 };
+    const normalization = await this.normalizeStoredMappings();
 
     return {
       defaultsModified: defaults.reduce((sum, item) => sum + Number(item.modifiedCount || 0), 0),
       current,
       enrichment,
+      normalization,
     };
   }
 
@@ -117,6 +120,70 @@ class MitreCoverageService {
     await flush();
 
     return { scanned, mapped, modified };
+  }
+
+  async normalizeStoredMappings() {
+    const techniques = await this.techniqueModel
+      .find({})
+      .select("techniqueId revoked deprecated replacementTechniqueId")
+      .lean()
+      .exec();
+
+    if (!techniques.length) {
+      return { scanned: 0, normalized: 0, legacyOnly: 0, modified: 0, skipped: "mitre_catalog_empty" };
+    }
+
+    const catalog = new Map(techniques.map((item) => [item.techniqueId, item]));
+    const cursor = this.detectionRuleModel
+      .find({ "mitre.mapped": true, "mitre.normalizationVersion": { $ne: 1 } })
+      .select("_id mitre")
+      .lean()
+      .cursor({ batchSize: 1000 });
+
+    let scanned = 0;
+    let normalized = 0;
+    let legacyOnly = 0;
+    let modified = 0;
+    let batch = [];
+
+    const flush = async () => {
+      if (!batch.length) return;
+      const result = await this.detectionRuleModel.bulkWrite(batch, { ordered: false });
+      modified += Number(result.modifiedCount || 0);
+      batch = [];
+    };
+
+    for await (const rule of cursor) {
+      scanned += 1;
+      const rawIds = Array.isArray(rule.mitre?.rawTechniqueIds) && rule.mitre.rawTechniqueIds.length
+        ? rule.mitre.rawTechniqueIds
+        : (Array.isArray(rule.mitre?.techniqueIds) ? rule.mitre.techniqueIds : []);
+      const resolved = normalizeTechniqueIds(rawIds, catalog);
+
+      if (resolved.replacements.length) normalized += 1;
+      if (resolved.rawTechniqueIds.length && !resolved.techniqueIds.length) legacyOnly += 1;
+
+      batch.push({
+        updateOne: {
+          filter: { _id: rule._id },
+          update: {
+            $set: {
+              "mitre.rawTechniqueIds": resolved.rawTechniqueIds,
+              "mitre.techniqueIds": resolved.techniqueIds,
+              "mitre.legacyTechniqueIds": resolved.legacyTechniqueIds,
+              "mitre.replacements": resolved.replacements,
+              "mitre.normalizationVersion": 1,
+              "mitre.lastNormalizedAt": new Date(),
+            },
+          },
+        },
+      });
+
+      if (batch.length >= 1000) await flush();
+    }
+    await flush();
+
+    return { scanned, normalized, legacyOnly, modified };
   }
 
   async rebuildAll({ enrich = false } = {}) {

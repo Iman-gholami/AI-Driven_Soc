@@ -231,7 +231,7 @@ class MitreCoverageService {
                               $map: {
                                 input: { $ifNull: ["$mitre.mappings", []] },
                                 as: "mapping",
-                                in: "$mapping.source",
+                                in: "$$mapping.source",
                               },
                             },
                             ["explicit", "reference"],
@@ -256,7 +256,7 @@ class MitreCoverageService {
                         $map: {
                           input: { $ifNull: ["$mitre.mappings", []] },
                           as: "mapping",
-                          in: "$mapping.source",
+                          in: "$$mapping.source",
                         },
                       },
                     ],

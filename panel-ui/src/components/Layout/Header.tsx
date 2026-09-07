@@ -1,15 +1,52 @@
 import React from 'react';
-import { Layout, Space, Typography, Tag } from 'antd';
+import { Layout, Tag, Typography } from 'antd';
+import { MoonOutlined, SunOutlined } from '@ant-design/icons';
+import { useLocation } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme';
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
 
-const Header: React.FC<{ collapsed: boolean }> = ({ collapsed: _collapsed }) => {
+const PAGE_META: Record<string, { eyebrow: string; title: string }> = {
+  '/dashboard': { eyebrow: 'OPERATIONS', title: 'Command Center' },
+  '/alerts': { eyebrow: 'DETECTION', title: 'Security Alerts' },
+  '/mitre-coverage': { eyebrow: 'DETECTION ENGINE', title: 'MITRE ATT&CK Coverage' },
+  '/analytics': { eyebrow: 'ANALYTICS', title: 'Security Analytics' },
+  '/settings': { eyebrow: 'SYSTEM', title: 'Settings' },
+};
+
+const Header: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
   const { mode, toggleTheme } = useTheme();
-  return <AntHeader style={{ position: 'fixed', top: 0, right: 0, left: 0, zIndex: 900, padding: '0 24px', background: 'var(--panel-header-bg)', borderBottom: '1px solid var(--panel-border)' }}>
-    <div className="h-full flex items-center justify-between"><div><Text strong>Security Operations Center</Text><Tag color="green" className="ml-3">V1</Tag></div><Space><Text type="secondary">{mode === 'dark' ? 'Dark' : 'Light'} mode</Text><button className="panel-theme-btn" onClick={toggleTheme}>{mode === 'dark' ? '☀️' : '🌙'}</button></Space></div>
-  </AntHeader>;
+  const location = useLocation();
+  const meta = PAGE_META[location.pathname] || { eyebrow: 'SOC', title: 'Security Operations Center' };
+
+  return (
+    <AntHeader
+      className="soc-topbar"
+      style={{ left: collapsed ? 76 : 232 }}
+    >
+      <div className="soc-topbar-title">
+        <span>{meta.eyebrow}</span>
+        <strong>{meta.title}</strong>
+      </div>
+
+      <div className="soc-topbar-actions">
+        <Tag className="soc-topbar-tag">V1</Tag>
+        <Text type="secondary" className="soc-theme-label">
+          {mode === 'dark' ? 'Dark' : 'Light'}
+        </Text>
+        <button
+          type="button"
+          className="panel-theme-btn"
+          onClick={toggleTheme}
+          aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+        </button>
+      </div>
+    </AntHeader>
+  );
 };
 
 export default Header;

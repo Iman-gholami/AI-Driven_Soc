@@ -278,7 +278,8 @@ npm run panel:build
 ```
 
 - `npm run import:mitre` imports the current Enterprise ATT&CK STIX bundle from the official MITRE ATT&CK data repository into MongoDB.
-- `npm run mitre:coverage` marks the latest revision of each rule, performs deterministic MITRE extraction from explicit metadata/references, and builds precomputed coverage snapshots for all/native/imported/community tiers.
+- `npm run mitre:coverage` marks the latest revision of each rule, performs deterministic MITRE extraction from explicit metadata/references, normalizes revoked ATT&CK IDs through official `revoked-by` relationships, and builds precomputed coverage snapshots for all/native/imported/community tiers.
+- `npm run mitre:profile` profiles the remaining unmapped corpus by source file, classtype, protocol, and representative rules before curated mappings are added.
 - Rules without explicit/reference ATT&CK identifiers remain unmapped; the coverage engine does not fabricate mappings from titles or LLM guesses.
 
 Coverage endpoints:

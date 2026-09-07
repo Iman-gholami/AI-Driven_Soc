@@ -282,6 +282,7 @@ npm run panel:build
 - `npm run mitre:profile` profiles the remaining unmapped corpus by source file, classtype, protocol, and representative rules before curated mappings are added.
 - `npm run mitre:curated:preview` evaluates conservative deterministic stage-2 mappings without changing MongoDB.
 - `npm run mitre:curated:apply` applies the reviewed curated matcher set only to currently unmapped rules and invalidates coverage snapshots. Run `npm run mitre:coverage` afterwards to rebuild the matrix.
+- `npm run mitre:gaps:preview` searches only currently-unmapped rules for high-confidence title evidence that targets active ATT&CK techniques not yet covered. It is read-only and is intended to increase technique diversity without forcing endpoint-only ATT&CK semantics onto network signatures.
 - Rules without explicit/reference ATT&CK identifiers remain unmapped; the coverage engine does not fabricate mappings from titles or LLM guesses.
 
 Coverage endpoints:

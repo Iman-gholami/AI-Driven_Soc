@@ -13,7 +13,9 @@
     "panel:build": "npm --prefix panel-ui run build",
     "import:mitre": "node scripts/import-mitre.js",
     "mitre:coverage": "node scripts/rebuild-mitre-coverage.js",
-    "mitre:profile": "node scripts/profile-unmapped-mitre.js"
+    "mitre:profile": "node scripts/profile-unmapped-mitre.js",
+    "mitre:curated:preview": "node scripts/curate-mitre-mappings.js",
+    "mitre:curated:apply": "node scripts/curate-mitre-mappings.js --apply"
   },
   "dependencies": {
     "cors": "^2.8.6",

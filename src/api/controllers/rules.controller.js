@@ -1,6 +1,7 @@
 const fs = require('node:fs/promises');
 const { DetectionRuleRepository } = require('../../repositories/DetectionRuleRepository');
 const { mapSourceRule } = require('../../services/ruleParser');
+const MitreCoverageSnapshot = require('../../models/MitreCoverageSnapshot');
 const { successResponse, errorResponse } = require('../../utils/response');
 
 class RuleController {
@@ -54,6 +55,7 @@ class RuleController {
         }
       }
       await flush();
+      await MitreCoverageSnapshot.deleteMany({});
 
       return successResponse(res, {
         message: 'Detection rules imported successfully',
@@ -100,6 +102,7 @@ class RuleController {
     try {
       const result = await this.repository.deleteByRuleId(req.params.ruleId, req.query.revision);
       if (!result?.deletedCount) return errorResponse(res, 'Rule not found', 404);
+      await MitreCoverageSnapshot.deleteMany({});
       return successResponse(res, {
         message: 'Detection rule deleted successfully',
         ruleId: req.params.ruleId,

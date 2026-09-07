@@ -9,25 +9,25 @@
   --panel-border-strong: #ccd6e1;
   --panel-text: #17212b;
   --panel-muted: #607184;
-  --panel-muted-2: #8796a6;
+  --panel-muted-2: #647486;
 
   /* One interaction hue, one analytical hue, semantic colors only for state. */
   --panel-primary: #2f6fed;
   --panel-primary-strong: #245cc7;
   --panel-on-primary: #ffffff;
   --panel-primary-soft: rgba(47, 111, 237, .08);
-  --panel-cyan: #1688a3;
-  --panel-cyan-soft: rgba(22, 136, 163, .08);
-  --panel-success: #148b5b;
-  --panel-success-soft: rgba(20, 139, 91, .09);
-  --panel-warning: #b7791f;
-  --panel-warning-soft: rgba(183, 121, 31, .09);
+  --panel-cyan: #0f7188;
+  --panel-cyan-soft: rgba(15, 113, 136, .08);
+  --panel-success: #0f7a4e;
+  --panel-success-soft: rgba(15, 122, 78, .09);
+  --panel-warning: #946115;
+  --panel-warning-soft: rgba(148, 97, 21, .09);
   --panel-danger: #c84b5d;
   --panel-danger-soft: rgba(200, 75, 93, .09);
   --panel-purple: #735dd0;
   --panel-purple-soft: rgba(115, 93, 208, .09);
-  --panel-orange: #c86c2f;
-  --panel-yellow: #a98512;
+  --panel-orange: #aa521f;
+  --panel-yellow: #8a720c;
 
   --panel-header-bg: rgba(250, 252, 254, .9);
   --panel-shadow: 0 12px 34px rgba(22, 34, 48, .055);
@@ -42,7 +42,7 @@ html.dark {
   --panel-border-strong: #2d3c4b;
   --panel-text: #e6edf3;
   --panel-muted: #93a4b7;
-  --panel-muted-2: #697d91;
+  --panel-muted-2: #71859a;
 
   --panel-primary: #4c8dff;
   --panel-primary-strong: #70a5ff;

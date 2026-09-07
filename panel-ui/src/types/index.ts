@@ -183,6 +183,8 @@ export interface MitreCoverageSnapshot {
       total: number;
       withMitre: number;
       withActiveMitre: number;
+      explicitReference: number;
+      curated: number;
       legacyOnly: number;
       unmapped: number;
       quarantined: number;

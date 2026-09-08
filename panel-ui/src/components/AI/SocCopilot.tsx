@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   CloseOutlined,
+  DeleteOutlined,
   RobotOutlined,
   SendOutlined,
   SafetyCertificateOutlined,
@@ -108,12 +109,29 @@ const SocCopilot: React.FC = () => {
                 <span>Read-only analytics · MCP tools</span>
               </div>
             </div>
-            <Button
-              type="text"
-              icon={<CloseOutlined />}
-              onClick={() => setOpen(false)}
-              aria-label="Close SOC Copilot"
-            />
+            <div className="soc-copilot-header-actions">
+              <Button
+                type="text"
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  setMessages([
+                    {
+                      id: 'welcome',
+                      role: 'assistant',
+                      text: 'از داده‌های SOC سؤال بپرس. پاسخ‌های آماری از Queryهای read-only و validate‌شده روی داده‌های واقعی تولید می‌شوند.',
+                    },
+                  ]);
+                  setInput('');
+                }}
+                aria-label="Clear SOC Copilot conversation"
+              />
+              <Button
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={() => setOpen(false)}
+                aria-label="Close SOC Copilot"
+              />
+            </div>
           </header>
 
           <div className="soc-copilot-safety">
@@ -132,6 +150,12 @@ const SocCopilot: React.FC = () => {
                   <>
                     <CopilotEvidence response={message.response} />
                     <CopilotStructuredResult response={message.response} />
+                    {message.response.queryPlan && (
+                      <details className="soc-copilot-plan">
+                        <summary>Validated query plan</summary>
+                        <pre>{JSON.stringify(message.response.queryPlan, null, 2)}</pre>
+                      </details>
+                    )}
                   </>
                 )}
               </div>

@@ -263,6 +263,88 @@ Displayed values are derived from persisted data:
 
 The 24h / 7d / 30d controls send an actual date filter to the backend.
 
+## SOC Analytics Copilot
+
+The panel includes a floating, read-only SOC Copilot for natural-language analytics over registered MongoDB datasets.
+
+The execution path is intentionally split between language understanding and deterministic data access:
+
+```text
+Analyst question
+  ↓
+Configured LLM planner
+  ↓
+Validated SOC Query Plan
+  ↓
+MCP read-only tool
+  ↓
+Generic SOC Query Engine
+  ↓
+Registered Mongoose model / MongoDB
+  ↓
+Structured result
+  ↓
+Grounded analyst answer
+```
+
+The model never receives permission to execute arbitrary MongoDB, JavaScript, shell commands, updates, or deletes.
+
+Current registered datasets:
+
+- `alerts`
+- `detection_rules`
+- `ip_assets`
+- `threat_intelligence`
+- `dataset_states`
+- `mitre_coverage_snapshots`
+- `mitre_techniques`
+
+Known semantic fields are documented in the schema catalog. Safe fields added later to registered Mongoose models are automatically discovered, while arbitrary alert telemetry remains queryable through safe `rawEvent.*`, `fullAnalysis.*`, and `soc.*` paths.
+
+Copilot API:
+
+```text
+GET  /copilot/schema
+GET  /copilot/tools
+POST /copilot/query
+```
+
+Example:
+
+```json
+{
+  "message": "بیشترین سیگنیچری که در 7 روز گذشته افتاده چیه؟"
+}
+```
+
+Conversation follow-ups can include a bounded `history` array. The backend truncates and normalizes this context before it is sent to the planner.
+
+Time semantics use:
+
+```env
+SOC_TIMEZONE=Asia/Tehran
+SOC_WEEK_START=saturday
+```
+
+Deterministic database-only smoke test:
+
+```bash
+npm run copilot:smoke
+```
+
+Natural-language CLI test using the configured LLM provider:
+
+```bash
+npm run copilot:ask -- "در 24 ساعت گذشته چند Alert داشتیم؟"
+npm run copilot:ask -- "امروز چند Alert مربوط به SYN Flood داشتیم؟"
+```
+
+The MCP stdio server can also be started directly:
+
+```bash
+npm run mcp:serve
+```
+
 ## Testing
 
 ```bash

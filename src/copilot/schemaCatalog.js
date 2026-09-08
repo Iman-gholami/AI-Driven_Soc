@@ -1,4 +1,4 @@
-const SOC_SCHEMA_VERSION = 1;
+const SOC_SCHEMA_VERSION = 2;
 
 const COMMON_STRING_OPERATORS = ["eq", "neq", "contains", "in", "exists"];
 const COMMON_NUMBER_OPERATORS = ["eq", "neq", "gt", "gte", "lt", "lte", "in", "exists"];

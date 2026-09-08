@@ -811,3 +811,37 @@ a:focus-visible,
   font-size: 9px;
   font-weight: 600;
 }
+
+
+.soc-copilot-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.soc-copilot-plan {
+  width: min(92%, 360px);
+  margin-top: 7px;
+  color: var(--panel-muted);
+  font-size: 8px;
+}
+
+.soc-copilot-plan summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.soc-copilot-plan pre {
+  max-height: 180px;
+  margin: 6px 0 0;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-surface-soft);
+  color: var(--panel-text);
+  font-size: 8px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

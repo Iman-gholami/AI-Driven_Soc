@@ -12,7 +12,9 @@ import type {
   CopilotBatchResult,
   CopilotChatHistoryItem,
   CopilotConversationState,
+  CopilotCorrelationResult,
   CopilotEntityContextResult,
+  CopilotMetricResult,
   CopilotQueryResult,
   CopilotResponse,
 } from '../../types';
@@ -231,16 +233,31 @@ const SocCopilot: React.FC = () => {
   );
 };
 
+type CopilotRenderableResult =
+  | CopilotQueryResult
+  | CopilotBatchResult
+  | CopilotEntityContextResult
+  | CopilotMetricResult
+  | CopilotCorrelationResult;
+
 function isBatchResult(
-  result: CopilotQueryResult | CopilotBatchResult | CopilotEntityContextResult,
+  result: CopilotRenderableResult,
 ): result is CopilotBatchResult {
   return Array.isArray((result as CopilotBatchResult).results);
 }
 
 function isEntityContextResult(
-  result: CopilotQueryResult | CopilotBatchResult | CopilotEntityContextResult,
+  result: CopilotRenderableResult,
 ): result is CopilotEntityContextResult {
   return Boolean((result as CopilotEntityContextResult).entity?.type);
+}
+
+function isMetricResult(result: CopilotRenderableResult): result is CopilotMetricResult {
+  return ['compare', 'percentage', 'trend'].includes(String((result as CopilotMetricResult).operation || ''));
+}
+
+function isCorrelationResult(result: CopilotRenderableResult): result is CopilotCorrelationResult {
+  return (result as CopilotCorrelationResult).operation === 'correlate';
 }
 
 const CopilotEvidence: React.FC<{ response: CopilotResponse }> = ({ response }) => {

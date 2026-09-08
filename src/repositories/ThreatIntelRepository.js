@@ -36,9 +36,16 @@ class ThreatIntelRepository {
     this.stateCache = null;
   }
 
-  async lookupIp(ip, { limit = 12 } = {}) {
-    const state = await this.getActiveState();
-    if (!state?.activeImportId) {
+  async lookupIp(ip, { limit = 12, importId, datasetState } = {}) {
+    let state = datasetState;
+    let activeImportId = importId || state?.activeImportId;
+
+    if (!activeImportId) {
+      state = await this.getActiveState();
+      activeImportId = state?.activeImportId;
+    }
+
+    if (!activeImportId) {
       return {
         status: "not_configured",
         dataset: null,
@@ -47,7 +54,7 @@ class ThreatIntelRepository {
       };
     }
 
-    const filter = { importId: state.activeImportId };
+    const filter = { importId: activeImportId };
     const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 50);
 
     const [directCount, relationshipCount, directEvidence, relationshipEvidence] = await Promise.all([
@@ -70,7 +77,7 @@ class ThreatIntelRepository {
     return {
       status: "available",
       dataset: {
-        importId: state.activeImportId,
+        importId: activeImportId,
         sourceFile: state.sourceFile || null,
         checksumSha256: state.checksumSha256 || null,
         recordCount: Number(state.recordCount || 0),
@@ -87,14 +94,19 @@ class ThreatIntelRepository {
     destinationPort,
     protocol,
     limit = 8,
+    importId,
   } = {}) {
     if (!sourceIp || !destinationIp) return [];
 
-    const state = await this.getActiveState();
-    if (!state?.activeImportId) return [];
+    let activeImportId = importId;
+    if (!activeImportId) {
+      const state = await this.getActiveState();
+      activeImportId = state?.activeImportId;
+    }
+    if (!activeImportId) return [];
 
     const filter = {
-      importId: state.activeImportId,
+      importId: activeImportId,
       "source.ip": sourceIp,
       "destination.ip": destinationIp,
     };

@@ -47,9 +47,16 @@ const socQueryPlanSchema = z.object({
 }).strict();
 
 const toolSelectionSchema = z.object({
-  tool: z.enum(["query_soc_data"]),
+  tool: z.literal("query_soc_data"),
   arguments: socQueryPlanSchema,
 }).strict();
+
+const unsupportedPlanSchema = z.object({
+  tool: z.literal("unsupported"),
+  reason: z.string().min(1).max(1000),
+}).strict();
+
+const copilotPlanSchema = z.union([toolSelectionSchema, unsupportedPlanSchema]);
 
 module.exports = {
   timeRangeSchema,
@@ -58,4 +65,6 @@ module.exports = {
   sortSchema,
   socQueryPlanSchema,
   toolSelectionSchema,
+  unsupportedPlanSchema,
+  copilotPlanSchema,
 };

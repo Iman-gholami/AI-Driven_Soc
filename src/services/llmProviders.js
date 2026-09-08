@@ -38,50 +38,59 @@ class OpenAICompatibleProvider {
   }
 
   async analyze(context) {
-    if (!this.networkAllowed) {
-      throw new Error(`${this.providerName} LLM is disabled while AIR_GAPPED=true`);
-    }
-    if (!this.modelConfigured) {
-      throw new Error(`${this.providerName} LLM model is not configured`);
-    }
-    if (!this.apiKeyConfigured) {
-      throw new Error(`${this.providerName} LLM API key is not configured`);
-    }
-    if (this.providerName === "local" && !this.baseUrlConfigured) {
-      throw new Error("LOCAL_LLM_BASE_URL is required when LLM_PROVIDER=local");
+    return this.completeJson({
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt: buildUserPrompt(context),
+      temperature: 0.1,
+    });
+  }
+
+  async completeJson({ systemPrompt, userPrompt, temperature = 0 } = {}) {
+    this.assertReady();
+    if (!systemPrompt || !userPrompt) {
+      throw new Error("systemPrompt and userPrompt are required");
     }
 
     let lastError;
-
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         const request = {
           model: this.model,
-          temperature: 0.1,
+          temperature,
           messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: buildUserPrompt(context) },
+            { role: "system", content: String(systemPrompt) },
+            { role: "user", content: String(userPrompt) },
           ],
         };
 
-        if (this.useJsonMode) {
-          request.response_format = { type: "json_object" };
-        }
+        if (this.useJsonMode) request.response_format = { type: "json_object" };
 
         const response = await this.client.chat.completions.create(request);
         const content = response.choices?.[0]?.message?.content || "{}";
         return parseJsonResponse(content);
       } catch (error) {
         lastError = error;
-        if (attempt < 3) {
-          await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
-        }
+        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
       }
     }
 
     throw lastError;
   }
-}
+
+  assertReady() {
+    if (!this.networkAllowed) {
+      throw new Error(this.providerName + " LLM is disabled while AIR_GAPPED=true");
+    }
+    if (!this.modelConfigured) {
+      throw new Error(this.providerName + " LLM model is not configured");
+    }
+    if (!this.apiKeyConfigured) {
+      throw new Error(this.providerName + " LLM API key is not configured");
+    }
+    if (this.providerName === "local" && !this.baseUrlConfigured) {
+      throw new Error("LOCAL_LLM_BASE_URL is required when LLM_PROVIDER=local");
+    }
+  }}
 
 function createConfiguredLlmProvider(config = settings) {
   const provider = String(config.llmProvider || "openai").trim().toLowerCase();

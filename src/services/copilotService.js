@@ -1,0 +1,114 @@
+const { z } = require("zod");
+const { settings } = require("../core/config");
+const { LLMService } = require("./llmService");
+const { SocMcpServer } = require("../mcp/socMcpServer");
+const { InProcessMcpClient } = require("../mcp/inProcessClient");
+const { copilotPlanSchema } = require("../copilot/querySchema");
+const {
+  PLANNER_SYSTEM_PROMPT,
+  ANSWER_SYSTEM_PROMPT,
+  buildPlannerUserPrompt,
+  buildAnswerUserPrompt,
+} = require("../copilot/prompts");
+
+const answerSchema = z.object({ answer: z.string().min(1).max(8000) }).strict();
+
+class CopilotService {
+  constructor({
+    llm = new LLMService(),
+    mcpClient = new InProcessMcpClient({ server: new SocMcpServer() }),
+    timezone = settings.socTimezone || "Asia/Tehran",
+    now = () => new Date(),
+  } = {}) {
+    this.llm = llm;
+    this.mcpClient = mcpClient;
+    this.timezone = timezone;
+    this.now = now;
+  }
+
+  async query(question) {
+    const message = String(question || "").trim();
+    if (!message) throw new CopilotInputError("message is required");
+    if (message.length > 4000) throw new CopilotInputError("message is too long");
+
+    const tools = await this.mcpClient.listTools();
+    const schema = await this.mcpClient.callTool("describe_soc_schema", {});
+    const currentTime = this.now();
+
+    const plannerOutput = await this.llm.completeJson({
+      systemPrompt: PLANNER_SYSTEM_PROMPT,
+      userPrompt: buildPlannerUserPrompt({
+        question: message,
+        schema,
+        tools,
+        timezone: this.timezone,
+        now: currentTime.toISOString(),
+      }),
+      temperature: 0,
+    });
+
+    const plan = copilotPlanSchema.parse(plannerOutput);
+    if (plan.tool === "unsupported") {
+      return {
+        supported: false,
+        answer: plan.reason,
+        tool: null,
+        queryPlan: null,
+        result: null,
+        metadata: this.buildMetadata(),
+      };
+    }
+
+    const queryResult = await this.mcpClient.callTool(plan.tool, plan.arguments);
+    let answer;
+
+    try {
+      const formatted = await this.llm.completeJson({
+        systemPrompt: ANSWER_SYSTEM_PROMPT,
+        userPrompt: buildAnswerUserPrompt({ question: message, queryResult }),
+        temperature: 0,
+      });
+      answer = answerSchema.parse(formatted).answer;
+    } catch (_) {
+      answer = fallbackAnswer(queryResult);
+    }
+
+    return {
+      supported: true,
+      answer,
+      tool: plan.tool,
+      queryPlan: queryResult.queryPlan || plan.arguments,
+      result: queryResult,
+      metadata: this.buildMetadata(),
+    };
+  }
+
+  buildMetadata() {
+    const provider = typeof this.llm.getMetadata === "function"
+      ? this.llm.getMetadata()
+      : { provider: "unknown", model: "unknown" };
+    return {
+      ...provider,
+      readOnly: true,
+      mcp: true,
+      timezone: this.timezone,
+    };
+  }
+}
+
+class CopilotInputError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "CopilotInputError";
+  }
+}
+
+function fallbackAnswer(queryResult) {
+  const count = queryResult?.data?.count;
+  const rows = queryResult?.data?.rows;
+  if (Array.isArray(rows) && rows.length) return JSON.stringify(rows);
+  if (Number.isFinite(Number(count))) return String(Number(count));
+  return "Query completed, but no displayable result was returned.";
+}
+
+module.exports = { CopilotService, CopilotInputError, fallbackAnswer };

@@ -1,4 +1,5 @@
 const Alert = require("../models/Alert");
+const { resolveAlertEventTime } = require("../services/eventTime");
 
 class AlertRepository {
   constructor({ alertModel = Alert } = {}) {
@@ -18,6 +19,7 @@ class AlertRepository {
         signature: getRawSignature(rawEvent),
         eventType: rawEvent?.eventtype ? String(rawEvent.eventtype) : undefined,
         host: rawEvent?.host ? String(rawEvent.host) : undefined,
+        eventTime: resolveAlertEventTime(rawEvent, now),
         severity: severity || "unknown",
         rawEvent,
         eventHash,
@@ -54,6 +56,7 @@ class AlertRepository {
     model,
     processingTimeMs,
   }) {
+    const now = new Date();
     return this.alertModel.findOneAndUpdate(
       { $or: [{ alertId }, { eventHash }] },
       {
@@ -63,6 +66,7 @@ class AlertRepository {
           signature: getRawSignature(rawEvent),
           eventType: rawEvent?.eventtype ? String(rawEvent.eventtype) : undefined,
           host: rawEvent?.host ? String(rawEvent.host) : undefined,
+          eventTime: resolveAlertEventTime(rawEvent, now),
           rawEvent,
           eventHash,
           ruleMatch,
@@ -74,7 +78,7 @@ class AlertRepository {
           processingTimeMs,
           status: "analyzed",
           aiStatus: "analyzed",
-          "processing.completedAt": new Date(),
+          "processing.completedAt": now,
           "processing.failedAt": undefined,
           "processing.lastError": undefined,
         },
@@ -95,7 +99,7 @@ class AlertRepository {
     createdAtTo,
     page = 1,
     limit = 50,
-    sortBy = "createdAt",
+    sortBy = "eventTime",
     sortDirection = "desc",
   } = {}) {
     const filters = buildListFilters({
@@ -110,9 +114,9 @@ class AlertRepository {
     const safePage = Math.max(Number(page) || 1, 1);
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const skip = (safePage - 1) * safeLimit;
-    const safeSortBy = ["createdAt", "updatedAt", "alertId", "severity", "source"].includes(sortBy)
+    const safeSortBy = ["eventTime", "createdAt", "updatedAt", "alertId", "severity", "source"].includes(sortBy)
       ? sortBy
-      : "createdAt";
+      : "eventTime";
     const direction = String(sortDirection).toLowerCase() === "asc" ? 1 : -1;
     const sort = { [safeSortBy]: direction };
 

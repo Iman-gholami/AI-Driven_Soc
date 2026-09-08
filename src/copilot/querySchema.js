@@ -60,6 +60,14 @@ const batchToolSelectionSchema = z.object({
   arguments: batchQuerySchema,
 }).strict();
 
+const entityContextToolSelectionSchema = z.object({
+  tool: z.literal("get_soc_entity_context"),
+  arguments: z.object({
+    entityType: z.enum(["alert", "ip", "organization", "rule", "mitre_technique"]),
+    id: z.string().min(1).max(500),
+  }).strict(),
+}).strict();
+
 const unsupportedPlanSchema = z.object({
   tool: z.literal("unsupported"),
   reason: z.string().min(1).max(1000),
@@ -68,6 +76,7 @@ const unsupportedPlanSchema = z.object({
 const copilotPlanSchema = z.union([
   toolSelectionSchema,
   batchToolSelectionSchema,
+  entityContextToolSelectionSchema,
   unsupportedPlanSchema,
 ]);
 
@@ -80,6 +89,7 @@ module.exports = {
   toolSelectionSchema,
   batchQuerySchema,
   batchToolSelectionSchema,
+  entityContextToolSelectionSchema,
   unsupportedPlanSchema,
   copilotPlanSchema,
 };

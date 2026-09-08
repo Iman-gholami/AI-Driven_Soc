@@ -34,7 +34,7 @@ const SOC_SCHEMA_CATALOG = {
     name: "alerts",
     description: "Security alerts ingested into the SOC, including rule resolution, AI triage and network intelligence.",
     aliases: ["alert", "alerts", "الر‌ت", "الر‌تها", "هشدار", "هشدارها"],
-    defaultTimeField: "createdAt",
+    defaultTimeField: "eventTime",
     dynamicPrefixes: [
       {
         prefix: "rawEvent",
@@ -67,6 +67,9 @@ const SOC_SCHEMA_CATALOG = {
       model: field("model", "string", "LLM model used for alert analysis"),
       processingTimeMs: field("processingTimeMs", "number", "AI processing time in milliseconds", {
         aliases: ["analysis time", "processing time", "زمان تحلیل"],
+      }),
+      eventTime: field("eventTime", "date", "Canonical alert event timestamp normalized from source telemetry, with createdAt fallback for legacy alerts", {
+        aliases: ["event time", "زمان رخداد", "زمان رویداد"],
       }),
       createdAt: field("createdAt", "date", "Alert ingestion timestamp"),
       updatedAt: field("updatedAt", "date", "Last alert update timestamp"),

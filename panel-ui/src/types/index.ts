@@ -372,7 +372,58 @@ export interface CopilotConversationState {
   lastQueryPlan?: unknown;
 }
 
-export type CopilotPlan = CopilotQueryPlan | CopilotBatchPlan | CopilotEntityContextPlan;
+export interface CopilotMetricPlan {
+  operation: 'compare' | 'percentage' | 'trend';
+  [key: string]: unknown;
+}
+
+export interface CopilotCorrelationPlan {
+  relationship:
+    | 'alert_source_ip_to_threat_source'
+    | 'alert_destination_ip_to_asset'
+    | 'alert_rule_to_detection_rule'
+    | 'detection_rule_to_mitre_technique'
+    | 'alert_ip_to_organization';
+  timeRange?: CopilotQueryPlan['timeRange'];
+  limit?: number;
+}
+
+export type CopilotPlan =
+  | CopilotQueryPlan
+  | CopilotBatchPlan
+  | CopilotEntityContextPlan
+  | CopilotMetricPlan
+  | CopilotCorrelationPlan;
+
+export interface CopilotMetricResult {
+  operation: 'compare' | 'percentage' | 'trend';
+  left?: { label: string; count: number };
+  right?: { label: string; count: number };
+  numerator?: { label: string; count: number };
+  denominator?: { label: string; count: number };
+  difference?: number;
+  changePercent?: number | null;
+  percentage?: number | null;
+  dataset?: string;
+  bucket?: 'hour' | 'day';
+  points?: Array<{ from: string; to: string; count: number }>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CopilotCorrelationResult {
+  operation: 'correlate';
+  relationship: string;
+  relationshipDescription?: string;
+  timeRange?: {
+    from?: string | null;
+    to?: string | null;
+    timezone?: string;
+    label?: string;
+  };
+  rows: Array<Record<string, unknown>>;
+  count: number;
+  metadata?: Record<string, unknown>;
+}
 
 export interface CopilotChatHistoryItem {
   role: 'user' | 'assistant';
@@ -384,7 +435,13 @@ export interface CopilotResponse {
   answer: string;
   tool: string | null;
   queryPlan: CopilotPlan | null;
-  result: CopilotQueryResult | CopilotBatchResult | CopilotEntityContextResult | null;
+  result:
+    | CopilotQueryResult
+    | CopilotBatchResult
+    | CopilotEntityContextResult
+    | CopilotMetricResult
+    | CopilotCorrelationResult
+    | null;
   metadata: {
     provider?: string;
     model?: string;

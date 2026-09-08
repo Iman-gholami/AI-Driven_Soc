@@ -275,3 +275,41 @@ test("IncidentAnalyzer sends enriched network context to the configured LLM prov
   assert.equal(result.networkIntelligence, networkSnapshot);
   assert.equal(result.metadata.enrichmentStatus, "complete");
 });
+
+
+test("air-gapped mode rejects cloud LLM calls before any request is attempted", async () => {
+  const { createConfiguredLlmProvider } = require("../src/services/llmProviders");
+
+  const provider = createConfiguredLlmProvider({
+    llmProvider: "openai",
+    airGapped: true,
+    openaiApiKey: "test-key",
+    openaiModel: "test-model",
+    openaiTimeoutMs: 100,
+  });
+
+  await assert.rejects(
+    () => provider.analyze({ incident: {} }),
+    /disabled while AIR_GAPPED=true/,
+  );
+});
+
+test("local LLM provider keeps the same analyze contract for future on-prem use", () => {
+  const { createConfiguredLlmProvider } = require("../src/services/llmProviders");
+
+  const provider = createConfiguredLlmProvider({
+    llmProvider: "local",
+    airGapped: true,
+    localLlmApiKey: "local",
+    localLlmModel: "soc-local-model",
+    localLlmBaseUrl: "http://127.0.0.1:9000/v1",
+    localLlmTimeoutMs: 1000,
+    localLlmUseJsonMode: false,
+  });
+
+  assert.deepEqual(provider.getMetadata(), {
+    provider: "local",
+    model: "soc-local-model",
+  });
+  assert.equal(typeof provider.analyze, "function");
+});

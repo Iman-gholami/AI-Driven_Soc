@@ -28,7 +28,8 @@ async function importAssets(filePath, { batchSize = DEFAULT_BATCH_SIZE } = {}) {
   async function flush() {
     if (!batch.length) return;
 
-    const operations = batch.map((asset) => ({
+    const uniqueBatch = [...new Map(batch.map((asset) => [asset.ip, asset])).values()];
+    const operations = uniqueBatch.map((asset) => ({
       updateOne: {
         filter: { importId, ip: asset.ip },
         update: { $set: { ...asset, importId } },

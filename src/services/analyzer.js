@@ -64,7 +64,8 @@ class IncidentAnalyzer {
     const context = buildContext(payload, ruleResolution, networkIntelligence);
     const result = await this.llm.analyze(context);
     const normalized = normalizeAnalysisPayload(result);
-    const response = analysisResponseSchema.parse(normalized);
+    const grounded = groundNetworkRelationshipAnalysis(normalized, context, networkIntelligence);
+    const response = analysisResponseSchema.parse(grounded);
     const processingTimeMs = Date.now() - startedAt;
     const providerMetadata = this.llm.getMetadata ? this.llm.getMetadata() : {};
 
@@ -187,6 +188,124 @@ class IncidentAnalyzer {
       },
     };
   }
+}
+
+function groundNetworkRelationshipAnalysis(analysis, context, networkIntelligence) {
+  const relationship = analysis?.network_relationship_analysis || {};
+  const tuple = networkIntelligence?.tuple || {};
+  const ips = Array.isArray(networkIntelligence?.ips) ? networkIntelligence.ips : [];
+  const communication = context?.incident?.communication_evidence || {};
+
+  const source = ips.find((item) => item.ip === tuple.sourceIp)
+    || ips.find((item) => Array.isArray(item.roles) && item.roles.includes("source"))
+    || null;
+  const destination = ips.find((item) => item.ip === tuple.destinationIp)
+    || ips.find((item) => Array.isArray(item.roles) && item.roles.includes("destination"))
+    || null;
+
+  const currentAlertDomains = uniqueStrings([
+    ...(Array.isArray(communication.domains) ? communication.domains.map((item) => item?.value) : []),
+    ...(Array.isArray(communication.urls) ? communication.urls.map((item) => item?.value) : []),
+  ]);
+
+  const currentAlertPacketEvidence = uniqueStrings(
+    Array.isArray(communication.packet_content)
+      ? communication.packet_content.map((item) => item?.snippet)
+      : [],
+  );
+
+  return {
+    ...analysis,
+    network_relationship_analysis: {
+      ...relationship,
+      source: {
+        ...(relationship.source || {}),
+        ip: tuple.sourceIp || source?.ip || relationship.source?.ip || "",
+        organization: source?.asset?.organization || "",
+      },
+      destination: {
+        ...(relationship.destination || {}),
+        ip: tuple.destinationIp || destination?.ip || relationship.destination?.ip || "",
+        organization: destination?.asset?.organization || "",
+      },
+      current_alert_domains: currentAlertDomains,
+      current_alert_packet_evidence: currentAlertPacketEvidence,
+      threat_feed_context: buildDeterministicThreatFeedContext(ips),
+    },
+  };
+}
+
+function buildDeterministicThreatFeedContext(ips) {
+  const entries = [];
+
+  for (const endpoint of ips) {
+    const directEvidence = Array.isArray(endpoint?.threat?.direct?.evidence)
+      ? endpoint.threat.direct.evidence
+      : [];
+    const relationshipEvidence = Array.isArray(endpoint?.threat?.relationship?.evidence)
+      ? endpoint.threat.relationship.evidence
+      : [];
+
+    for (const evidence of directEvidence) {
+      entries.push(formatThreatFeedEvidence(endpoint.ip, "direct", evidence));
+    }
+
+    for (const evidence of relationshipEvidence) {
+      entries.push(formatThreatFeedEvidence(endpoint.ip, "relationship", evidence));
+    }
+  }
+
+  return uniqueStrings(entries.filter(Boolean)).slice(0, 8);
+}
+
+function formatThreatFeedEvidence(ip, mode, evidence = {}) {
+  const provider = evidence.provider || "unknown provider";
+  const malware = evidence.malware || null;
+  const classification = [
+    evidence.classification?.identifier,
+    evidence.classification?.taxonomy,
+    evidence.classification?.type,
+  ].filter(Boolean).join("/");
+
+  if (mode === "direct") {
+    const destination = evidence.destination || {};
+    const destinationParts = [
+      destination.ip,
+      destination.port !== undefined && destination.port !== null ? "port " + destination.port : null,
+      destination.fqdn ? "FQDN " + destination.fqdn : null,
+    ].filter(Boolean).join(", ");
+    const descriptors = [
+      malware ? "malware " + malware : null,
+      classification ? "classification " + classification : null,
+      destinationParts ? "historical destination " + destinationParts : null,
+    ].filter(Boolean).join("; ");
+    return ip + " direct threat-feed evidence from " + provider + (descriptors ? ": " + descriptors : "") + " (feed context only).";
+  }
+
+  const source = evidence.source || {};
+  const sourceParts = [
+    source.ip,
+    source.port !== undefined && source.port !== null ? "port " + source.port : null,
+  ].filter(Boolean).join(", ");
+  const destination = evidence.destination || {};
+  const destinationParts = [
+    destination.port !== undefined && destination.port !== null ? "destination port " + destination.port : null,
+    destination.fqdn ? "FQDN " + destination.fqdn : null,
+  ].filter(Boolean).join(", ");
+  const descriptors = [
+    malware ? "malware " + malware : null,
+    classification ? "classification " + classification : null,
+    sourceParts ? "historical source " + sourceParts : null,
+    destinationParts || null,
+  ].filter(Boolean).join("; ");
+  return ip + " relationship threat-feed evidence from " + provider + (descriptors ? ": " + descriptors : "") + " (feed context only).";
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values
+    .filter((value) => value !== undefined && value !== null)
+    .map((value) => String(value).trim())
+    .filter(Boolean))];
 }
 
 function buildNetworkIocs(networkIntelligence) {
@@ -313,4 +432,6 @@ module.exports = {
   summarizeRuleResolution,
   buildNetworkIocs,
   buildThreatIntelligenceSnapshot,
+  groundNetworkRelationshipAnalysis,
+  buildDeterministicThreatFeedContext,
 };

@@ -18,6 +18,9 @@ const { parseJsonResponse } = require("../src/services/llmProviders");
 const { normalizeMmdbRecord } = require("../src/services/ipMetadataService");
 const { buildIncidentEvidence } = require("../src/services/contextBuilder");
 const { normalizeAnalysisPayload } = require("../src/models/incidentSchema");
+const {
+  groundNetworkRelationshipAnalysis,
+} = require("../src/services/analyzer");
 
 test("IPv4 extractor resolves top-level and nested source/destination fields deterministically", () => {
   const event = {
@@ -148,6 +151,91 @@ test("analysis normalization supplies a stable IP relationship shape for legacy 
     threat_feed_context: [],
     limitations: "",
   });
+});
+
+test("relationship grounding replaces model-invented provenance with deterministic alert/feed evidence", () => {
+  const normalized = normalizeAnalysisPayload({
+    verdict: "MALICIOUS",
+    one_line_summary: "Example",
+    risk_assessment: {},
+    network_relationship_analysis: {
+      assessment: "MALICIOUS",
+      summary: "Example relationship",
+      source: { ip: "1.1.1.1", organization: "Invented Org", context: "model text" },
+      destination: { ip: "2.2.2.2", organization: "Invented Destination", context: "model text" },
+      current_alert_domains: ["hallucinated.example"],
+      current_alert_packet_evidence: ["invented payload"],
+      threat_feed_context: ["hallucinated feed domain"],
+    },
+  });
+
+  const grounded = groundNetworkRelationshipAnalysis(
+    normalized,
+    {
+      incident: {
+        communication_evidence: {
+          domains: [{ field: "http_host", value: "current.example" }],
+          urls: [{ field: "request_url", value: "https://current.example/login" }],
+          packet_content: [{ field: "request_body", snippet: "action=login" }],
+        },
+      },
+    },
+    {
+      tuple: {
+        sourceIp: "151.234.175.98",
+        destinationIp: "10.0.0.190",
+      },
+      ips: [
+        {
+          ip: "151.234.175.98",
+          roles: ["source"],
+          asset: { owned: false, organization: null },
+          threat: {
+            direct: {
+              evidence: [{
+                provider: "Spamhaus",
+                malware: "elf.mirai",
+                classification: {
+                  identifier: "mirai",
+                  taxonomy: "malicious-code",
+                  type: "infected-system",
+                },
+                destination: {
+                  ip: "104.131.68.180",
+                  port: 6969,
+                  fqdn: "feed-only.example",
+                },
+              }],
+            },
+          },
+        },
+        {
+          ip: "10.0.0.190",
+          roles: ["destination"],
+          asset: {
+            owned: true,
+            organization: "Organization A",
+          },
+          threat: {},
+        },
+      ],
+    },
+  );
+
+  assert.equal(grounded.network_relationship_analysis.source.ip, "151.234.175.98");
+  assert.equal(grounded.network_relationship_analysis.source.organization, "");
+  assert.equal(grounded.network_relationship_analysis.destination.ip, "10.0.0.190");
+  assert.equal(grounded.network_relationship_analysis.destination.organization, "Organization A");
+  assert.deepEqual(grounded.network_relationship_analysis.current_alert_domains, [
+    "current.example",
+    "https://current.example/login",
+  ]);
+  assert.deepEqual(grounded.network_relationship_analysis.current_alert_packet_evidence, [
+    "action=login",
+  ]);
+  assert.deepEqual(grounded.network_relationship_analysis.threat_feed_context, [
+    "151.234.175.98 direct threat-feed evidence from Spamhaus: malware elf.mirai; classification mirai/malicious-code/infected-system; historical destination 104.131.68.180, port 6969, FQDN feed-only.example (feed context only).",
+  ]);
 });
 
 test("threat feed mapper preserves source classification and destination relationship fields", () => {

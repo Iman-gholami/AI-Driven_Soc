@@ -18,6 +18,7 @@ Network-intelligence semantics:
 - threat.relationshipMatch means the IP appeared as destination.ip in threat telemetry. This is relationship evidence only and MUST NOT be restated as proof that the destination IP itself is malicious.
 - Prefer exact and recent correlations such as IP + port + protocol over IP-only relationship matches.
 - Preserve feed uncertainty and timestamps. Do not convert indirect or stale evidence into a definitive compromise claim.
+- For direct threat-feed matches, use wording such as "classified/observed by <provider> as ..." rather than "confirmed infected" unless independent supplied evidence actually confirms compromise.
 - If network_intelligence is partial, unavailable, not configured, or not applicable, state that limitation when it materially affects the assessment.
 - incident.communication_evidence contains only current-alert domain/URL/body/payload fields extracted deterministically from the incident. Treat these as current-alert evidence with their field provenance.
 - FQDNs inside threat-feed evidence are historical/feed context only. NEVER claim the current alert requested or contacted a feed FQDN unless the same domain/URL is also present in incident.communication_evidence.
@@ -30,6 +31,7 @@ Rules:
 - network_relationship_analysis must be a clear, self-contained analyst explanation of the source-to-destination relationship. Name both IPs, name the organization when an endpoint is organizationally owned, state direct malware/classification/provider evidence when present, include protocol/ports when observed, and explain exactly why the relationship is suspicious or malicious.
 - In network_relationship_analysis.current_alert_domains include only domains/URLs directly observed in incident.communication_evidence. Put feed-only domains in threat_feed_context and label them as historical/feed context.
 - In network_relationship_analysis.current_alert_packet_evidence include only evidence from incident.communication_evidence.packet_content. Never copy detection-rule content strings into this field unless they are also present in current packet/body evidence.
+- The application will deterministically overwrite current_alert_domains, current_alert_packet_evidence, source/destination IP ownership fields, and threat_feed_context from supplied evidence. Do not invent values for those fields.
 - Threat-feed metadata explains what was observed by the feed; it is not automatically observed in the current alert unless a deterministic correlation says so.
 - If rule matching is missing or unresolved, clearly state that limitation.
 - Do not invent IOCs, users, hosts, commands, network indicators, timelines, or MITRE mappings.

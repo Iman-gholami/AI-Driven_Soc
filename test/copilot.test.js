@@ -409,3 +409,54 @@ test("safe dynamic rawEvent fields are queryable while Mongo operator paths stay
     /not allowed/,
   );
 });
+
+
+test("array-backed top values count unique source documents instead of duplicate array elements", () => {
+  const plan = socQueryPlanSchema.parse({
+    dataset: "alerts",
+    operation: "aggregate",
+    filters: [
+      {
+        field: "soc.networkIntelligence.ips.threat.directMatch",
+        operator: "eq",
+        value: true,
+      },
+    ],
+    groupBy: ["soc.networkIntelligence.ips.asset.organization"],
+    metrics: [{ type: "count", alias: "count" }],
+    sort: [{ field: "count", direction: "desc" }],
+    limit: 5,
+  });
+
+  const compiled = compileSocQuery(plan, {
+    resolvedTimeRange: { from: null, to: null, timezone: "Asia/Tehran", label: "all time" },
+  });
+
+  assert.deepEqual(compiled.pipeline.slice(0, 4), [
+    {
+      $unwind: {
+        path: "$soc.networkIntelligence.ips",
+        preserveNullAndEmptyArrays: false,
+      },
+    },
+    {
+      $match: {
+        "soc.networkIntelligence.ips.threat.directMatch": true,
+      },
+    },
+    {
+      $group: {
+        _id: {
+          __document: "$_id",
+          __group: "$soc.networkIntelligence.ips.asset.organization",
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.__group",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+});

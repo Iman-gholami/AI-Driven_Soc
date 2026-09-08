@@ -93,25 +93,29 @@ function compileSocQuery(plan, {
   if (plan.operation === "aggregate") {
     const groupFields = plan.groupBy || [];
     const metrics = normalizeMetrics(plan.metrics);
-    const group = { _id: buildGroupId(plan.dataset, groupFields) };
+    if (unwindPaths.length > 0 && metrics.every((metric) => metric.type === "count")) {
+      pipeline.push(...buildDistinctDocumentCountStages(plan.dataset, groupFields, metrics));
+    } else {
+      const group = { _id: buildGroupId(plan.dataset, groupFields) };
 
-    for (const metric of metrics) {
-      const alias = metric.alias || defaultMetricAlias(metric);
-      if (metric.type === "count") {
-        group[alias] = { $sum: 1 };
-      } else {
-        const metadata = getFieldSchema(plan.dataset, metric.field);
-        const operator = {
-          sum: "$sum",
-          avg: "$avg",
-          min: "$min",
-          max: "$max",
-        }[metric.type];
-        group[alias] = { [operator]: `$${metadata.path}` };
+      for (const metric of metrics) {
+        const alias = metric.alias || defaultMetricAlias(metric);
+        if (metric.type === "count") {
+          group[alias] = { $sum: 1 };
+        } else {
+          const metadata = getFieldSchema(plan.dataset, metric.field);
+          const operator = {
+            sum: "$sum",
+            avg: "$avg",
+            min: "$min",
+            max: "$max",
+          }[metric.type];
+          group[alias] = { [operator]: `${metadata.path}` };
+        }
       }
-    }
 
-    pipeline.push({ $group: group });
+      pipeline.push({ $group: group });
+    }
 
     const projection = { _id: 0 };
     if (groupFields.length === 1) {
@@ -313,6 +317,37 @@ function buildGroupId(datasetName, fields) {
   return id;
 }
 
+function buildDistinctDocumentCountStages(datasetName, groupFields, metrics) {
+  const firstId = { __document: "$_id" };
+
+  if (groupFields.length === 1) {
+    firstId.__group = "$" + getFieldSchema(datasetName, groupFields[0]).path;
+  } else {
+    for (const fieldName of groupFields) {
+      firstId[safeGroupKey(fieldName)] = "$" + getFieldSchema(datasetName, fieldName).path;
+    }
+  }
+
+  const secondId = groupFields.length === 1
+    ? "$_id.__group"
+    : Object.fromEntries(
+      groupFields.map((fieldName) => [
+        safeGroupKey(fieldName),
+        "$_id." + safeGroupKey(fieldName),
+      ]),
+    );
+
+  const secondGroup = { _id: secondId };
+  for (const metric of metrics) {
+    secondGroup[metric.alias || defaultMetricAlias(metric)] = { $sum: 1 };
+  }
+
+  return [
+    { $group: { _id: firstId } },
+    { $group: secondGroup },
+  ];
+}
+
 function normalizeMetrics(metrics) {
   return metrics?.length ? metrics : [{ type: "count", alias: "count" }];
 }
@@ -371,5 +406,6 @@ module.exports = {
   validatePlanFields,
   buildFilter,
   buildFilterClauses,
+  buildDistinctDocumentCountStages,
   outputFieldName,
 };

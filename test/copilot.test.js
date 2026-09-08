@@ -6,7 +6,10 @@ const { compileSocQuery } = require("../src/copilot/queryCompiler");
 const { resolveTimeRange } = require("../src/copilot/timeRange");
 const { SocMcpServer } = require("../src/mcp/socMcpServer");
 const { InProcessMcpClient } = require("../src/mcp/inProcessClient");
-const { CopilotService } = require("../src/services/copilotService");
+const {
+  CopilotService,
+  buildUnsupportedAnswer,
+} = require("../src/services/copilotService");
 const {
   getFieldSchema,
   registerDiscoveredFields,
@@ -601,4 +604,15 @@ test("registered Mongoose datasets automatically expose newly added safe schema 
   assert.equal(getFieldSchema("detection_rules", "futureScore").type, "number");
   assert.equal(getFieldSchema("detection_rules", "futureTags").unwind, "futureTags");
   assert.equal(getFieldSchema("detection_rules", "_id"), null);
+});
+
+
+test("unsupported Copilot answers are localized to the analyst language", () => {
+  assert.match(buildUnsupportedAnswer("هوا خوبه؟"), /این سؤال با داده‌های فعلی SOC قابل پاسخ نیست/);
+  assert.match(buildUnsupportedAnswer("is the weather good?"), /cannot be answered from the current SOC data/i);
+});
+
+test("answer formatter prompt avoids raw UTC timestamps unless explicitly requested", () => {
+  const { ANSWER_SYSTEM_PROMPT } = require("../src/copilot/prompts");
+  assert.match(ANSWER_SYSTEM_PROMPT, /Do not print raw ISO\/UTC timestamps/);
 });

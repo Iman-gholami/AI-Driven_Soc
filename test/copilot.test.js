@@ -344,7 +344,15 @@ test("array-scoped aggregate filters are applied after unwind so unrelated IPs a
     },
     {
       $group: {
-        _id: "$soc.networkIntelligence.ips.asset.organization",
+        _id: {
+          __document: "$_id",
+          __group: "$soc.networkIntelligence.ips.asset.organization",
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.__group",
         count: { $sum: 1 },
       },
     },

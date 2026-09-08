@@ -87,8 +87,10 @@ class NetworkIntelligenceService {
       ipMetadata: summarizeMetadataSourceStatus(ips),
     };
 
-    const unavailable = Object.values(sourceStatuses).filter((value) => value === "unavailable").length;
-    const status = unavailable > 0 ? "partial" : "complete";
+    const degraded = Object.values(sourceStatuses).filter(
+      (value) => value === "unavailable" || value === "not_configured",
+    ).length;
+    const status = degraded > 0 ? "partial" : "complete";
 
     return {
       status,

@@ -110,7 +110,7 @@ function compileSocQuery(plan, {
             min: "$min",
             max: "$max",
           }[metric.type];
-          group[alias] = { [operator]: `${metadata.path}` };
+          group[alias] = { [operator]: "$" + metadata.path };
         }
       }
 

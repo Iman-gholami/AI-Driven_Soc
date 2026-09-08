@@ -8,6 +8,7 @@ import {
   DashboardStats,
   MitreCoverageSnapshot,
   MitreTechniqueRulesResult,
+  CopilotResponse,
 } from '../types';
 
 const apiClient = axios.create({
@@ -112,6 +113,11 @@ export const api = {
   },
 
   regenerateAIAnalysis: async (alertId: string): Promise<AIAlertResponse> => api.generateAIAnalysis(alertId, true),
+
+  queryCopilot: async (message: string): Promise<CopilotResponse> => {
+    const response = await apiClient.post<ApiResponse<CopilotResponse>>('/copilot/query', { message });
+    return response.data.data;
+  },
 };
 
 function cleanParams<T extends Record<string, any>>(params: T): Partial<T> {

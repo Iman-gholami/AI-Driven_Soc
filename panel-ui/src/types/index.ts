@@ -287,3 +287,55 @@ export interface TableColumn {
 }
 
 export type ThemeMode = 'light' | 'dark';
+
+
+export interface CopilotQueryPlan {
+  dataset: string;
+  operation: 'count' | 'aggregate' | 'list' | 'distinct';
+  timeRange?: {
+    type: string;
+    value?: number;
+    from?: string;
+    to?: string;
+    field?: string;
+  };
+  filters?: Array<{ field: string; operator: string; value?: unknown }>;
+  groupBy?: string[];
+  metrics?: Array<{ type: string; field?: string; alias?: string }>;
+  select?: string[];
+  sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
+  limit?: number;
+}
+
+export interface CopilotQueryResult {
+  dataset: string;
+  operation: string;
+  timeRange?: {
+    field?: string | null;
+    from?: string | null;
+    to?: string | null;
+    timezone?: string;
+    label?: string;
+  };
+  data?: {
+    count?: number;
+    rows?: Array<Record<string, unknown>>;
+  };
+  metadata?: Record<string, unknown>;
+  queryPlan?: CopilotQueryPlan;
+}
+
+export interface CopilotResponse {
+  supported: boolean;
+  answer: string;
+  tool: string | null;
+  queryPlan: CopilotQueryPlan | null;
+  result: CopilotQueryResult | null;
+  metadata: {
+    provider?: string;
+    model?: string;
+    readOnly?: boolean;
+    mcp?: boolean;
+    timezone?: string;
+  };
+}

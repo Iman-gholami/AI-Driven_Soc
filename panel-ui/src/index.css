@@ -489,3 +489,244 @@ a:focus-visible,
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* Read-only SOC Copilot */
+.soc-copilot-launcher {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1200;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 15px;
+  border: 1px solid color-mix(in srgb, var(--panel-primary) 35%, var(--panel-border));
+  border-radius: 999px;
+  background: var(--panel-surface-raised);
+  color: var(--panel-text);
+  box-shadow: var(--panel-shadow);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.soc-copilot-launcher .anticon {
+  color: var(--panel-primary);
+  font-size: 16px;
+}
+
+.soc-copilot-panel {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1300;
+  width: min(430px, calc(100vw - 32px));
+  height: min(660px, calc(100vh - 96px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 16px;
+  background: var(--panel-surface-raised);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .24);
+}
+
+.soc-copilot-header {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 12px 16px;
+  border-bottom: 1px solid var(--panel-border);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--panel-primary) 7%, transparent), transparent 60%),
+    var(--panel-surface-raised);
+}
+
+.soc-copilot-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.soc-copilot-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--panel-primary) 25%, var(--panel-border));
+  border-radius: 10px;
+  background: var(--panel-primary-soft);
+  color: var(--panel-primary);
+  font-size: 17px;
+}
+
+.soc-copilot-heading > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.soc-copilot-heading strong {
+  color: var(--panel-text);
+  font-size: 13px;
+}
+
+.soc-copilot-heading span {
+  color: var(--panel-muted);
+  font-size: 9px;
+  letter-spacing: .03em;
+}
+
+.soc-copilot-safety {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel-cyan-soft);
+  color: var(--panel-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.soc-copilot-safety .anticon {
+  margin-top: 2px;
+  color: var(--panel-cyan);
+}
+
+.soc-copilot-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.soc-copilot-message {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 13px;
+}
+
+.soc-copilot-message.is-user {
+  align-items: flex-end;
+}
+
+.soc-copilot-message.is-assistant {
+  align-items: flex-start;
+}
+
+.soc-copilot-bubble {
+  max-width: 88%;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel-surface-soft);
+  color: var(--panel-text);
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.soc-copilot-message.is-user .soc-copilot-bubble {
+  border-color: color-mix(in srgb, var(--panel-primary) 28%, var(--panel-border));
+  background: var(--panel-primary-soft);
+}
+
+.soc-copilot-bubble.is-error {
+  border-color: color-mix(in srgb, var(--panel-danger) 35%, var(--panel-border));
+  background: var(--panel-danger-soft);
+}
+
+.soc-copilot-evidence {
+  max-width: 88%;
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.soc-copilot-evidence .ant-tag {
+  margin: 0;
+  border-color: var(--panel-border);
+  background: transparent;
+  color: var(--panel-muted);
+  font-size: 8px;
+}
+
+.soc-copilot-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--panel-muted);
+  font-size: 10px;
+}
+
+.soc-copilot-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 16px 12px;
+}
+
+.soc-copilot-suggestions .ant-typography {
+  font-size: 9px;
+}
+
+.soc-copilot-suggestions button {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--panel-muted);
+  text-align: start;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.soc-copilot-suggestions button:hover {
+  border-color: color-mix(in srgb, var(--panel-primary) 30%, var(--panel-border));
+  background: var(--panel-primary-soft);
+  color: var(--panel-text);
+}
+
+.soc-copilot-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--panel-border);
+  background: var(--panel-surface-raised);
+}
+
+.soc-copilot-composer .ant-input {
+  font-size: 11px;
+}
+
+.soc-copilot-composer .ant-btn {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .soc-copilot-launcher {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .soc-copilot-panel {
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
+    height: min(690px, calc(100vh - 16px));
+    border-radius: 14px;
+  }
+}

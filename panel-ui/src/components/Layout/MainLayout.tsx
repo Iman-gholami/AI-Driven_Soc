@@ -3,6 +3,7 @@ import { Layout, Spin } from 'antd';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import SocCopilot from '../AI/SocCopilot';
 
 const { Content } = Layout;
 const EXPANDED_WIDTH = 232;
@@ -33,6 +34,7 @@ const MainLayout: React.FC = () => {
           </Spin>
         </Content>
       </Layout>
+      <SocCopilot />
     </Layout>
   );
 };

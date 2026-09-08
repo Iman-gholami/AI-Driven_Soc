@@ -9,6 +9,7 @@ const settings = {
   appName: env.APP_NAME || "Real-Time SOC Incident Analysis API",
   environment: env.NODE_ENV || "production",
   logLevel: env.LOG_LEVEL || "info",
+  socTimezone: env.SOC_TIMEZONE || "Asia/Tehran",
   airGapped: toBool(env.AIR_GAPPED, false),
   llmProvider: env.LLM_PROVIDER || "openai",
   openaiApiKey: env.OPENAI_API_KEY || "",

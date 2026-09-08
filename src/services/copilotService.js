@@ -12,6 +12,7 @@ const {
   PLANNER_SYSTEM_PROMPT,
   ANSWER_SYSTEM_PROMPT,
   buildPlannerUserPrompt,
+  buildPlannerRepairPrompt,
   buildAnswerUserPrompt,
 } = require("../copilot/prompts");
 
@@ -84,10 +85,65 @@ class CopilotService {
     }
 
     let queryResult;
+    let plannerRepair = null;
+
     try {
       queryResult = await this.mcpClient.callTool(plan.tool, plan.arguments);
     } catch (error) {
-      throw new CopilotQueryError("The planned SOC query was rejected or could not be executed", { cause: error });
+      if (!isRepairableTool(plan.tool)) {
+        throw new CopilotQueryError("The planned SOC query was rejected or could not be executed", { cause: error });
+      }
+
+      const rejectedPlan = plan;
+      try {
+        const repairedOutput = await this.llm.completeJson({
+          systemPrompt: PLANNER_SYSTEM_PROMPT,
+          userPrompt: buildPlannerRepairPrompt({
+            question: message,
+            history: safeHistory,
+            state: safeState,
+            schema,
+            tools,
+            timezone: this.timezone,
+            now: currentTime.toISOString(),
+            rejectedPlan,
+            validationError: error?.message || error,
+          }),
+          temperature: 0,
+        });
+
+        const repairedPlan = copilotPlanSchema.parse(repairedOutput);
+        if (repairedPlan.tool === "unsupported") {
+          return {
+            supported: false,
+            answer: buildUnsupportedAnswer(message),
+            tool: null,
+            queryPlan: null,
+            result: null,
+            metadata: {
+              ...this.buildMetadata(),
+              unsupportedReason: repairedPlan.reason,
+              plannerRepair: {
+                attempted: true,
+                succeeded: false,
+              },
+            },
+            state: safeState,
+          };
+        }
+
+        queryResult = await this.mcpClient.callTool(repairedPlan.tool, repairedPlan.arguments);
+        plannerRepair = {
+          attempted: true,
+          succeeded: true,
+          initialTool: rejectedPlan.tool,
+        };
+        plan = repairedPlan;
+      } catch (repairError) {
+        throw new CopilotQueryError("The planned SOC query was rejected and automatic repair failed", {
+          cause: repairError,
+        });
+      }
     }
     let answer;
 
@@ -116,7 +172,10 @@ class CopilotService {
       tool: plan.tool,
       queryPlan: resolvedPlan,
       result: queryResult,
-      metadata: this.buildMetadata(),
+      metadata: {
+        ...this.buildMetadata(),
+        ...(plannerRepair ? { plannerRepair } : {}),
+      },
       state: nextState,
     };
   }
@@ -153,6 +212,15 @@ class CopilotInputError extends Error {
     super(message);
     this.name = "CopilotInputError";
   }
+}
+
+function isRepairableTool(tool) {
+  return [
+    "query_soc_data",
+    "query_soc_data_batch",
+    "analyze_soc_metric",
+    "correlate_soc_entities",
+  ].includes(String(tool || ""));
 }
 
 function normalizeHistory(history) {
@@ -201,6 +269,7 @@ module.exports = {
   CopilotInputError,
   CopilotPlannerError,
   CopilotQueryError,
+  isRepairableTool,
   normalizeHistory,
   isPersianText,
   buildUnsupportedAnswer,

@@ -5,6 +5,10 @@ const { SocMcpServer } = require("../mcp/socMcpServer");
 const { InProcessMcpClient } = require("../mcp/inProcessClient");
 const { copilotPlanSchema } = require("../copilot/querySchema");
 const {
+  normalizeConversationState,
+  deriveConversationState,
+} = require("../copilot/conversationState");
+const {
   PLANNER_SYSTEM_PROMPT,
   ANSWER_SYSTEM_PROMPT,
   buildPlannerUserPrompt,
@@ -34,11 +38,12 @@ class CopilotService {
     return this.mcpClient.callTool("describe_soc_schema", dataset ? { dataset } : {});
   }
 
-  async query(question, { history = [] } = {}) {
+  async query(question, { history = [], state = {} } = {}) {
     const message = String(question || "").trim();
     if (!message) throw new CopilotInputError("message is required");
     if (message.length > 4000) throw new CopilotInputError("message is too long");
     const safeHistory = normalizeHistory(history);
+    const safeState = normalizeConversationState(state);
 
     const tools = await this.mcpClient.listTools();
     const schema = await this.mcpClient.callTool("describe_soc_schema", {});
@@ -51,6 +56,7 @@ class CopilotService {
         userPrompt: buildPlannerUserPrompt({
           question: message,
           history: safeHistory,
+          state: safeState,
           schema,
           tools,
           timezone: this.timezone,
@@ -73,6 +79,7 @@ class CopilotService {
           ...this.buildMetadata(),
           unsupportedReason: plan.reason,
         },
+        state: safeState,
       };
     }
 
@@ -95,13 +102,22 @@ class CopilotService {
       answer = fallbackAnswer(queryResult);
     }
 
+    const resolvedPlan = queryResult.queryPlan || plan.arguments;
+    const nextState = deriveConversationState({
+      previousState: safeState,
+      tool: plan.tool,
+      result: queryResult,
+      queryPlan: resolvedPlan,
+    });
+
     return {
       supported: true,
       answer,
       tool: plan.tool,
-      queryPlan: queryResult.queryPlan || plan.arguments,
+      queryPlan: resolvedPlan,
       result: queryResult,
       metadata: this.buildMetadata(),
+      state: nextState,
     };
   }
 

@@ -26,6 +26,14 @@ class CopilotService {
     this.now = now;
   }
 
+  async listTools() {
+    return this.mcpClient.listTools();
+  }
+
+  async describeSchema(dataset) {
+    return this.mcpClient.callTool("describe_soc_schema", dataset ? { dataset } : {});
+  }
+
   async query(question) {
     const message = String(question || "").trim();
     if (!message) throw new CopilotInputError("message is required");
@@ -35,19 +43,23 @@ class CopilotService {
     const schema = await this.mcpClient.callTool("describe_soc_schema", {});
     const currentTime = this.now();
 
-    const plannerOutput = await this.llm.completeJson({
-      systemPrompt: PLANNER_SYSTEM_PROMPT,
-      userPrompt: buildPlannerUserPrompt({
-        question: message,
-        schema,
-        tools,
-        timezone: this.timezone,
-        now: currentTime.toISOString(),
-      }),
-      temperature: 0,
-    });
-
-    const plan = copilotPlanSchema.parse(plannerOutput);
+    let plan;
+    try {
+      const plannerOutput = await this.llm.completeJson({
+        systemPrompt: PLANNER_SYSTEM_PROMPT,
+        userPrompt: buildPlannerUserPrompt({
+          question: message,
+          schema,
+          tools,
+          timezone: this.timezone,
+          now: currentTime.toISOString(),
+        }),
+        temperature: 0,
+      });
+      plan = copilotPlanSchema.parse(plannerOutput);
+    } catch (error) {
+      throw new CopilotPlannerError("Unable to produce a valid read-only query plan", { cause: error });
+    }
     if (plan.tool === "unsupported") {
       return {
         supported: false,
@@ -59,7 +71,12 @@ class CopilotService {
       };
     }
 
-    const queryResult = await this.mcpClient.callTool(plan.tool, plan.arguments);
+    let queryResult;
+    try {
+      queryResult = await this.mcpClient.callTool(plan.tool, plan.arguments);
+    } catch (error) {
+      throw new CopilotQueryError("The planned SOC query was rejected or could not be executed", { cause: error });
+    }
     let answer;
 
     try {
@@ -96,6 +113,20 @@ class CopilotService {
   }
 }
 
+class CopilotPlannerError extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "CopilotPlannerError";
+  }
+}
+
+class CopilotQueryError extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "CopilotQueryError";
+  }
+}
+
 class CopilotInputError extends Error {
   constructor(message) {
     super(message);
@@ -111,4 +142,10 @@ function fallbackAnswer(queryResult) {
   return "Query completed, but no displayable result was returned.";
 }
 
-module.exports = { CopilotService, CopilotInputError, fallbackAnswer };
+module.exports = {
+  CopilotService,
+  CopilotInputError,
+  CopilotPlannerError,
+  CopilotQueryError,
+  fallbackAnswer,
+};

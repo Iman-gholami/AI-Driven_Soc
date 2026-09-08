@@ -90,7 +90,8 @@ class OpenAICompatibleProvider {
     if (this.providerName === "local" && !this.baseUrlConfigured) {
       throw new Error("LOCAL_LLM_BASE_URL is required when LLM_PROVIDER=local");
     }
-  }}
+  }
+}
 
 function createConfiguredLlmProvider(config = settings) {
   const provider = String(config.llmProvider || "openai").trim().toLowerCase();

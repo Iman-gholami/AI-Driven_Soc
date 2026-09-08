@@ -21,17 +21,79 @@ const ruleController = require('./controllers/rules.controller');
 const mitreController = require('./controllers/mitre.controller');
 const multer = require('multer');
 const { successResponse } = require('../utils/response');
+const {
+  CopilotService,
+  CopilotInputError,
+  CopilotPlannerError,
+  CopilotQueryError,
+} = require('../services/copilotService');
 
 const upload = multer({ dest: 'uploads/' });
 
 function createRouter({
   analyzer = new IncidentAnalyzer(),
   alertRepository = new AlertRepository(),
+  copilot = new CopilotService(),
 } = {}) {
   const router = express.Router();
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  router.get('/copilot/schema', async (req, res) => {
+    try {
+      const data = await copilot.describeSchema(req.query.dataset || undefined);
+      return successResponse(res, data);
+    } catch (error) {
+      req.log.error({ err: error }, 'copilot_schema_failed');
+      return res.status(400).json({ detail: 'Unknown or unavailable SOC dataset' });
+    }
+  });
+
+  router.get('/copilot/tools', async (req, res) => {
+    try {
+      return successResponse(res, await copilot.listTools());
+    } catch (error) {
+      req.log.error({ err: error }, 'copilot_tools_failed');
+      return res.status(500).json({ detail: 'Unable to load SOC Copilot tools' });
+    }
+  });
+
+  router.post('/copilot/query', async (req, res) => {
+    const requestId = crypto.randomUUID();
+
+    try {
+      const data = await copilot.query(req.body?.message);
+      req.log.info(
+        {
+          requestId,
+          supported: data.supported,
+          tool: data.tool,
+          dataset: data.queryPlan?.dataset || null,
+          operation: data.queryPlan?.operation || null,
+        },
+        'copilot_query_completed',
+      );
+      return successResponse(res, data);
+    } catch (error) {
+      if (error instanceof CopilotInputError) {
+        return res.status(400).json({ detail: error.message });
+      }
+
+      if (error instanceof CopilotPlannerError) {
+        req.log.warn({ requestId, err: error.cause || error }, 'copilot_planning_failed');
+        return res.status(502).json({ detail: 'The configured model could not produce a valid SOC query plan' });
+      }
+
+      if (error instanceof CopilotQueryError) {
+        req.log.warn({ requestId, err: error.cause || error }, 'copilot_query_rejected');
+        return res.status(422).json({ detail: 'The requested SOC query is not permitted or cannot be executed' });
+      }
+
+      req.log.error({ requestId, err: error }, 'copilot_query_failed');
+      return res.status(500).json({ detail: 'Internal error while processing SOC Copilot query' });
+    }
   });
 
   router.post('/analyze-incident', async (req, res) => {

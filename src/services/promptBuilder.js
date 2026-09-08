@@ -24,7 +24,7 @@ Rules:
 - Threat-feed metadata explains what was observed by the feed; it is not automatically observed in the current alert unless a deterministic correlation says so.
 - If rule matching is missing or unresolved, clearly state that limitation.
 - Do not invent IOCs, users, hosts, commands, network indicators, timelines, or MITRE mappings.
-- MITRE ATT@&CK mapping must only use techniques supported by supplied evidence.
+- MITRE ATT&CK mapping must only use techniques supported by supplied evidence.
 - Recommendations are investigation actions only; do not claim they were already performed.
 - Confidence is an integer from 0 to 100.
 - Use UNKNOWN when the evidence is insufficient for a verdict or analyst action.

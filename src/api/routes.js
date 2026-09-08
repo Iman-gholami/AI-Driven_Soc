@@ -64,7 +64,10 @@ function createRouter({
     const requestId = crypto.randomUUID();
 
     try {
-      const data = await copilot.query(req.body?.message, { history: req.body?.history });
+      const data = await copilot.query(req.body?.message, {
+        history: req.body?.history,
+        state: req.body?.state,
+      });
       req.log.info(
         {
           requestId,

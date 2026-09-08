@@ -195,6 +195,10 @@ function validatePlanFields(plan, dataset) {
     throw new Error("list does not accept groupBy or metrics");
   }
 
+  if (plan.operation === "list" && !plan.select?.length) {
+    throw new Error("list requires at least one selected field");
+  }
+
   if (plan.operation === "aggregate" && plan.select?.length) {
     throw new Error("aggregate does not accept select");
   }

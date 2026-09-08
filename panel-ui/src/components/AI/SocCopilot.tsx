@@ -129,7 +129,10 @@ const SocCopilot: React.FC = () => {
                 </div>
 
                 {message.role === 'assistant' && message.response?.result && (
-                  <CopilotEvidence response={message.response} />
+                  <>
+                    <CopilotEvidence response={message.response} />
+                    <CopilotStructuredResult response={message.response} />
+                  </>
                 )}
               </div>
             ))}
@@ -215,5 +218,58 @@ const CopilotEvidence: React.FC<{ response: CopilotResponse }> = ({ response }) 
     </div>
   );
 };
+
+const CopilotStructuredResult: React.FC<{ response: CopilotResponse }> = ({ response }) => {
+  if (!response.result) return null;
+
+  if (isBatchResult(response.result)) {
+    return (
+      <div className="soc-copilot-result-stack">
+        {response.result.results.slice(0, 5).map((result, index) => (
+          <CopilotResultBlock key={`${result.dataset}-${result.operation}-${index}`} result={result} />
+        ))}
+      </div>
+    );
+  }
+
+  return <CopilotResultBlock result={response.result} />;
+};
+
+const CopilotResultBlock: React.FC<{ result: CopilotQueryResult }> = ({ result }) => {
+  const rows = Array.isArray(result.data?.rows) ? result.data.rows.slice(0, 5) : [];
+  const isCountOnly = result.operation === 'count';
+
+  return (
+    <div className="soc-copilot-result-block">
+      <div className="soc-copilot-result-title">
+        <span>{result.dataset}</span>
+        {isCountOnly && <strong>{Number(result.data?.count || 0).toLocaleString()}</strong>}
+      </div>
+
+      {rows.length > 0 && (
+        <div className="soc-copilot-result-rows">
+          {rows.map((row, index) => (
+            <div className="soc-copilot-result-row" key={index}>
+              {Object.entries(row).slice(0, 4).map(([key, value]) => (
+                <span key={key}>
+                  <em>{key}</em>
+                  <b dir="auto">{formatCopilotValue(value)}</b>
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+function formatCopilotValue(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'number') return value.toLocaleString();
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
+}
 
 export default SocCopilot;

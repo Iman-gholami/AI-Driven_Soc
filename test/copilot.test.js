@@ -555,3 +555,20 @@ test("Copilot preserves bounded conversation history for follow-up planning", as
   assert.match(plannerPrompt, /امروز چند Alert داشتیم/);
   assert.match(plannerPrompt, /حالا فقط high ها/);
 });
+
+
+test("list queries require an explicit minimal projection", () => {
+  const plan = socQueryPlanSchema.parse({
+    dataset: "alerts",
+    operation: "list",
+    filters: [],
+    limit: 10,
+  });
+
+  assert.throws(
+    () => compileSocQuery(plan, {
+      resolvedTimeRange: { from: null, to: null, timezone: "Asia/Tehran", label: "all time" },
+    }),
+    /requires at least one selected field/,
+  );
+});

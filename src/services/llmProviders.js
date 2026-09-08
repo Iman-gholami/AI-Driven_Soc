@@ -11,16 +11,20 @@ class OpenAICompatibleProvider {
     baseURL,
     useJsonMode = true,
   }) {
-    if (!model) throw new Error(`${providerName} LLM model is not configured`);
-    if (!apiKey) throw new Error(`${providerName} LLM API key is not configured`);
-
     this.providerName = providerName;
     this.model = model;
     this.useJsonMode = useJsonMode;
+    this.apiKeyConfigured = Boolean(apiKey);
+    this.modelConfigured = Boolean(model);
+    this.baseUrlConfigured = Boolean(baseURL);
+    const safeBaseUrl = providerName === "local" && !baseURL
+      ? "http://127.0.0.1:1/v1"
+      : baseURL;
+
     this.client = new OpenAI({
-      apiKey,
+      apiKey: apiKey || "not-configured",
       timeout: timeoutMs,
-      ...(baseURL ? { baseURL } : {}),
+      ...(safeBaseUrl ? { baseURL: safeBaseUrl } : {}),
     });
   }
 
@@ -32,6 +36,16 @@ class OpenAICompatibleProvider {
   }
 
   async analyze(context) {
+    if (!this.modelConfigured) {
+      throw new Error(`${this.providerName} LLM model is not configured`);
+    }
+    if (!this.apiKeyConfigured) {
+      throw new Error(`${this.providerName} LLM API key is not configured`);
+    }
+    if (this.providerName === "local" && !this.baseUrlConfigured) {
+      throw new Error("LOCAL_LLM_BASE_URL is required when LLM_PROVIDER=local");
+    }
+
     let lastError;
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -78,10 +92,6 @@ function createConfiguredLlmProvider(config = settings) {
   }
 
   if (provider === "local" || provider === "local-openai-compatible") {
-    if (!config.localLlmBaseUrl) {
-      throw new Error("LOCAL_LLM_BASE_URL is required when LLM_PROVIDER=local");
-    }
-
     return new OpenAICompatibleProvider({
       providerName: "local",
       apiKey: config.localLlmApiKey || "local",

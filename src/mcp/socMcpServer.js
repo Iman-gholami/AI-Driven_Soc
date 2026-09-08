@@ -2,6 +2,7 @@ const { SocQueryService } = require("../services/socQueryService");
 const { describeSocSchema } = require("../copilot/schemaCatalog");
 const { SocEntityContextService } = require("../services/socEntityContextService");
 const { SocMetricService } = require("../services/socMetricService");
+const { SocCorrelationService } = require("../services/socCorrelationService");
 
 const PROTOCOL_VERSION = "2025-11-25";
 
@@ -120,6 +121,26 @@ const METRIC_ANALYSIS_INPUT_SCHEMA = {
   },
 };
 
+const CORRELATION_INPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["relationship"],
+  properties: {
+    relationship: {
+      type: "string",
+      enum: [
+        "alert_source_ip_to_threat_source",
+        "alert_destination_ip_to_asset",
+        "alert_rule_to_detection_rule",
+        "detection_rule_to_mitre_technique",
+        "alert_ip_to_organization",
+      ],
+    },
+    timeRange: QUERY_INPUT_SCHEMA.properties.timeRange,
+    limit: { type: "integer", minimum: 1, maximum: 100 },
+  },
+};
+
 const SOC_MCP_TOOLS = [
   {
     name: "describe_soc_schema",
@@ -148,6 +169,18 @@ const SOC_MCP_TOOLS = [
     inputSchema: QUERY_INPUT_SCHEMA,
     annotations: {
       title: "Query SOC data",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: "correlate_soc_entities",
+    description: "Execute an allowlisted deterministic relationship correlation between SOC entities using the relationship catalog.",
+    inputSchema: CORRELATION_INPUT_SCHEMA,
+    annotations: {
+      title: "Correlate SOC entities",
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
@@ -197,10 +230,12 @@ class SocMcpServer {
     queryService = new SocQueryService(),
     entityContextService = new SocEntityContextService(),
     metricService = new SocMetricService({ queryService }),
+    correlationService = new SocCorrelationService(),
   } = {}) {
     this.queryService = queryService;
     this.entityContextService = entityContextService;
     this.metricService = metricService;
+    this.correlationService = correlationService;
   }
 
   listTools() {
@@ -216,6 +251,11 @@ class SocMcpServer {
 
     if (name === "query_soc_data") {
       const data = await this.queryService.execute(args);
+      return toolSuccess(data);
+    }
+
+    if (name === "correlate_soc_entities") {
+      const data = await this.correlationService.correlate(args);
       return toolSuccess(data);
     }
 
@@ -268,7 +308,7 @@ class SocMcpServer {
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "ai-driven-soc-mcp", version: "1.0.0" },
-          instructions: "Read-only SOC data access. Use describe_soc_schema, query_soc_data, query_soc_data_batch, analyze_soc_metric, or get_soc_entity_context only.",
+          instructions: "Read-only SOC data access. Use describe_soc_schema, query_soc_data, query_soc_data_batch, correlate_soc_entities, analyze_soc_metric, or get_soc_entity_context only.",
         });
       }
 
@@ -323,6 +363,7 @@ module.exports = {
   BATCH_INPUT_SCHEMA,
   ENTITY_CONTEXT_INPUT_SCHEMA,
   METRIC_ANALYSIS_INPUT_SCHEMA,
+  CORRELATION_INPUT_SCHEMA,
   SOC_MCP_TOOLS,
   SocMcpServer,
   toolSuccess,

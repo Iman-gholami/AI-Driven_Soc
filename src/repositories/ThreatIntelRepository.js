@@ -5,7 +5,7 @@ class ThreatIntelRepository {
   constructor({
     observationModel = ThreatIntelObservation,
     stateModel = IntelDatasetState,
-    stateTtlMs = 30000,
+    stateTtlMs = 0,
   } = {}) {
     this.observationModel = observationModel;
     this.stateModel = stateModel;
@@ -15,7 +15,11 @@ class ThreatIntelRepository {
 
   async getActiveState() {
     const now = Date.now();
-    if (this.stateCache && now - this.stateCache.loadedAt < this.stateTtlMs) {
+    if (
+      this.stateTtlMs > 0 &&
+      this.stateCache &&
+      now - this.stateCache.loadedAt < this.stateTtlMs
+    ) {
       return this.stateCache.value;
     }
 

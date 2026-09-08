@@ -17,6 +17,7 @@ const settings = {
   localLlmApiKey: env.LOCAL_LLM_API_KEY || "local",
   localLlmModel: env.LOCAL_LLM_MODEL || "",
   localLlmTimeoutMs: Number(env.LOCAL_LLM_TIMEOUT_MS || env.OPENAI_TIMEOUT_MS || 15000),
+  localLlmUseJsonMode: toBool(env.LOCAL_LLM_JSON_MODE, false),
   ipinfoMmdbPath: env.IPINFO_MMDB_PATH || "",
   threatIntelEvidenceLimit: Number(env.THREAT_INTEL_EVIDENCE_LIMIT || 12),
   mongodbUri: env.MONGODB_URI || "",

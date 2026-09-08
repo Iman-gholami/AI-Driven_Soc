@@ -896,3 +896,153 @@ test("Copilot retries one rejected query plan with backend validation feedback",
   assert.equal(toolCalls.length, 2);
   assert.equal(completions.length, 3);
 });
+
+
+test("focused latest alert can be summarized from persisted investigation context on the next turn", async () => {
+  const completions = [];
+  const mcpCalls = [];
+
+  const llm = {
+    getMetadata: () => ({ provider: "test", model: "entity-followup" }),
+    async completeJson(request) {
+      completions.push(request);
+
+      if (completions.length === 1) {
+        return {
+          tool: "query_soc_data",
+          arguments: {
+            dataset: "alerts",
+            operation: "list",
+            timeRange: { type: "today" },
+            filters: [],
+            groupBy: [],
+            metrics: [],
+            select: ["alertId", "signature", "eventTime"],
+            sort: [{ field: "eventTime", direction: "desc" }],
+            limit: 1,
+          },
+        };
+      }
+
+      if (completions.length === 2) {
+        return { answer: "آخرین Alert امروز Example Signature بود." };
+      }
+
+      if (completions.length === 3) {
+        assert.match(request.userPrompt, /alert-latest-1/);
+        return {
+          tool: "get_soc_entity_context",
+          arguments: {
+            entityType: "alert",
+            id: "alert-latest-1",
+          },
+        };
+      }
+
+      return {
+        answer: "این Alert از IP 151.234.175.98 به 10.0.0.190 متعلق به سازمان نمونه بوده، MALICIOUS ارزیابی شده و بررسی و مسدودسازی مبدأ پیشنهاد شده است.",
+      };
+    },
+  };
+
+  const mcpClient = {
+    async listTools() {
+      return [
+        { name: "query_soc_data", description: "query", inputSchema: {} },
+        { name: "get_soc_entity_context", description: "entity context", inputSchema: {} },
+      ];
+    },
+    async callTool(name, args) {
+      if (name === "describe_soc_schema") {
+        return {
+          datasets: [{ name: "alerts", fields: [{ name: "alertId" }, { name: "eventTime" }] }],
+        };
+      }
+
+      mcpCalls.push({ name, args });
+
+      if (name === "query_soc_data") {
+        return {
+          dataset: "alerts",
+          operation: "list",
+          data: {
+            count: 1,
+            rows: [
+              {
+                alertId: "alert-latest-1",
+                signature: "Example Signature",
+                eventTime: "2026-09-08T10:00:00.000Z",
+              },
+            ],
+          },
+          queryPlan: args,
+        };
+      }
+
+      if (name === "get_soc_entity_context") {
+        return {
+          entity: { type: "alert", id: "alert-latest-1" },
+          contextType: "investigation",
+          alert: {
+            alertId: "alert-latest-1",
+            signature: "Example Signature",
+            severity: "high",
+          },
+          traffic: {
+            sourceIp: "151.234.175.98",
+            destinationIp: "10.0.0.190",
+          },
+          analysis: {
+            verdict: "MALICIOUS",
+            oneLineSummary: "Suspicious exploit traffic",
+          },
+          destination: {
+            asset: {
+              owned: true,
+              organization: "سازمان نمونه",
+            },
+          },
+          recommendedActions: [
+            "Review source IP",
+            "Inspect destination asset",
+          ],
+          relatedEntities: {
+            sourceIp: "151.234.175.98",
+            destinationIp: "10.0.0.190",
+            organization: "سازمان نمونه",
+          },
+        };
+      }
+
+      throw new Error("unexpected tool " + name);
+    },
+  };
+
+  const service = new CopilotService({
+    llm,
+    mcpClient,
+    now: () => new Date("2026-09-08T11:00:00.000Z"),
+  });
+
+  const first = await service.query("آخرین Alert امروز چی بود؟");
+  assert.deepEqual(first.state.focus, {
+    entityType: "alert",
+    id: "alert-latest-1",
+  });
+
+  const second = await service.query("یه تحلیل خلاصه ازش بده و بگو چه کاری باید انجام بشه", {
+    state: first.state,
+    history: [
+      { role: "user", content: "آخرین Alert امروز چی بود؟" },
+      { role: "assistant", content: first.answer },
+    ],
+  });
+
+  assert.equal(second.tool, "get_soc_entity_context");
+  assert.equal(second.result.analysis.verdict, "MALICIOUS");
+  assert.equal(second.result.relatedEntities.organization, "سازمان نمونه");
+  assert.match(second.answer, /151\.234\.175\.98/);
+  assert.match(second.answer, /10\.0\.0\.190/);
+  assert.match(second.answer, /سازمان نمونه/);
+  assert.equal(mcpCalls.length, 2);
+});

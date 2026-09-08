@@ -65,11 +65,14 @@ class CopilotService {
     if (plan.tool === "unsupported") {
       return {
         supported: false,
-        answer: plan.reason,
+        answer: buildUnsupportedAnswer(message),
         tool: null,
         queryPlan: null,
         result: null,
-        metadata: this.buildMetadata(),
+        metadata: {
+          ...this.buildMetadata(),
+          unsupportedReason: plan.reason,
+        },
       };
     }
 
@@ -148,6 +151,18 @@ function normalizeHistory(history) {
     .filter((item) => item.content);
 }
 
+function isPersianText(value) {
+  return /[\u0600-\u06FF]/.test(String(value || ""));
+}
+
+function buildUnsupportedAnswer(question) {
+  if (isPersianText(question)) {
+    return "این سؤال با داده‌های فعلی SOC قابل پاسخ نیست. درباره Alertها، Ruleها، IPها، Threat Intelligence، Assetها یا MITRE سؤال بپرس.";
+  }
+
+  return "This question cannot be answered from the current SOC data. Ask about alerts, rules, IPs, threat intelligence, assets, or MITRE.";
+}
+
 function fallbackAnswer(queryResult) {
   if (Array.isArray(queryResult?.results)) {
     return JSON.stringify(queryResult.results.map((item) => ({
@@ -171,5 +186,7 @@ module.exports = {
   CopilotPlannerError,
   CopilotQueryError,
   normalizeHistory,
+  isPersianText,
+  buildUnsupportedAnswer,
   fallbackAnswer,
 };

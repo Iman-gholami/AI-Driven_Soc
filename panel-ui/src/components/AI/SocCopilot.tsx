@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CloseOutlined,
   DeleteOutlined,
@@ -40,6 +40,12 @@ const SocCopilot: React.FC = () => {
     },
   ]);
   const sequence = useRef(0);
+  const endRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, loading, open]);
 
   const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading]);
 
@@ -142,7 +148,11 @@ const SocCopilot: React.FC = () => {
           <div className="soc-copilot-messages">
             {messages.map((message) => (
               <div key={message.id} className={`soc-copilot-message is-${message.role}`}>
-                <div className={`soc-copilot-bubble ${message.error ? 'is-error' : ''}`} dir="auto">
+                <div
+                  className={`soc-copilot-bubble ${message.error ? 'is-error' : ''}`}
+                  dir="auto"
+                  lang={/[\u0600-\u06FF]/.test(message.text) ? 'fa' : 'en'}
+                >
                   {message.text}
                 </div>
 
@@ -167,6 +177,7 @@ const SocCopilot: React.FC = () => {
                 <span>Querying SOC data…</span>
               </div>
             )}
+            <div ref={endRef} aria-hidden="true" />
           </div>
 
           {messages.length <= 1 && (

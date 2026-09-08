@@ -308,12 +308,33 @@ function buildCorrelations({ tuple, ips, flowMatches }) {
     });
   }
 
+  const ownedSource = ips.find(
+    (candidate) => candidate.roles.includes("source") && candidate.asset?.owned,
+  );
+  const ownedDestination = ips.find(
+    (candidate) => candidate.roles.includes("destination") && candidate.asset?.owned,
+  );
+
+  if (ownedSource && ownedDestination) {
+    correlations.push({
+      type: "organizational_internal_flow",
+      strength: "contextual",
+      sourceIp: ownedSource.ip,
+      destinationIp: ownedDestination.ip,
+      matchedFields: ["source.asset", "destination.asset"],
+    });
+  }
+
   for (const endpoint of ips) {
     if (endpoint.threat?.directMatch) {
+      const directType = endpoint.asset?.owned
+        ? "organizational_asset_with_direct_threat_evidence"
+        : endpoint.roles.includes("source") && ownedDestination
+          ? "direct_threat_source_targeting_organizational_asset"
+          : "direct_threat_ip_match";
+
       correlations.push({
-        type: endpoint.asset?.owned
-          ? "organizational_asset_with_direct_threat_evidence"
-          : "direct_threat_ip_match",
+        type: directType,
         ip: endpoint.ip,
         roles: endpoint.roles,
         strength: "high",
@@ -344,7 +365,7 @@ function buildCorrelations({ tuple, ips, flowMatches }) {
       }
 
       const isOwnedSourceToExternalThreatRelation =
-        ips.some((candidate) => candidate.roles.includes("source") && candidate.asset?.owned) &&
+        Boolean(ownedSource) &&
         endpoint.roles.includes("destination") &&
         !endpoint.asset?.owned;
 

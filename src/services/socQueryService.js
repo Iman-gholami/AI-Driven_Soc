@@ -1,6 +1,10 @@
 const { settings } = require("../core/config");
 const { socQueryPlanSchema } = require("../copilot/querySchema");
-const { getDatasetSchema, SOC_SCHEMA_VERSION } = require("../copilot/schemaCatalog");
+const {
+  getDatasetSchema,
+  discoverRegistryFields,
+  SOC_SCHEMA_VERSION,
+} = require("../copilot/schemaCatalog");
 const { createDefaultDatasetRegistry } = require("../copilot/datasetRegistry");
 const { resolveTimeRange } = require("../copilot/timeRange");
 const { compileSocQuery } = require("../copilot/queryCompiler");
@@ -13,6 +17,7 @@ class SocQueryService {
     now = () => new Date(),
   } = {}) {
     this.registry = registry;
+    discoverRegistryFields(this.registry);
     this.timezone = timezone;
     this.weekStart = weekStart;
     this.now = now;

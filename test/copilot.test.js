@@ -7,6 +7,10 @@ const { resolveTimeRange } = require("../src/copilot/timeRange");
 const { SocMcpServer } = require("../src/mcp/socMcpServer");
 const { InProcessMcpClient } = require("../src/mcp/inProcessClient");
 const { CopilotService } = require("../src/services/copilotService");
+const {
+  getFieldSchema,
+  registerDiscoveredFields,
+} = require("../src/copilot/schemaCatalog");
 
 test("query compiler builds a read-only top-signature aggregation", () => {
   const plan = socQueryPlanSchema.parse({
@@ -571,4 +575,30 @@ test("list queries require an explicit minimal projection", () => {
     }),
     /requires at least one selected field/,
   );
+});
+
+
+test("registered Mongoose datasets automatically expose newly added safe schema fields", () => {
+  const fakeModel = {
+    schema: {
+      paths: {
+        futureBooleanField: { instance: "Boolean", path: "futureBooleanField" },
+        futureScore: { instance: "Number", path: "futureScore" },
+        futureTags: {
+          instance: "Array",
+          path: "futureTags",
+          caster: { instance: "String" },
+        },
+        _id: { instance: "ObjectId", path: "_id" },
+      },
+    },
+  };
+
+  const added = registerDiscoveredFields("detection_rules", fakeModel);
+
+  assert.equal(added, 3);
+  assert.equal(getFieldSchema("detection_rules", "futureBooleanField").type, "boolean");
+  assert.equal(getFieldSchema("detection_rules", "futureScore").type, "number");
+  assert.equal(getFieldSchema("detection_rules", "futureTags").unwind, "futureTags");
+  assert.equal(getFieldSchema("detection_rules", "_id"), null);
 });

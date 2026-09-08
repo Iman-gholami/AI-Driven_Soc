@@ -378,6 +378,78 @@ function getDatasetSchema(dataset) {
   return SOC_SCHEMA_CATALOG[String(dataset || "").trim()] || null;
 }
 
+function registerDiscoveredFields(dataset, model) {
+  const datasetSchema = getDatasetSchema(dataset);
+  const paths = model?.schema?.paths;
+
+  if (!datasetSchema || !paths || typeof paths !== "object") return 0;
+
+  let added = 0;
+  for (const [pathName, schemaType] of Object.entries(paths)) {
+    if (!isSafeFieldPath(pathName)) continue;
+    if (pathName === "_id" || pathName === "__v") continue;
+    if (datasetSchema.fields[pathName]) continue;
+
+    const dynamicCovered = (datasetSchema.dynamicPrefixes || [])
+      .some((item) => pathName === item.prefix || pathName.startsWith(item.prefix + "."));
+    if (dynamicCovered) continue;
+
+    const inferred = inferMongooseField(schemaType);
+    datasetSchema.fields[pathName] = field(
+      pathName,
+      inferred.type,
+      "Database field discovered from the registered Mongoose model.",
+      {
+        groupable: inferred.groupable,
+        selectable: true,
+        sortable: inferred.sortable,
+        unwind: inferred.unwind,
+      },
+    );
+    added += 1;
+  }
+
+  return added;
+}
+
+function discoverRegistryFields(registry = {}) {
+  let added = 0;
+  for (const [dataset, entry] of Object.entries(registry)) {
+    added += registerDiscoveredFields(dataset, entry?.model);
+  }
+  return added;
+}
+
+function inferMongooseField(schemaType) {
+  const instance = String(schemaType?.instance || "").toLowerCase();
+  const casterInstance = String(schemaType?.caster?.instance || "").toLowerCase();
+
+  if (instance === "array") {
+    return {
+      type: mapMongooseInstance(casterInstance || "mixed"),
+      groupable: true,
+      sortable: false,
+      unwind: schemaType?.path || null,
+    };
+  }
+
+  const type = mapMongooseInstance(instance);
+  return {
+    type,
+    groupable: type !== "mixed",
+    sortable: type !== "mixed",
+    unwind: null,
+  };
+}
+
+function mapMongooseInstance(instance) {
+  if (instance === "number" || instance === "decimal128") return "number";
+  if (instance === "boolean") return "boolean";
+  if (instance === "date") return "date";
+  if (instance === "string" || instance === "objectid") return "string";
+  return "mixed";
+}
+
 function getFieldSchema(dataset, fieldName) {
   const datasetSchema = getDatasetSchema(dataset);
   if (!datasetSchema) return null;
@@ -452,6 +524,9 @@ module.exports = {
   SOC_SCHEMA_CATALOG,
   getDatasetSchema,
   getFieldSchema,
+  registerDiscoveredFields,
+  discoverRegistryFields,
+  inferMongooseField,
   isSafeFieldPath,
   describeSocSchema,
 };

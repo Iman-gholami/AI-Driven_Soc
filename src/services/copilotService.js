@@ -155,7 +155,7 @@ class CopilotService {
       });
       answer = answerSchema.parse(formatted).answer;
     } catch (_) {
-      answer = fallbackAnswer(queryResult);
+      answer = fallbackAnswer(queryResult, message);
     }
 
     const resolvedPlan = queryResult.queryPlan || plan.arguments;
@@ -247,7 +247,67 @@ function buildUnsupportedAnswer(question) {
   return "This question cannot be answered from the current SOC data. Ask about alerts, rules, IPs, threat intelligence, assets, or MITRE.";
 }
 
-function fallbackAnswer(queryResult) {
+function fallbackAnswer(queryResult, question = "") {
+  const persian = isPersianText(question);
+
+  if (queryResult?.entity?.type === "alert") {
+    const sourceIp = queryResult.traffic?.sourceIp || queryResult.relatedEntities?.sourceIp || null;
+    const destinationIp = queryResult.traffic?.destinationIp || queryResult.relatedEntities?.destinationIp || null;
+    const organization = queryResult.relatedEntities?.organization || queryResult.destination?.asset?.organization || null;
+    const verdict = queryResult.analysis?.verdict || null;
+    const summary = queryResult.analysis?.oneLineSummary
+      || queryResult.analysis?.incidentSummary?.what_happened
+      || queryResult.analysis?.finalSocNote
+      || null;
+    const actions = Array.isArray(queryResult.recommendedActions)
+      ? queryResult.recommendedActions.slice(0, 4)
+      : [];
+
+    if (persian) {
+      return [
+        `Alert ${queryResult.entity.id}`,
+        summary ? `خلاصه: ${summary}` : null,
+        sourceIp || destinationIp
+          ? `ارتباط: ${sourceIp || "نامشخص"} → ${destinationIp || "نامشخص"}`
+          : null,
+        organization ? `سازمان: ${organization}` : null,
+        verdict ? `Verdict: ${verdict}` : null,
+        actions.length ? `اقدامات پیشنهادی: ${actions.join(" | ")}` : null,
+      ].filter(Boolean).join("\n");
+    }
+
+    return [
+      `Alert ${queryResult.entity.id}`,
+      summary ? `Summary: ${summary}` : null,
+      sourceIp || destinationIp
+        ? `Traffic: ${sourceIp || "unknown"} -> ${destinationIp || "unknown"}`
+        : null,
+      organization ? `Organization: ${organization}` : null,
+      verdict ? `Verdict: ${verdict}` : null,
+      actions.length ? `Recommended actions: ${actions.join(" | ")}` : null,
+    ].filter(Boolean).join("\n");
+  }
+
+  if (queryResult?.operation === "compare") {
+    const left = Number(queryResult.left?.count || 0);
+    const right = Number(queryResult.right?.count || 0);
+    if (persian) {
+      return `${queryResult.left?.label || "بازه اول"}: ${left}، ${queryResult.right?.label || "بازه دوم"}: ${right}، اختلاف: ${Number(queryResult.difference || 0)}${queryResult.changePercent === null ? "" : `، تغییر: ${queryResult.changePercent}%`}`;
+    }
+    return `${queryResult.left?.label || "left"}: ${left}, ${queryResult.right?.label || "right"}: ${right}, difference: ${Number(queryResult.difference || 0)}${queryResult.changePercent === null ? "" : `, change: ${queryResult.changePercent}%`}`;
+  }
+
+  if (queryResult?.operation === "percentage") {
+    const value = queryResult.percentage;
+    return value === null || value === undefined
+      ? (persian ? "درصد قابل محاسبه نیست چون مخرج صفر است." : "Percentage is undefined because the denominator is zero.")
+      : `${value}%`;
+  }
+
+  if (queryResult?.operation === "correlate" && Array.isArray(queryResult.rows)) {
+    return JSON.stringify(queryResult.rows.slice(0, 10));
+  }
+
   if (Array.isArray(queryResult?.results)) {
     return JSON.stringify(queryResult.results.map((item) => ({
       dataset: item.dataset,
@@ -261,7 +321,9 @@ function fallbackAnswer(queryResult) {
   const rows = queryResult?.data?.rows;
   if (Array.isArray(rows) && rows.length) return JSON.stringify(rows);
   if (Number.isFinite(Number(count))) return String(Number(count));
-  return "Query completed, but no displayable result was returned.";
+  return persian
+    ? "Query اجرا شد، اما نتیجه قابل نمایشی برنگشت."
+    : "Query completed, but no displayable result was returned.";
 }
 
 module.exports = {

@@ -10,10 +10,12 @@ class OpenAICompatibleProvider {
     timeoutMs,
     baseURL,
     useJsonMode = true,
+    networkAllowed = true,
   }) {
     this.providerName = providerName;
     this.model = model;
     this.useJsonMode = useJsonMode;
+    this.networkAllowed = networkAllowed;
     this.apiKeyConfigured = Boolean(apiKey);
     this.modelConfigured = Boolean(model);
     this.baseUrlConfigured = Boolean(baseURL);
@@ -36,6 +38,9 @@ class OpenAICompatibleProvider {
   }
 
   async analyze(context) {
+    if (!this.networkAllowed) {
+      throw new Error(`${this.providerName} LLM is disabled while AIR_GAPPED=true`);
+    }
     if (!this.modelConfigured) {
       throw new Error(`${this.providerName} LLM model is not configured`);
     }
@@ -88,6 +93,7 @@ function createConfiguredLlmProvider(config = settings) {
       model: config.openaiModel,
       timeoutMs: config.openaiTimeoutMs,
       useJsonMode: true,
+      networkAllowed: !config.airGapped,
     });
   }
 

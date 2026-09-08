@@ -1,6 +1,7 @@
 const { SocQueryService } = require("../services/socQueryService");
 const { describeSocSchema } = require("../copilot/schemaCatalog");
 const { SocEntityContextService } = require("../services/socEntityContextService");
+const { SocMetricService } = require("../services/socMetricService");
 
 const PROTOCOL_VERSION = "2025-11-25";
 
@@ -103,6 +104,22 @@ const ENTITY_CONTEXT_INPUT_SCHEMA = {
   },
 };
 
+const METRIC_ANALYSIS_INPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["operation"],
+  properties: {
+    operation: { type: "string", enum: ["compare", "percentage", "trend"] },
+    left: { type: "object" },
+    right: { type: "object" },
+    numerator: { type: "object" },
+    denominator: { type: "object" },
+    query: QUERY_INPUT_SCHEMA,
+    timeRange: QUERY_INPUT_SCHEMA.properties.timeRange,
+    bucket: { type: "string", enum: ["hour", "day"] },
+  },
+};
+
 const SOC_MCP_TOOLS = [
   {
     name: "describe_soc_schema",
@@ -131,6 +148,18 @@ const SOC_MCP_TOOLS = [
     inputSchema: QUERY_INPUT_SCHEMA,
     annotations: {
       title: "Query SOC data",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: "analyze_soc_metric",
+    description: "Calculate deterministic SOC comparisons, percentages, or time trends from validated count queries. Use this instead of asking the language model to calculate statistics.",
+    inputSchema: METRIC_ANALYSIS_INPUT_SCHEMA,
+    annotations: {
+      title: "Analyze SOC metric",
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
@@ -167,9 +196,11 @@ class SocMcpServer {
   constructor({
     queryService = new SocQueryService(),
     entityContextService = new SocEntityContextService(),
+    metricService = new SocMetricService({ queryService }),
   } = {}) {
     this.queryService = queryService;
     this.entityContextService = entityContextService;
+    this.metricService = metricService;
   }
 
   listTools() {
@@ -185,6 +216,11 @@ class SocMcpServer {
 
     if (name === "query_soc_data") {
       const data = await this.queryService.execute(args);
+      return toolSuccess(data);
+    }
+
+    if (name === "analyze_soc_metric") {
+      const data = await this.metricService.analyze(args);
       return toolSuccess(data);
     }
 
@@ -232,7 +268,7 @@ class SocMcpServer {
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "ai-driven-soc-mcp", version: "1.0.0" },
-          instructions: "Read-only SOC data access. Use describe_soc_schema, query_soc_data, query_soc_data_batch, or get_soc_entity_context only.",
+          instructions: "Read-only SOC data access. Use describe_soc_schema, query_soc_data, query_soc_data_batch, analyze_soc_metric, or get_soc_entity_context only.",
         });
       }
 
@@ -286,6 +322,7 @@ module.exports = {
   QUERY_INPUT_SCHEMA,
   BATCH_INPUT_SCHEMA,
   ENTITY_CONTEXT_INPUT_SCHEMA,
+  METRIC_ANALYSIS_INPUT_SCHEMA,
   SOC_MCP_TOOLS,
   SocMcpServer,
   toolSuccess,

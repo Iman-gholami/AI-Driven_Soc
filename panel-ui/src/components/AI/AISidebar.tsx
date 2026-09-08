@@ -28,6 +28,9 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
   const analysis:any = alert?.fullAnalysis || {};
   const risk = analysis.risk_assessment || {};
   const decision = analysis.analyst_decision || {};
+  const networkIntel:any = alert?.soc?.networkIntelligence || {};
+  const networkIps:any[] = Array.isArray(networkIntel.ips) ? networkIntel.ips : [];
+  const networkCorrelations:any[] = Array.isArray(networkIntel.correlations) ? networkIntel.correlations : [];
   const rule:any = alert?.detectionRule?.rule || {};
   const list = (value:any) => Array.isArray(value) ? value : [];
   const evidence = list(analysis.observed_evidence);
@@ -80,6 +83,47 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
 
       <Card title="Observed Evidence">
         {evidence.length ? evidence.map((item:any,index:number)=><Card size="small" key={index}>✓ {typeof item==='string'?item:JSON.stringify(item)}</Card>) : <Text type="secondary">No observed evidence was returned by the model.</Text>}
+      </Card>
+
+      <Card title="Network Intelligence">
+        {networkIps.length ? <div className="space-y-3">
+          {networkIps.map((item:any) => <Card size="small" key={item.ip}>
+            <Space wrap>
+              <Text code>{item.ip}</Text>
+              {(item.roles || []).map((role:string) => <Tag key={role}>{role}</Tag>)}
+              {item.asset?.owned && <Tag>Organizational asset</Tag>}
+              {item.threat?.directMatch && <Tag color="error">Direct threat evidence</Tag>}
+              {!item.threat?.directMatch && item.threat?.relationshipMatch && <Tag color="warning">Threat relationship</Tag>}
+            </Space>
+            {item.asset?.owned && <Paragraph className="mt-2 mb-1">
+              <Text strong>Organization:</Text> {renderValue(item.asset?.organization)}
+              {item.asset?.category ? ` · ${renderValue(item.asset.category)}` : ''}
+              {item.asset?.province ? ` · ${renderValue(item.asset.province)}` : ''}
+            </Paragraph>}
+            {item.ipMetadata?.matched && <Paragraph className="mb-1">
+              <Text strong>IP metadata:</Text> {[item.ipMetadata.asName, item.ipMetadata.organization, item.ipMetadata.countryCode, item.ipMetadata.city].filter(Boolean).join(' · ') || 'Available'}
+            </Paragraph>}
+            {item.threat?.directMatch && <Paragraph className="mb-1">
+              <Text strong>Direct feed evidence:</Text> {(item.threat.direct?.malware || []).join(', ') || (item.threat.direct?.classifications || []).map((entry:any)=>entry.identifier).filter(Boolean).join(', ') || 'Matched'}
+              {item.threat.direct?.latestObservedAt ? ` · last observed ${new Date(item.threat.direct.latestObservedAt).toLocaleString()}` : ''}
+            </Paragraph>}
+            {item.threat?.relationshipMatch && <Paragraph className="mb-0">
+              <Text strong>Relationship evidence:</Text> {(item.threat.relationship?.malware || []).join(', ') || 'Matched in feed destination telemetry'}
+              {item.threat.relationship?.latestObservedAt ? ` · last observed ${new Date(item.threat.relationship.latestObservedAt).toLocaleString()}` : ''}
+            </Paragraph>}
+          </Card>)}
+          {networkCorrelations.length > 0 && <>
+            <Divider/>
+            <Text strong>Deterministic correlations</Text>
+            {networkCorrelations.map((item:any,index:number) => <div key={index} className="mt-2">
+              <Tag color={item.strength==='very_high'||item.strength==='high'?'error':item.strength==='moderate'?'warning':'default'}>{String(item.strength || 'unknown').replace('_',' ').toUpperCase()}</Tag>
+              <Text>{String(item.type || 'network correlation').replaceAll('_',' ')}</Text>
+              {Array.isArray(item.matchedFields) && item.matchedFields.length > 0 && <Text type="secondary"> · {item.matchedFields.join(' + ')}</Text>}
+            </div>)}
+          </>}
+        </div> : <Text type="secondary">
+          {networkIntel.status === 'not_applicable' ? 'No IPv4 indicators were found in this alert.' : 'Network intelligence is not available for this analysis.'}
+        </Text>}
       </Card>
 
       <Card title="Detection Logic">

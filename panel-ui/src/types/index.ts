@@ -335,7 +335,44 @@ export interface CopilotBatchResult {
   metadata?: Record<string, unknown>;
 }
 
-export type CopilotPlan = CopilotQueryPlan | CopilotBatchPlan;
+export interface CopilotEntityContextPlan {
+  entityType: 'alert' | 'ip' | 'organization' | 'rule' | 'mitre_technique';
+  id: string;
+}
+
+export interface CopilotEntityContextResult {
+  entity: {
+    type: 'alert' | 'ip' | 'organization' | 'rule' | 'mitre_technique';
+    id: string;
+  };
+  contextType?: string;
+  relatedEntities?: {
+    sourceIp?: string;
+    destinationIp?: string;
+    organization?: string;
+    ruleId?: string;
+    mitreTechniques?: string[];
+  };
+  [key: string]: unknown;
+}
+
+export interface CopilotConversationState {
+  focus?: {
+    entityType: 'alert' | 'ip' | 'organization' | 'rule' | 'mitre_technique';
+    id: string;
+  } | null;
+  relatedEntities?: {
+    sourceIp?: string;
+    destinationIp?: string;
+    organization?: string;
+    ruleId?: string;
+    mitreTechniques?: string[];
+  };
+  lastTool?: string | null;
+  lastQueryPlan?: unknown;
+}
+
+export type CopilotPlan = CopilotQueryPlan | CopilotBatchPlan | CopilotEntityContextPlan;
 
 export interface CopilotChatHistoryItem {
   role: 'user' | 'assistant';
@@ -347,7 +384,7 @@ export interface CopilotResponse {
   answer: string;
   tool: string | null;
   queryPlan: CopilotPlan | null;
-  result: CopilotQueryResult | CopilotBatchResult | null;
+  result: CopilotQueryResult | CopilotBatchResult | CopilotEntityContextResult | null;
   metadata: {
     provider?: string;
     model?: string;
@@ -355,4 +392,5 @@ export interface CopilotResponse {
     mcp?: boolean;
     timezone?: string;
   };
+  state?: CopilotConversationState;
 }

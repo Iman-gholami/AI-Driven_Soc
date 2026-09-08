@@ -99,7 +99,7 @@ class AlertRepository {
     createdAtTo,
     page = 1,
     limit = 50,
-    sortBy = "eventTime",
+    sortBy = "createdAt",
     sortDirection = "desc",
   } = {}) {
     const filters = buildListFilters({
@@ -116,7 +116,7 @@ class AlertRepository {
     const skip = (safePage - 1) * safeLimit;
     const safeSortBy = ["eventTime", "createdAt", "updatedAt", "alertId", "severity", "source"].includes(sortBy)
       ? sortBy
-      : "eventTime";
+      : "createdAt";
     const direction = String(sortDirection).toLowerCase() === "asc" ? 1 : -1;
     const sort = { [safeSortBy]: direction };
 
@@ -125,7 +125,7 @@ class AlertRepository {
       .sort(sort)
       .skip(skip)
       .limit(safeLimit)
-      .select("alertId source signature eventType host status aiStatus severity analysis ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host createdAt updatedAt eventHash processing processingTimeMs fullAnalysis.risk_assessment fullAnalysis.attack_mapping")
+      .select("alertId source signature eventType host status aiStatus severity analysis ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host eventTime createdAt updatedAt eventHash processing processingTimeMs fullAnalysis.risk_assessment fullAnalysis.attack_mapping")
       .lean();
 
     const [alerts, total] = await Promise.all([

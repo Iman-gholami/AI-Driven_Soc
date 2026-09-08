@@ -20,7 +20,9 @@
     "mitre:gaps:apply": "node scripts/apply-mitre-gaps.js",
     "import:ip-assets": "node scripts/import-ip-assets.js",
     "import:threat-intel": "node scripts/import-threat-intel.js",
-    "mcp:serve": "node src/mcp/stdio.js"
+    "mcp:serve": "node src/mcp/stdio.js",
+    "copilot:smoke": "node scripts/copilot-smoke.js",
+    "copilot:ask": "node scripts/copilot-ask.js"
   },
   "dependencies": {
     "cors": "^2.8.6",

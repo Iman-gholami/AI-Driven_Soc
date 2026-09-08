@@ -8,7 +8,14 @@ import {
 } from '@ant-design/icons';
 import { Button, Input, Spin, Tag, Typography } from 'antd';
 import { api } from '../../api/client';
-import type { CopilotBatchResult, CopilotChatHistoryItem, CopilotQueryResult, CopilotResponse } from '../../types';
+import type {
+  CopilotBatchResult,
+  CopilotChatHistoryItem,
+  CopilotConversationState,
+  CopilotEntityContextResult,
+  CopilotQueryResult,
+  CopilotResponse,
+} from '../../types';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -32,6 +39,7 @@ const SocCopilot: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [conversationState, setConversationState] = useState<CopilotConversationState>({});
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -68,7 +76,8 @@ const SocCopilot: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await api.queryCopilot(question, history);
+      const response = await api.queryCopilot(question, history, conversationState);
+      setConversationState(response.state || conversationState);
       sequence.current += 1;
       setMessages((current) => [
         ...current,
@@ -128,6 +137,7 @@ const SocCopilot: React.FC = () => {
                     },
                   ]);
                   setInput('');
+                  setConversationState({});
                 }}
                 aria-label="Clear SOC Copilot conversation"
               />
@@ -222,13 +232,34 @@ const SocCopilot: React.FC = () => {
 };
 
 function isBatchResult(
-  result: CopilotQueryResult | CopilotBatchResult,
+  result: CopilotQueryResult | CopilotBatchResult | CopilotEntityContextResult,
 ): result is CopilotBatchResult {
   return Array.isArray((result as CopilotBatchResult).results);
 }
 
+function isEntityContextResult(
+  result: CopilotQueryResult | CopilotBatchResult | CopilotEntityContextResult,
+): result is CopilotEntityContextResult {
+  return Boolean((result as CopilotEntityContextResult).entity?.type);
+}
+
 const CopilotEvidence: React.FC<{ response: CopilotResponse }> = ({ response }) => {
   if (!response.result) return null;
+
+  if (isEntityContextResult(response.result)) {
+    return (
+      <div className="soc-copilot-evidence">
+        <Tag>{response.result.entity.type}</Tag>
+        <Tag>{response.result.entity.id}</Tag>
+        <Tag>investigation context</Tag>
+        {response.metadata?.mcp && <Tag>MCP</Tag>}
+      </div>
+    );
+  }
+
+  if (isEntityContextResult(response.result)) {
+    return <CopilotEntityContextBlock result={response.result} />;
+  }
 
   if (isBatchResult(response.result)) {
     return (
@@ -268,6 +299,40 @@ const CopilotStructuredResult: React.FC<{ response: CopilotResponse }> = ({ resp
   }
 
   return <CopilotResultBlock result={response.result} />;
+};
+
+const CopilotEntityContextBlock: React.FC<{ result: CopilotEntityContextResult }> = ({ result }) => {
+  const related = result.relatedEntities || {};
+  return (
+    <div className="soc-copilot-result-block">
+      <div className="soc-copilot-result-title">
+        <span>{result.entity.type}</span>
+        <strong dir="auto">{result.entity.id}</strong>
+      </div>
+      <div className="soc-copilot-result-rows">
+        {related.sourceIp && (
+          <div className="soc-copilot-result-row">
+            <span><em>source IP</em><b>{related.sourceIp}</b></span>
+          </div>
+        )}
+        {related.destinationIp && (
+          <div className="soc-copilot-result-row">
+            <span><em>destination IP</em><b>{related.destinationIp}</b></span>
+          </div>
+        )}
+        {related.organization && (
+          <div className="soc-copilot-result-row">
+            <span><em>organization</em><b dir="auto">{related.organization}</b></span>
+          </div>
+        )}
+        {related.ruleId && (
+          <div className="soc-copilot-result-row">
+            <span><em>rule</em><b>{related.ruleId}</b></span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const CopilotResultBlock: React.FC<{ result: CopilotQueryResult }> = ({ result }) => {

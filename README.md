@@ -15,7 +15,7 @@ Deterministic Signature → DetectionRule resolution
       ↓
 Analyst opens /panel/ and clicks AI Analyze
       ↓
-Incident evidence + matched detection rule → LLM
+Incident evidence + matched detection rule + local network intelligence → LLM
       ↓
 Canonical SOC assessment is validated and persisted
 ```
@@ -26,7 +26,7 @@ V1 is intentionally human-in-the-loop. Alerts without a Signature, or alerts who
 
 - Node.js / Express
 - MongoDB / Mongoose
-- OpenAI provider adapter
+- Swappable OpenAI / local OpenAI-compatible LLM provider
 - Zod validation
 - React / TypeScript / Vite / Ant Design
 - TanStack Query
@@ -58,9 +58,17 @@ npm run dev
 ## Environment variables
 
 - `PORT` (default `8000`)
+- `LLM_PROVIDER` (default `openai`; set `local` for an on-prem OpenAI-compatible endpoint)
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (default `gpt-4.1`)
 - `OPENAI_TIMEOUT_MS` (default `5000`)
+- `LOCAL_LLM_BASE_URL` (for example `http://local-llm:8000/v1`)
+- `LOCAL_LLM_API_KEY` (default `local`)
+- `LOCAL_LLM_MODEL`
+- `LOCAL_LLM_TIMEOUT_MS` (default `15000`)
+- `LOCAL_LLM_JSON_MODE` (default `false`)
+- `IPINFO_MMDB_PATH` (local MMDB file; no runtime network lookup)
+- `THREAT_INTEL_EVIDENCE_LIMIT` (default `12`)
 - `MONGODB_URI`
 - `MONGODB_MAX_RETRIES` (default `3`)
 - `MONGODB_RETRY_DELAY_MS` (default `500`)
@@ -302,3 +310,103 @@ MITRE_ATTACK_URL=https://raw.githubusercontent.com/mitre-attack/attack-stix-data
 ```
 
 Rule imports invalidate existing coverage snapshots. Run `npm run mitre:coverage` after large rule-set changes so the matrix is rebuilt before validation.
+
+
+## Offline IP intelligence enrichment
+
+AI analysis can enrich IPv4 indicators before the prompt is sent to the LLM. The runtime lookup path is fully local:
+
+```text
+Alert
+  ↓
+Deterministic IPv4 extraction
+  ├─ Local organizational asset registry
+  ├─ Local IPinfo MMDB
+  └─ Local current threat-intelligence dataset
+  ↓
+Deterministic network correlation
+  ↓
+Incident + detection rule + network intelligence
+  ↓
+Configured LLM provider
+```
+
+The current development provider can remain OpenAI. Production can switch to an internal OpenAI-compatible model endpoint by setting `LLM_PROVIDER=local`; the analysis context and canonical output contract do not change.
+
+### Import organizational IPv4 assets
+
+The asset dataset is expected as CSV/TSV with exactly these source columns:
+
+```text
+asset,bunit,category,province
+```
+
+`asset` is an exact IPv4 address and `bunit` is the organization name.
+
+```bash
+npm run import:ip-assets -- /offline-data/assets.csv
+```
+
+Imports are versioned internally. The new dataset becomes active only after the import completes, then records from the previous dataset are removed.
+
+### Import current threat intelligence
+
+The supplied feed format is JSON Lines (one JSON object per line) with dotted keys such as:
+
+```text
+source.ip
+destination.ip
+destination.port
+protocol.transport
+classification.identifier
+classification.taxonomy
+classification.type
+malware.name
+feed.provider
+time.source
+time.observation
+unique_id
+```
+
+Import the latest approximately two-million-record snapshot:
+
+```bash
+npm run import:threat-intel -- /offline-data/threat-feed.jsonl
+```
+
+The latest successful import is the only active threat dataset. The previous dataset is removed after activation.
+
+For the supplied feed adapter, `classification.*` is treated as classification evidence about `source.ip`. A match on `destination.ip` is preserved as relationship evidence and is never promoted to `malicious=true` by the deterministic layer. Exact IP + destination port + protocol matches are surfaced as stronger correlations.
+
+### Point-in-time alert audit
+
+The compact intelligence context used by the LLM is persisted on the analyzed alert under:
+
+```text
+soc.networkIntelligence
+soc.iocs
+soc.threatIntelligence
+soc.correlation
+```
+
+The large threat feed itself does not need historical retention. Each analyzed alert retains only the small evidence snapshot that influenced that analysis.
+
+Read-only validation endpoint:
+
+```text
+GET /intelligence/ip/:ipv4
+```
+
+This performs local enrichment only and does not call the LLM.
+
+### Air-gapped operation
+
+Runtime IP enrichment makes no external calls. Asset data, IPinfo MMDB, threat intelligence, detection rules, and ATT&CK data can all be supplied as files inside the isolated environment.
+
+MITRE ATT&CK can also be imported from a local STIX bundle:
+
+```bash
+npm run import:mitre -- /offline-data/enterprise-attack.json
+```
+
+The existing URL-based MITRE importer remains available for connected development environments.

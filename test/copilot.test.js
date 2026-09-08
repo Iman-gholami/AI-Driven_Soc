@@ -13,7 +13,13 @@ const {
 const {
   getFieldSchema,
   registerDiscoveredFields,
+  describeSocSchema,
 } = require("../src/copilot/schemaCatalog");
+const {
+  deriveConversationState,
+} = require("../src/copilot/conversationState");
+const { SocMetricService } = require("../src/services/socMetricService");
+const { buildAlertTimeMatch } = require("../src/services/socCorrelationService");
 
 test("query compiler builds a read-only top-signature aggregation", () => {
   const plan = socQueryPlanSchema.parse({
@@ -130,6 +136,9 @@ test("MCP server exposes only the approved read-only SOC tools", async () => {
   assert.deepEqual(tools.map((item) => item.name), [
     "describe_soc_schema",
     "query_soc_data",
+    "correlate_soc_entities",
+    "analyze_soc_metric",
+    "get_soc_entity_context",
     "query_soc_data_batch",
   ]);
   assert.ok(tools.every((tool) => tool.annotations?.readOnlyHint === true));
@@ -615,4 +624,266 @@ test("unsupported Copilot answers are localized to the analyst language", () => 
 test("answer formatter prompt avoids raw UTC timestamps unless explicitly requested", () => {
   const { ANSWER_SYSTEM_PROMPT } = require("../src/copilot/prompts");
   assert.match(ANSWER_SYSTEM_PROMPT, /Do not print raw ISO\/UTC timestamps/);
+});
+
+
+test("Copilot state focuses the alert returned by a latest-alert query", () => {
+  const state = deriveConversationState({
+    previousState: {},
+    tool: "query_soc_data",
+    queryPlan: {
+      dataset: "alerts",
+      operation: "list",
+      select: ["alertId", "signature"],
+      limit: 1,
+    },
+    result: {
+      dataset: "alerts",
+      operation: "list",
+      data: {
+        count: 1,
+        rows: [
+          {
+            alertId: "alert-latest-1",
+            signature: "Example Signature",
+            rawEvent: {
+              src_ip: "151.234.175.98",
+              dst_ip: "10.0.0.190",
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  assert.deepEqual(state.focus, {
+    entityType: "alert",
+    id: "alert-latest-1",
+  });
+  assert.equal(state.relatedEntities.sourceIp, "151.234.175.98");
+  assert.equal(state.relatedEntities.destinationIp, "10.0.0.190");
+});
+
+test("MCP exposes grounded focused-entity investigation context", async () => {
+  const server = new SocMcpServer({
+    queryService: { async execute() { return {}; } },
+    metricService: { async analyze() { return {}; } },
+    correlationService: { async correlate() { return {}; } },
+    entityContextService: {
+      async getContext(args) {
+        assert.deepEqual(args, { entityType: "alert", id: "a-1" });
+        return {
+          entity: { type: "alert", id: "a-1" },
+          analysis: { verdict: "MALICIOUS" },
+          relatedEntities: {
+            sourceIp: "151.234.175.98",
+            destinationIp: "10.0.0.190",
+          },
+        };
+      },
+    },
+  });
+
+  const client = new InProcessMcpClient({ server });
+  const result = await client.callTool("get_soc_entity_context", {
+    entityType: "alert",
+    id: "a-1",
+  });
+
+  assert.equal(result.entity.id, "a-1");
+  assert.equal(result.analysis.verdict, "MALICIOUS");
+  assert.equal(result.relatedEntities.destinationIp, "10.0.0.190");
+});
+
+test("SOC metric compare and percentage calculations are deterministic", async () => {
+  const counts = [15, 10, 4, 20];
+  const queryService = {
+    async execute(query) {
+      assert.equal(query.operation, "count");
+      return {
+        dataset: query.dataset,
+        operation: "count",
+        data: { count: counts.shift(), rows: [] },
+      };
+    },
+  };
+
+  const service = new SocMetricService({ queryService });
+
+  const compared = await service.analyze({
+    operation: "compare",
+    left: { label: "this week", query: { dataset: "alerts", operation: "count" } },
+    right: { label: "previous week", query: { dataset: "alerts", operation: "count" } },
+  });
+
+  assert.equal(compared.difference, 5);
+  assert.equal(compared.changePercent, 50);
+
+  const percentage = await service.analyze({
+    operation: "percentage",
+    numerator: { label: "high", query: { dataset: "alerts", operation: "count" } },
+    denominator: { label: "all", query: { dataset: "alerts", operation: "count" } },
+  });
+
+  assert.equal(percentage.percentage, 20);
+});
+
+test("alert correlation time filters use eventTime with createdAt fallback", () => {
+  const from = new Date("2026-09-01T00:00:00.000Z");
+  const to = new Date("2026-09-08T00:00:00.000Z");
+  assert.deepEqual(buildAlertTimeMatch({ from, to }), {
+    $expr: {
+      $and: [
+        {
+          $gte: [
+            { $ifNull: ["$eventTime", "$createdAt"] },
+            from,
+          ],
+        },
+        {
+          $lt: [
+            { $ifNull: ["$eventTime", "$createdAt"] },
+            to,
+          ],
+        },
+      ],
+    },
+  });
+});
+
+test("SOC schema describes relationships and semantic concepts", () => {
+  const schema = describeSocSchema();
+  assert.ok(Array.isArray(schema.relationships));
+  assert.ok(schema.relationships.some((item) => item.name === "alert_source_ip_to_threat_source"));
+  assert.ok(Array.isArray(schema.concepts));
+  assert.ok(schema.concepts.some((item) => item.name === "organization"));
+});
+
+test("alert time-range compilation falls back from eventTime to createdAt", () => {
+  const plan = socQueryPlanSchema.parse({
+    dataset: "alerts",
+    operation: "count",
+    timeRange: { type: "last_n_hours", value: 24 },
+  });
+  const from = new Date("2026-09-07T10:00:00.000Z");
+  const to = new Date("2026-09-08T10:00:00.000Z");
+
+  const compiled = compileSocQuery(plan, {
+    resolvedTimeRange: {
+      from,
+      to,
+      timezone: "Asia/Tehran",
+      label: "last 24 hours",
+    },
+  });
+
+  assert.deepEqual(compiled.pipeline, [
+    {
+      $match: {
+        $expr: {
+          $and: [
+            {
+              $gte: [
+                { $ifNull: ["$eventTime", "$createdAt"] },
+                from,
+              ],
+            },
+            {
+              $lt: [
+                { $ifNull: ["$eventTime", "$createdAt"] },
+                to,
+              ],
+            },
+          ],
+        },
+      },
+    },
+    { $count: "count" },
+  ]);
+});
+
+test("Copilot retries one rejected query plan with backend validation feedback", async () => {
+  const completions = [];
+  const toolCalls = [];
+
+  const llm = {
+    getMetadata: () => ({ provider: "test", model: "repair-model" }),
+    async completeJson(request) {
+      completions.push(request);
+
+      if (completions.length === 1) {
+        return {
+          tool: "query_soc_data",
+          arguments: {
+            dataset: "alerts",
+            operation: "count",
+            filters: [
+              { field: "source_ip", operator: "eq", value: "1.2.3.4" },
+            ],
+          },
+        };
+      }
+
+      if (completions.length === 2) {
+        assert.match(request.userPrompt, /previous plan was rejected/i);
+        assert.match(request.userPrompt, /source_ip/);
+        return {
+          tool: "query_soc_data",
+          arguments: {
+            dataset: "alerts",
+            operation: "count",
+            filters: [
+              { field: "rawEvent.src_ip", operator: "eq", value: "1.2.3.4" },
+            ],
+          },
+        };
+      }
+
+      return { answer: "یک Alert پیدا شد." };
+    },
+  };
+
+  const mcpClient = {
+    async listTools() {
+      return [{ name: "query_soc_data", description: "query", inputSchema: {} }];
+    },
+    async callTool(name, args) {
+      if (name === "describe_soc_schema") {
+        return {
+          datasets: [
+            {
+              name: "alerts",
+              fields: [{ name: "rawEvent.src_ip" }],
+            },
+          ],
+        };
+      }
+
+      toolCalls.push({ name, args });
+      if (toolCalls.length === 1) {
+        throw new Error('Field "source_ip" is not allowed for dataset "alerts"');
+      }
+
+      return {
+        dataset: "alerts",
+        operation: "count",
+        data: { count: 1, rows: [] },
+        queryPlan: args,
+      };
+    },
+  };
+
+  const service = new CopilotService({
+    llm,
+    mcpClient,
+    now: () => new Date("2026-09-08T10:00:00.000Z"),
+  });
+
+  const response = await service.query("از آی‌پی 1.2.3.4 چند Alert داشتیم؟");
+
+  assert.equal(response.result.data.count, 1);
+  assert.equal(response.metadata.plannerRepair.attempted, true);
+  assert.equal(response.metadata.plannerRepair.succeeded, true);
+  assert.equal(toolCalls.length, 2);
+  assert.equal(completions.length, 3);
 });

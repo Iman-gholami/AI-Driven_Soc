@@ -46,6 +46,39 @@ const socQueryPlanSchema = z.object({
   limit: z.number().int().positive().max(100).default(20),
 }).strict();
 
+const countQueryPlanSchema = socQueryPlanSchema.extend({
+  operation: z.literal("count"),
+});
+
+const labeledCountQuerySchema = z.object({
+  label: z.string().min(1).max(200),
+  query: countQueryPlanSchema,
+}).strict();
+
+const metricAnalysisArgumentsSchema = z.union([
+  z.object({
+    operation: z.literal("compare"),
+    left: labeledCountQuerySchema,
+    right: labeledCountQuerySchema,
+  }).strict(),
+  z.object({
+    operation: z.literal("percentage"),
+    numerator: labeledCountQuerySchema,
+    denominator: labeledCountQuerySchema,
+  }).strict(),
+  z.object({
+    operation: z.literal("trend"),
+    query: countQueryPlanSchema,
+    timeRange: timeRangeSchema,
+    bucket: z.enum(["hour", "day"]),
+  }).strict(),
+]);
+
+const metricAnalysisToolSelectionSchema = z.object({
+  tool: z.literal("analyze_soc_metric"),
+  arguments: metricAnalysisArgumentsSchema,
+}).strict();
+
 const toolSelectionSchema = z.object({
   tool: z.literal("query_soc_data"),
   arguments: socQueryPlanSchema,
@@ -77,6 +110,7 @@ const copilotPlanSchema = z.union([
   toolSelectionSchema,
   batchToolSelectionSchema,
   entityContextToolSelectionSchema,
+  metricAnalysisToolSelectionSchema,
   unsupportedPlanSchema,
 ]);
 
@@ -86,6 +120,10 @@ module.exports = {
   metricSchema,
   sortSchema,
   socQueryPlanSchema,
+  countQueryPlanSchema,
+  labeledCountQuerySchema,
+  metricAnalysisArgumentsSchema,
+  metricAnalysisToolSelectionSchema,
   toolSelectionSchema,
   batchQuerySchema,
   batchToolSelectionSchema,

@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import { Button, Input, Spin, Tag, Typography } from 'antd';
 import { api } from '../../api/client';
-import type { CopilotResponse } from '../../types';
+import type { CopilotBatchResult, CopilotChatHistoryItem, CopilotQueryResult, CopilotResponse } from '../../types';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -46,6 +46,14 @@ const SocCopilot: React.FC = () => {
     const question = String(preset ?? input).trim();
     if (!question || loading) return;
 
+    const history: CopilotChatHistoryItem[] = messages
+      .filter((message) => message.id !== 'welcome' && !message.error)
+      .slice(-8)
+      .map((message) => ({
+        role: message.role,
+        content: message.text,
+      }));
+
     sequence.current += 1;
     const userId = `user-${sequence.current}`;
     setMessages((current) => [...current, { id: userId, role: 'user', text: question }]);
@@ -53,7 +61,7 @@ const SocCopilot: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await api.queryCopilot(question);
+      const response = await api.queryCopilot(question, history);
       sequence.current += 1;
       setMessages((current) => [
         ...current,
@@ -121,14 +129,7 @@ const SocCopilot: React.FC = () => {
                 </div>
 
                 {message.role === 'assistant' && message.response?.result && (
-                  <div className="soc-copilot-evidence">
-                    <Tag>{message.response.result.dataset}</Tag>
-                    <Tag>{message.response.result.operation}</Tag>
-                    {message.response.result.timeRange?.label && (
-                      <Tag>{message.response.result.timeRange.label}</Tag>
-                    )}
-                    {message.response.metadata?.mcp && <Tag>MCP</Tag>}
-                  </div>
+                  <CopilotEvidence response={message.response} />
                 )}
               </div>
             ))}
@@ -179,6 +180,39 @@ const SocCopilot: React.FC = () => {
         </section>
       )}
     </>
+  );
+};
+
+function isBatchResult(
+  result: CopilotQueryResult | CopilotBatchResult,
+): result is CopilotBatchResult {
+  return Array.isArray((result as CopilotBatchResult).results);
+}
+
+const CopilotEvidence: React.FC<{ response: CopilotResponse }> = ({ response }) => {
+  if (!response.result) return null;
+
+  if (isBatchResult(response.result)) {
+    return (
+      <div className="soc-copilot-evidence">
+        <Tag>{response.result.count} queries</Tag>
+        {response.result.results.slice(0, 3).map((item, index) => (
+          <Tag key={`${item.dataset}-${item.operation}-${index}`}>
+            {item.dataset} · {item.operation}
+          </Tag>
+        ))}
+        {response.metadata?.mcp && <Tag>MCP</Tag>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="soc-copilot-evidence">
+      <Tag>{response.result.dataset}</Tag>
+      <Tag>{response.result.operation}</Tag>
+      {response.result.timeRange?.label && <Tag>{response.result.timeRange.label}</Tag>}
+      {response.metadata?.mcp && <Tag>MCP</Tag>}
+    </div>
   );
 };
 

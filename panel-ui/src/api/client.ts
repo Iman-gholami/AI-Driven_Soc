@@ -9,6 +9,7 @@ import {
   MitreCoverageSnapshot,
   MitreTechniqueRulesResult,
   CopilotResponse,
+  CopilotChatHistoryItem,
 } from '../types';
 
 const apiClient = axios.create({
@@ -114,8 +115,14 @@ export const api = {
 
   regenerateAIAnalysis: async (alertId: string): Promise<AIAlertResponse> => api.generateAIAnalysis(alertId, true),
 
-  queryCopilot: async (message: string): Promise<CopilotResponse> => {
-    const response = await apiClient.post<ApiResponse<CopilotResponse>>('/copilot/query', { message });
+  queryCopilot: async (
+    message: string,
+    history: CopilotChatHistoryItem[] = [],
+  ): Promise<CopilotResponse> => {
+    const response = await apiClient.post<ApiResponse<CopilotResponse>>('/copilot/query', {
+      message,
+      history,
+    });
     return response.data.data;
   },
 };

@@ -325,12 +325,29 @@ export interface CopilotQueryResult {
   queryPlan?: CopilotQueryPlan;
 }
 
+export interface CopilotBatchPlan {
+  queries: CopilotQueryPlan[];
+}
+
+export interface CopilotBatchResult {
+  count: number;
+  results: CopilotQueryResult[];
+  metadata?: Record<string, unknown>;
+}
+
+export type CopilotPlan = CopilotQueryPlan | CopilotBatchPlan;
+
+export interface CopilotChatHistoryItem {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface CopilotResponse {
   supported: boolean;
   answer: string;
   tool: string | null;
-  queryPlan: CopilotQueryPlan | null;
-  result: CopilotQueryResult | null;
+  queryPlan: CopilotPlan | null;
+  result: CopilotQueryResult | CopilotBatchResult | null;
   metadata: {
     provider?: string;
     model?: string;

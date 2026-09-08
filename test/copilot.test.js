@@ -250,8 +250,12 @@ test("POST /copilot/query exposes the grounded Copilot response through the API"
   const { createRouter } = require("../src/api/routes");
 
   const copilot = {
-    async query(message) {
+    async query(message, options) {
       assert.equal(message, "در 24 ساعت گذشته چند Alert داشتیم؟");
+      assert.deepEqual(options.history, [
+        { role: "user", content: "امروز چند Alert داشتیم؟" },
+        { role: "assistant", content: "امروز 10 Alert داشتیم." },
+      ]);
       return {
         supported: true,
         answer: "در 24 ساعت گذشته 42 Alert ثبت شده است.",
@@ -296,7 +300,13 @@ test("POST /copilot/query exposes the grounded Copilot response through the API"
     const response = await fetch(`http://127.0.0.1:${port}/copilot/query`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "در 24 ساعت گذشته چند Alert داشتیم؟" }),
+      body: JSON.stringify({
+        message: "در 24 ساعت گذشته چند Alert داشتیم؟",
+        history: [
+          { role: "user", content: "امروز چند Alert داشتیم؟" },
+          { role: "assistant", content: "امروز 10 Alert داشتیم." },
+        ],
+      }),
     });
     const body = await response.json();
 

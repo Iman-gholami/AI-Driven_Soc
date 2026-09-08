@@ -64,7 +64,7 @@ function createRouter({
     const requestId = crypto.randomUUID();
 
     try {
-      const data = await copilot.query(req.body?.message);
+      const data = await copilot.query(req.body?.message, { history: req.body?.history });
       req.log.info(
         {
           requestId,
@@ -72,6 +72,7 @@ function createRouter({
           tool: data.tool,
           dataset: data.queryPlan?.dataset || null,
           operation: data.queryPlan?.operation || null,
+          batchSize: Array.isArray(data.queryPlan?.queries) ? data.queryPlan.queries.length : 0,
         },
         'copilot_query_completed',
       );

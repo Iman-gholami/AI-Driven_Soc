@@ -138,16 +138,17 @@ function classifyIpv4(ip) {
   }
   if (a === 127) return "loopback";
   if (a === 169 && b === 254) return "link_local";
+  if (a === 100 && b >= 64 && b <= 127) return "shared";
   if (a >= 224 && a <= 239) return "multicast";
-  if (
-    (a === 192 && b === 0) ||
-    (a === 192 && b === 0 && Number(normalized.split(".")[2]) === 2) ||
-    (a === 198 && b === 51) ||
-    (a === 203 && b === 0)
-  ) {
-    return "reserved";
-  }
-  if (a === 0 || a >= 240) return "reserved";
+
+  const octets = normalized.split(".").map(Number);
+  const documentation =
+    (a === 192 && b === 0 && octets[2] === 2) ||
+    (a === 198 && b === 51 && octets[2] === 100) ||
+    (a === 203 && b === 0 && octets[2] === 113);
+  const benchmark = a === 198 && (b === 18 || b === 19);
+
+  if (documentation || benchmark || a === 0 || a >= 240) return "reserved";
   return "public";
 }
 

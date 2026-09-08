@@ -10,6 +10,7 @@ import {
   MitreTechniqueRulesResult,
   CopilotResponse,
   CopilotChatHistoryItem,
+  CopilotConversationState,
 } from '../types';
 
 const apiClient = axios.create({
@@ -118,10 +119,12 @@ export const api = {
   queryCopilot: async (
     message: string,
     history: CopilotChatHistoryItem[] = [],
+    state: CopilotConversationState = {},
   ): Promise<CopilotResponse> => {
     const response = await apiClient.post<ApiResponse<CopilotResponse>>('/copilot/query', {
       message,
       history,
+      state,
     });
     return response.data.data;
   },

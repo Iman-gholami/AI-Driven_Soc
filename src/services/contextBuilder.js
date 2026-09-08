@@ -101,10 +101,11 @@ function buildDetectionRuleContext(ruleResolution) {
   };
 }
 
-function buildContext(rawIncident, ruleResolution) {
+function buildContext(rawIncident, ruleResolution, networkIntelligence) {
   return {
     incident: buildIncidentEvidence(rawIncident || {}),
     detection_rule: buildDetectionRuleContext(ruleResolution),
+    ...(networkIntelligence ? { network_intelligence: networkIntelligence } : {}),
   };
 }
 

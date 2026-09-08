@@ -22,7 +22,8 @@
     "import:threat-intel": "node scripts/import-threat-intel.js",
     "mcp:serve": "node src/mcp/stdio.js",
     "copilot:smoke": "node scripts/copilot-smoke.js",
-    "copilot:ask": "node scripts/copilot-ask.js"
+    "copilot:ask": "node scripts/copilot-ask.js",
+    "copilot:backfill-event-time": "node scripts/backfill-alert-event-time.js"
   },
   "dependencies": {
     "cors": "^2.8.6",

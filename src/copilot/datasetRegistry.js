@@ -4,6 +4,7 @@ const IpAsset = require("../models/IpAsset");
 const ThreatIntelObservation = require("../models/ThreatIntelObservation");
 const MitreTechnique = require("../models/MitreTechnique");
 const IntelDatasetState = require("../models/IntelDatasetState");
+const MitreCoverageSnapshot = require("../models/MitreCoverageSnapshot");
 
 function createDefaultDatasetRegistry({
   alertModel = Alert,
@@ -12,6 +13,7 @@ function createDefaultDatasetRegistry({
   threatIntelModel = ThreatIntelObservation,
   mitreTechniqueModel = MitreTechnique,
   stateModel = IntelDatasetState,
+  mitreCoverageSnapshotModel = MitreCoverageSnapshot,
 } = {}) {
   return {
     alerts: {
@@ -56,6 +58,18 @@ function createDefaultDatasetRegistry({
           match: { importId: state.activeImportId },
           metadata: { snapshot: summarizeDatasetState(state) },
         };
+      },
+    },
+    dataset_states: {
+      model: stateModel,
+      async getBaseContext() {
+        return { match: {}, metadata: {} };
+      },
+    },
+    mitre_coverage_snapshots: {
+      model: mitreCoverageSnapshotModel,
+      async getBaseContext() {
+        return { match: {}, metadata: {} };
       },
     },
     mitre_techniques: {

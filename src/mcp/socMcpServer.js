@@ -10,7 +10,7 @@ const QUERY_INPUT_SCHEMA = {
   properties: {
     dataset: {
       type: "string",
-      enum: ["alerts", "detection_rules", "ip_assets", "threat_intelligence", "mitre_techniques"],
+      enum: ["alerts", "detection_rules", "ip_assets", "threat_intelligence", "dataset_states", "mitre_coverage_snapshots", "mitre_techniques"],
     },
     operation: { type: "string", enum: ["count", "aggregate", "list", "distinct"] },
     timeRange: {
@@ -85,7 +85,7 @@ const SOC_MCP_TOOLS = [
       properties: {
         dataset: {
           type: "string",
-          enum: ["alerts", "detection_rules", "ip_assets", "threat_intelligence", "mitre_techniques"],
+          enum: ["alerts", "detection_rules", "ip_assets", "threat_intelligence", "dataset_states", "mitre_coverage_snapshots", "mitre_techniques"],
         },
       },
     },

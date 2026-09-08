@@ -45,6 +45,26 @@ const SOC_SCHEMA_CATALOG = {
       aiStatus: field("aiStatus", "string", "AI analysis status"),
       createdAt: field("createdAt", "date", "Alert ingestion timestamp"),
       updatedAt: field("updatedAt", "date", "Last alert update timestamp"),
+      "rawEvent.src_ip": field("rawEvent.src_ip", "string", "Source IPv4 from current alert telemetry", {
+        aliases: ["src ip", "source ip", "آی‌پی مبدا"],
+      }),
+      "rawEvent.dst_ip": field("rawEvent.dst_ip", "string", "Destination IPv4 from current alert telemetry", {
+        aliases: ["dst ip", "destination ip", "آی‌پی مقصد"],
+      }),
+      "rawEvent.src_port": field("rawEvent.src_port", "number", "Source port from current alert telemetry"),
+      "rawEvent.dst_port": field("rawEvent.dst_port", "number", "Destination port from current alert telemetry"),
+      "rawEvent.protocol": field("rawEvent.protocol", "string", "Protocol from current alert telemetry"),
+      "rawEvent.user": field("rawEvent.user", "string", "User observed in current alert telemetry"),
+      "rawEvent.process_name": field("rawEvent.process_name", "string", "Process name from current alert telemetry"),
+      "rawEvent.command_line": field("rawEvent.command_line", "string", "Command line from current alert telemetry", {
+        groupable: false,
+      }),
+      "rawEvent.http_host": field("rawEvent.http_host", "string", "HTTP Host observed in current alert telemetry", {
+        aliases: ["domain", "http host", "دامنه"],
+      }),
+      "rawEvent.request_url": field("rawEvent.request_url", "string", "Request URL observed in current alert telemetry", {
+        groupable: false,
+      }),
       "ruleMatch.status": field("ruleMatch.status", "string", "Detection-rule resolution status", {
         aliases: ["rule match", "rule status"],
       }),
@@ -216,6 +236,45 @@ const SOC_SCHEMA_CATALOG = {
       sourceTime: field("sourceTime", "date", "Threat source timestamp"),
       observationTime: field("observationTime", "date", "Threat observation timestamp"),
       createdAt: field("createdAt", "date", "Database ingestion timestamp"),
+    },
+  },
+
+  dataset_states: {
+    name: "dataset_states",
+    description: "Operational state of locally imported intelligence datasets.",
+    aliases: ["dataset state", "import state", "وضعیت دیتاست", "وضعیت ایمپورت"],
+    defaultTimeField: "importedAt",
+    fields: {
+      dataset: field("dataset", "string", "Dataset identifier"),
+      sourceFile: field("sourceFile", "string", "Active source filename"),
+      recordCount: field("recordCount", "number", "Active dataset record count"),
+      invalidCount: field("invalidCount", "number", "Invalid records seen during import"),
+      importedAt: field("importedAt", "date", "Dataset import timestamp"),
+      createdAt: field("createdAt", "date", "Dataset-state creation timestamp"),
+      updatedAt: field("updatedAt", "date", "Dataset-state update timestamp"),
+    },
+  },
+
+  mitre_coverage_snapshots: {
+    name: "mitre_coverage_snapshots",
+    description: "Latest rule-level MITRE ATT&CK coverage snapshots by rule tier.",
+    aliases: ["mitre coverage", "coverage snapshot", "پوشش میترا", "پوشش mitre"],
+    defaultTimeField: "generatedAt",
+    fields: {
+      scopeTier: field("scopeTier", "string", "Coverage scope tier"),
+      generatedAt: field("generatedAt", "date", "Coverage snapshot generation timestamp"),
+      attackVersion: field("attackVersion", "string", "MITRE ATT&CK version"),
+      "summary.rules.total": field("summary.rules.total", "number", "Total rules in coverage scope"),
+      "summary.rules.withMitre": field("summary.rules.withMitre", "number", "Rules with MITRE mappings"),
+      "summary.rules.withActiveMitre": field("summary.rules.withActiveMitre", "number", "Rules with active MITRE mappings"),
+      "summary.rules.unmapped": field("summary.rules.unmapped", "number", "Rules without MITRE mapping"),
+      "summary.rules.mappingCoveragePercent": field("summary.rules.mappingCoveragePercent", "number", "Rule mapping coverage percent"),
+      "summary.techniques.total": field("summary.techniques.total", "number", "Total ATT&CK techniques in catalog"),
+      "summary.techniques.covered": field("summary.techniques.covered", "number", "Covered ATT&CK techniques"),
+      "summary.techniques.uncovered": field("summary.techniques.uncovered", "number", "Uncovered ATT&CK techniques"),
+      "summary.techniques.coveragePercent": field("summary.techniques.coveragePercent", "number", "Technique coverage percent"),
+      createdAt: field("createdAt", "date", "Snapshot creation timestamp"),
+      updatedAt: field("updatedAt", "date", "Snapshot update timestamp"),
     },
   },
 

@@ -75,6 +75,7 @@ test("Alert model defines required persistence indexes", () => {
       { alertId: 1 },
       { eventHash: 1 },
       { createdAt: -1 },
+      { createdAt: -1, signature: 1 },
       { status: 1, createdAt: -1 },
       { aiStatus: 1, createdAt: -1 },
       { severity: 1, createdAt: -1 },

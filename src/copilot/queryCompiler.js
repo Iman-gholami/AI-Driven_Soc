@@ -96,10 +96,10 @@ function compileSocQuery(plan, {
 
     const projection = { _id: 0 };
     if (groupFields.length === 1) {
-      projection[groupFields[0]] = "$_id";
+      projection[outputFieldName(groupFields[0])] = "$_id";
     } else {
       for (const fieldName of groupFields) {
-        projection[fieldName] = `$_id.${safeGroupKey(fieldName)}`;
+        projection[outputFieldName(fieldName)] = `$_id.${safeGroupKey(fieldName)}`;
       }
     }
     for (const metric of metrics) {
@@ -162,8 +162,30 @@ function validatePlanFields(plan, dataset) {
     throw new Error("aggregate requires groupBy or metrics");
   }
 
+  if (plan.operation === "count" && (
+    plan.groupBy?.length || plan.metrics?.length || plan.select?.length || plan.sort?.length
+  )) {
+    throw new Error("count does not accept groupBy, metrics, select, or sort");
+  }
+
+  if (plan.operation === "list" && (plan.groupBy?.length || plan.metrics?.length)) {
+    throw new Error("list does not accept groupBy or metrics");
+  }
+
+  if (plan.operation === "aggregate" && plan.select?.length) {
+    throw new Error("aggregate does not accept select");
+  }
+
   if (plan.operation === "distinct" && plan.groupBy?.length !== 1) {
     throw new Error("distinct requires exactly one groupBy field");
+  }
+
+  if (plan.operation === "distinct" && (plan.metrics?.length || plan.select?.length || plan.sort?.length)) {
+    throw new Error("distinct does not accept metrics, select, or sort");
+  }
+
+  if (getRequiredUnwinds(plan, dataset).length > 1) {
+    throw new Error("A single query cannot aggregate across multiple independent array scopes");
   }
 }
 
@@ -217,6 +239,7 @@ function getRequiredUnwinds(plan, dataset) {
 
   for (const fieldName of plan.groupBy || []) addForField(fieldName);
   for (const fieldName of plan.select || []) addForField(fieldName);
+  for (const metric of plan.metrics || []) if (metric.field) addForField(metric.field);
 
   return [...paths].sort((a, b) => a.split(".").length - b.split(".").length);
 }
@@ -247,6 +270,11 @@ function safeGroupKey(value) {
   return String(value).replace(/[^A-Za-z0-9_]/g, "_");
 }
 
+function outputFieldName(value) {
+  const text = String(value);
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(text) ? text : safeGroupKey(text);
+}
+
 function buildDocumentSort(plan) {
   const sort = {};
   for (const item of plan.sort || []) {
@@ -266,7 +294,8 @@ function buildAggregateSort(plan, groupFields, metrics) {
     if (!allowed.has(item.field)) {
       throw new Error(`Aggregate sort field "${item.field}" is not a group or metric output`);
     }
-    sort[item.field] = item.direction === "asc" ? 1 : -1;
+    const output = groupFields.includes(item.field) ? outputFieldName(item.field) : item.field;
+    sort[output] = item.direction === "asc" ? 1 : -1;
   }
 
   if (!Object.keys(sort).length && metrics.length) {
@@ -285,4 +314,5 @@ module.exports = {
   compileSocQuery,
   validatePlanFields,
   buildFilter,
+  outputFieldName,
 };

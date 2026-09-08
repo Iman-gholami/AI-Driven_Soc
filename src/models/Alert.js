@@ -70,6 +70,7 @@ const alertSchema = new Schema(
 alertSchema.index({ alertId: 1 }, { unique: true });
 alertSchema.index({ eventHash: 1 }, { unique: true });
 alertSchema.index({ createdAt: -1 });
+alertSchema.index({ createdAt: -1, signature: 1 });
 alertSchema.index({ status: 1, createdAt: -1 });
 alertSchema.index({ aiStatus: 1, createdAt: -1 });
 alertSchema.index({ severity: 1, createdAt: -1 });

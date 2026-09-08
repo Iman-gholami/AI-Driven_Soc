@@ -48,6 +48,8 @@ function collectRole(event, paths, role, indicators) {
         roles: [],
         fields: [],
         scope: classifyIpv4(ip),
+        networkZone: classifyNetworkZone(ip),
+        nationalNetwork: isNationalNetworkIpv4(ip),
       };
 
       if (!existing.roles.includes(role)) existing.roles.push(role);
@@ -152,6 +154,24 @@ function classifyIpv4(ip) {
   return "public";
 }
 
+function classifyNetworkZone(ip) {
+  const normalized = normalizeIpv4(ip);
+  if (!normalized) return "invalid";
+
+  const firstOctet = Number(normalized.split(".")[0]);
+  const scope = classifyIpv4(normalized);
+
+  // Deployment policy: 10.0.0.0/8 and every public IPv4 are National Network.
+  // Keep address-space scope separate from deployment trust-boundary policy.
+  if (firstOctet === 10 || scope === "public") return "national_network";
+  if (scope === "private") return "private_non_national";
+  return scope;
+}
+
+function isNationalNetworkIpv4(ip) {
+  return classifyNetworkZone(ip) === "national_network";
+}
+
 module.exports = {
   SOURCE_IP_PATHS,
   DESTINATION_IP_PATHS,
@@ -159,5 +179,7 @@ module.exports = {
   extractNetworkTuple,
   normalizeIpv4,
   classifyIpv4,
+  classifyNetworkZone,
+  isNationalNetworkIpv4,
   getPathValue,
 };

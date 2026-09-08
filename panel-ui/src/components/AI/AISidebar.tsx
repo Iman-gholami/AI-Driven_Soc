@@ -91,6 +91,7 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
             <Space wrap>
               <Text code>{item.ip}</Text>
               {(item.roles || []).map((role:string) => <Tag key={role}>{role}</Tag>)}
+              {item.nationalNetwork && <Tag>National network</Tag>}
               {item.asset?.owned && <Tag>Organizational asset</Tag>}
               {item.threat?.directMatch && <Tag color="error">Direct threat evidence</Tag>}
               {!item.threat?.directMatch && item.threat?.relationshipMatch && <Tag color="warning">Threat relationship</Tag>}

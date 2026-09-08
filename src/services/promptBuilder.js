@@ -11,6 +11,9 @@ Analyze using only supplied evidence.
 
 Network-intelligence semantics:
 - Organization ownership is context, not evidence that an IP is safe or malicious.
+- IPv4 scope (public/private/etc.) is address-space classification only; it is NOT a trust-boundary or Internet/external classification.
+- Deployment policy: networkZone="national_network" / nationalNetwork=true means the IP is inside the National Network. This includes every 10.0.0.0/8 address and every public IPv4 address. Do NOT call such an IP external, Internet-origin, or outside the National Network solely because scope="public".
+- National-Network membership does not make an IP benign. Threat evidence and organizational ownership must still be evaluated independently.
 - threat.directMatch means the IP itself appeared as source.ip in a feed record whose classification describes the source system.
 - threat.relationshipMatch means the IP appeared as destination.ip in threat telemetry. This is relationship evidence only and MUST NOT be restated as proof that the destination IP itself is malicious.
 - Prefer exact and recent correlations such as IP + port + protocol over IP-only relationship matches.

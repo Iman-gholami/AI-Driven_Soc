@@ -171,6 +171,8 @@ class NetworkIntelligenceService {
       roles: indicator.roles,
       fields: indicator.fields,
       scope: indicator.scope,
+      networkZone: indicator.networkZone,
+      nationalNetwork: indicator.nationalNetwork,
       asset: {
         status: assetResult.status === "rejected"
           ? "unavailable"

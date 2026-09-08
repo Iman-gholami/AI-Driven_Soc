@@ -6,6 +6,8 @@ const {
   extractNetworkTuple,
   normalizeIpv4,
   classifyIpv4,
+  classifyNetworkZone,
+  isNationalNetworkIpv4,
 } = require("../src/services/ipExtractor");
 const { mapThreatObservation } = require("../scripts/import-threat-intel");
 const {
@@ -28,12 +30,16 @@ test("IPv4 extractor resolves top-level and nested source/destination fields det
       roles: ["source"],
       fields: ["src_ip"],
       scope: "private",
+      networkZone: "national_network",
+      nationalNetwork: true,
     },
     {
       ip: "45.77.249.79",
       roles: ["destination"],
       fields: ["destination.ip"],
       scope: "public",
+      networkZone: "national_network",
+      nationalNetwork: true,
     },
   ]);
 
@@ -52,6 +58,12 @@ test("IPv4 normalization rejects malformed and non-IPv4 input", () => {
   assert.equal(normalizeIpv4("2001:db8::1"), null);
   assert.equal(classifyIpv4("10.1.2.3"), "private");
   assert.equal(classifyIpv4("8.8.8.8"), "public");
+  assert.equal(classifyNetworkZone("10.1.2.3"), "national_network");
+  assert.equal(classifyNetworkZone("8.8.8.8"), "national_network");
+  assert.equal(classifyNetworkZone("192.168.1.1"), "private_non_national");
+  assert.equal(isNationalNetworkIpv4("10.1.2.3"), true);
+  assert.equal(isNationalNetworkIpv4("8.8.8.8"), true);
+  assert.equal(isNationalNetworkIpv4("192.168.1.1"), false);
 });
 
 test("IPinfo Core MMDB records normalize flat fields and AS-prefixed ASN values", () => {

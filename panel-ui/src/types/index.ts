@@ -87,6 +87,14 @@ export interface Alert {
   rawEvent?: Record<string, any>;
   fullAnalysis?: any;
   analysis?: AnalysisSummary[];
+  soc?: {
+    mitreAttack?: any;
+    iocs?: any[];
+    correlation?: any;
+    threatIntelligence?: any;
+    networkIntelligence?: any;
+    providerMetadata?: any;
+  };
   processing?: Record<string, any>;
 }
 

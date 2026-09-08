@@ -9,6 +9,19 @@ function compileSocQuery(plan, {
 
   validatePlanFields(plan, dataset);
 
+  const unwindPaths = getRequiredUnwinds(plan, dataset);
+  const preUnwindFilters = [];
+  const postUnwindFilters = [];
+
+  for (const filter of filters || []) {
+    const metadata = getFieldSchema(plan.dataset, filter.field);
+    if (metadata?.unwind && unwindPaths.includes(metadata.unwind)) {
+      postUnwindFilters.push(filter);
+    } else {
+      preUnwindFilters.push(filter);
+    }
+  }
+
   const matchClauses = [];
   if (baseMatch && Object.keys(baseMatch).length) matchClauses.push(baseMatch);
 
@@ -25,14 +38,23 @@ function compileSocQuery(plan, {
     matchClauses.push({ [timeSchema.path]: bounds });
   }
 
-  matchClauses.push(...buildFilterClauses(plan, dataset));
+  matchClauses.push(...buildFilterClauses(preUnwindFilters, dataset));
 
   const pipeline = [];
   if (matchClauses.length === 1) pipeline.push({ $match: matchClauses[0] });
   if (matchClauses.length > 1) pipeline.push({ $match: { $and: matchClauses } });
 
-  for (const path of getRequiredUnwinds(plan, dataset)) {
-    pipeline.push({ $unwind: { path: `$${path}`, preserveNullAndEmptyArrays: false } });
+  for (const path of unwindPaths) {
+    pipeline.push({ $unwind: { path: `${path}`, preserveNullAndEmptyArrays: false } });
+  }
+
+  if (postUnwindFilters.length) {
+    const postMatch = postUnwindFilters.map((filter) =>
+      buildFilter(getFieldSchema(plan.dataset, filter.field), filter)
+    );
+    pipeline.push({
+      $match: postMatch.length === 1 ? postMatch[0] : { $and: postMatch },
+    });
   }
 
   if (plan.operation === "count") {
@@ -186,7 +208,7 @@ function validatePlanFields(plan, dataset) {
   }
 }
 
-function buildFilterClauses(plan, dataset) {
+function buildFilterClauses(filters, dataset) {
   const plain = [];
   const arrayGroups = new Map();
 

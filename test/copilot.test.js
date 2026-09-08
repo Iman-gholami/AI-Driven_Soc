@@ -307,3 +307,55 @@ test("POST /copilot/query exposes the grounded Copilot response through the API"
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+
+test("array-scoped aggregate filters are applied after unwind so unrelated IPs are not grouped", () => {
+  const plan = socQueryPlanSchema.parse({
+    dataset: "alerts",
+    operation: "aggregate",
+    filters: [
+      {
+        field: "soc.networkIntelligence.ips.threat.directMatch",
+        operator: "eq",
+        value: true,
+      },
+    ],
+    groupBy: ["soc.networkIntelligence.ips.asset.organization"],
+    metrics: [{ type: "count", alias: "count" }],
+    sort: [{ field: "count", direction: "desc" }],
+    limit: 10,
+  });
+
+  const compiled = compileSocQuery(plan, {
+    resolvedTimeRange: { from: null, to: null, timezone: "Asia/Tehran", label: "all time" },
+  });
+
+  assert.deepEqual(compiled.pipeline, [
+    {
+      $unwind: {
+        path: "$soc.networkIntelligence.ips",
+        preserveNullAndEmptyArrays: false,
+      },
+    },
+    {
+      $match: {
+        "soc.networkIntelligence.ips.threat.directMatch": true,
+      },
+    },
+    {
+      $group: {
+        _id: "$soc.networkIntelligence.ips.asset.organization",
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        soc_networkIntelligence_ips_asset_organization: "$_id",
+        count: 1,
+      },
+    },
+    { $sort: { count: -1 } },
+    { $limit: 10 },
+  ]);
+});

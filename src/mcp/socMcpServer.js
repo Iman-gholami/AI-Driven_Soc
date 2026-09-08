@@ -75,6 +75,20 @@ const QUERY_INPUT_SCHEMA = {
   },
 };
 
+const BATCH_INPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["queries"],
+  properties: {
+    queries: {
+      type: "array",
+      minItems: 2,
+      maxItems: 5,
+      items: QUERY_INPUT_SCHEMA,
+    },
+  },
+};
+
 const SOC_MCP_TOOLS = [
   {
     name: "describe_soc_schema",
@@ -109,6 +123,18 @@ const SOC_MCP_TOOLS = [
       openWorldHint: false,
     },
   },
+  {
+    name: "query_soc_data_batch",
+    description: "Run 2 to 5 independent validated read-only SOC queries when one analyst question requires multiple datasets or comparisons.",
+    inputSchema: BATCH_INPUT_SCHEMA,
+    annotations: {
+      title: "Batch query SOC data",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
 ];
 
 class SocMcpServer {
@@ -132,6 +158,24 @@ class SocMcpServer {
       return toolSuccess(data);
     }
 
+    if (name === "query_soc_data_batch") {
+      const queries = Array.isArray(args.queries) ? args.queries : [];
+      if (queries.length < 2 || queries.length > 5) {
+        throw new Error("query_soc_data_batch requires between 2 and 5 queries");
+      }
+
+      const results = [];
+      for (const query of queries) {
+        results.push(await this.queryService.execute(query));
+      }
+
+      return toolSuccess({
+        count: results.length,
+        results,
+        metadata: { readOnly: true },
+      });
+    }
+
     throw new Error("Unknown MCP tool: " + name);
   }
 
@@ -153,7 +197,7 @@ class SocMcpServer {
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "ai-driven-soc-mcp", version: "1.0.0" },
-          instructions: "Read-only SOC data access. Use describe_soc_schema and query_soc_data only.",
+          instructions: "Read-only SOC data access. Use describe_soc_schema, query_soc_data, or query_soc_data_batch only.",
         });
       }
 
@@ -205,6 +249,7 @@ function rpcError(id, code, message) {
 module.exports = {
   PROTOCOL_VERSION,
   QUERY_INPUT_SCHEMA,
+  BATCH_INPUT_SCHEMA,
   SOC_MCP_TOOLS,
   SocMcpServer,
   toolSuccess,

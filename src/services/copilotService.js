@@ -34,10 +34,11 @@ class CopilotService {
     return this.mcpClient.callTool("describe_soc_schema", dataset ? { dataset } : {});
   }
 
-  async query(question) {
+  async query(question, { history = [] } = {}) {
     const message = String(question || "").trim();
     if (!message) throw new CopilotInputError("message is required");
     if (message.length > 4000) throw new CopilotInputError("message is too long");
+    const safeHistory = normalizeHistory(history);
 
     const tools = await this.mcpClient.listTools();
     const schema = await this.mcpClient.callTool("describe_soc_schema", {});
@@ -49,6 +50,7 @@ class CopilotService {
         systemPrompt: PLANNER_SYSTEM_PROMPT,
         userPrompt: buildPlannerUserPrompt({
           question: message,
+          history: safeHistory,
           schema,
           tools,
           timezone: this.timezone,
@@ -134,7 +136,28 @@ class CopilotInputError extends Error {
   }
 }
 
+function normalizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+
+  return history
+    .slice(-8)
+    .map((item) => ({
+      role: item?.role === "assistant" ? "assistant" : "user",
+      content: String(item?.content || "").trim().slice(0, 1200),
+    }))
+    .filter((item) => item.content);
+}
+
 function fallbackAnswer(queryResult) {
+  if (Array.isArray(queryResult?.results)) {
+    return JSON.stringify(queryResult.results.map((item) => ({
+      dataset: item.dataset,
+      operation: item.operation,
+      data: item.data,
+      timeRange: item.timeRange,
+    })));
+  }
+
   const count = queryResult?.data?.count;
   const rows = queryResult?.data?.rows;
   if (Array.isArray(rows) && rows.length) return JSON.stringify(rows);
@@ -147,5 +170,6 @@ module.exports = {
   CopilotInputError,
   CopilotPlannerError,
   CopilotQueryError,
+  normalizeHistory,
   fallbackAnswer,
 };

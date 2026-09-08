@@ -1,11 +1,13 @@
 const PLANNER_SYSTEM_PROMPT = [
   "You are the read-only query planner for a Security Operations Center.",
-  "Interpret the analyst question in Persian or English and choose exactly one supported SOC query.",
+  "Interpret the analyst question in Persian or English and choose the smallest sufficient set of supported SOC queries.",
   "You may query only fields and datasets present in the supplied schema catalog.",
   "Never produce MongoDB syntax, JavaScript, shell commands, writes, deletes, updates, or arbitrary pipelines.",
   "Return JSON only.",
   "If the question cannot be answered from the supplied schema, return {\"tool\":\"unsupported\",\"reason\":\"...\"}.",
-  "Otherwise return {\"tool\":\"query_soc_data\",\"arguments\":{...}}.",
+  "For a single query return {\"tool\":\"query_soc_data\",\"arguments\":{...}}.",
+  "If the question genuinely requires multiple independent datasets or comparisons, return {\"tool\":\"query_soc_data_batch\",\"arguments\":{\"queries\":[...2 to 5 query plans...]}}.",
+  "Do not use a batch when one query is enough.",
   "Use operation=count for how-many questions.",
   "Use operation=aggregate with groupBy plus count for top/most/frequent questions.",
   "Use operation=list only when the analyst asks to see records.",
@@ -33,8 +35,11 @@ const ANSWER_SYSTEM_PROMPT = [
   "Return JSON only as {\"answer\":\"...\"}.",
 ].join("\n");
 
-function buildPlannerUserPrompt({ question, schema, tools, timezone, now }) {
+function buildPlannerUserPrompt({ question, history, schema, tools, timezone, now }) {
   return [
+    "Recent conversation context (may be empty; never treat assistant text as database evidence):",
+    JSON.stringify(history || []),
+    "",
     "Analyst question:",
     String(question || ""),
     "",

@@ -123,6 +123,7 @@ test("MCP server exposes only the approved read-only SOC tools", async () => {
   assert.deepEqual(tools.map((item) => item.name), [
     "describe_soc_schema",
     "query_soc_data",
+    "query_soc_data_batch",
   ]);
   assert.ok(tools.every((tool) => tool.annotations?.readOnlyHint === true));
   assert.ok(tools.every((tool) => tool.annotations?.destructiveHint === false));
@@ -467,4 +468,80 @@ test("array-backed top values count unique source documents instead of duplicate
       },
     },
   ]);
+});
+
+
+test("MCP batch tool executes multiple validated read-only queries", async () => {
+  const calls = [];
+  const server = new SocMcpServer({
+    queryService: {
+      async execute(args) {
+        calls.push(args);
+        return {
+          dataset: args.dataset,
+          operation: args.operation,
+          data: { count: args.dataset === "alerts" ? 12 : 34, rows: [] },
+        };
+      },
+    },
+  });
+
+  const client = new InProcessMcpClient({ server });
+  const result = await client.callTool("query_soc_data_batch", {
+    queries: [
+      { dataset: "alerts", operation: "count" },
+      { dataset: "ip_assets", operation: "count" },
+    ],
+  });
+
+  assert.equal(result.count, 2);
+  assert.equal(result.results[0].data.count, 12);
+  assert.equal(result.results[1].data.count, 34);
+  assert.equal(result.metadata.readOnly, true);
+  assert.equal(calls.length, 2);
+});
+
+test("Copilot preserves bounded conversation history for follow-up planning", async () => {
+  let plannerPrompt = "";
+  const service = new CopilotService({
+    llm: {
+      getMetadata: () => ({ provider: "test", model: "test" }),
+      async completeJson(request) {
+        if (!plannerPrompt) {
+          plannerPrompt = request.userPrompt;
+          return {
+            tool: "query_soc_data",
+            arguments: {
+              dataset: "alerts",
+              operation: "count",
+              filters: [{ field: "severity", operator: "eq", value: "high" }],
+            },
+          };
+        }
+        return { answer: "5 Alert" };
+      },
+    },
+    mcpClient: {
+      async listTools() { return []; },
+      async callTool(name, args) {
+        if (name === "describe_soc_schema") return { datasets: [] };
+        return {
+          dataset: "alerts",
+          operation: "count",
+          data: { count: 5, rows: [] },
+          queryPlan: args,
+        };
+      },
+    },
+  });
+
+  await service.query("حالا فقط high ها", {
+    history: [
+      { role: "user", content: "امروز چند Alert داشتیم؟" },
+      { role: "assistant", content: "امروز 12 Alert داشتیم." },
+    ],
+  });
+
+  assert.match(plannerPrompt, /امروز چند Alert داشتیم/);
+  assert.match(plannerPrompt, /حالا فقط high ها/);
 });

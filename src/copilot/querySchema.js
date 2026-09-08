@@ -51,12 +51,25 @@ const toolSelectionSchema = z.object({
   arguments: socQueryPlanSchema,
 }).strict();
 
+const batchQuerySchema = z.object({
+  queries: z.array(socQueryPlanSchema).min(2).max(5),
+}).strict();
+
+const batchToolSelectionSchema = z.object({
+  tool: z.literal("query_soc_data_batch"),
+  arguments: batchQuerySchema,
+}).strict();
+
 const unsupportedPlanSchema = z.object({
   tool: z.literal("unsupported"),
   reason: z.string().min(1).max(1000),
 }).strict();
 
-const copilotPlanSchema = z.union([toolSelectionSchema, unsupportedPlanSchema]);
+const copilotPlanSchema = z.union([
+  toolSelectionSchema,
+  batchToolSelectionSchema,
+  unsupportedPlanSchema,
+]);
 
 module.exports = {
   timeRangeSchema,
@@ -65,6 +78,8 @@ module.exports = {
   sortSchema,
   socQueryPlanSchema,
   toolSelectionSchema,
+  batchQuerySchema,
+  batchToolSelectionSchema,
   unsupportedPlanSchema,
   copilotPlanSchema,
 };

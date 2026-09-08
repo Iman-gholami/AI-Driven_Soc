@@ -66,6 +66,7 @@ class NetworkIntelligenceService {
           destinationPort: tuple.destinationPort,
           protocol: tuple.protocol,
           limit: 8,
+          importId: threatState.activeImportId,
         });
       } catch (error) {
         this.logger?.warn?.({ err: error }, "Threat-intel flow correlation failed");
@@ -121,11 +122,15 @@ class NetworkIntelligenceService {
 
   async enrichIndicator(indicator, { assetState, threatState }) {
     const assetPromise = assetState?.activeImportId
-      ? this.assetRepository.findByIp(indicator.ip)
+      ? this.assetRepository.findByIp(indicator.ip, { importId: assetState.activeImportId })
       : Promise.resolve(null);
 
     const threatPromise = threatState?.activeImportId
-      ? this.threatRepository.lookupIp(indicator.ip, { limit: this.evidenceLimit })
+      ? this.threatRepository.lookupIp(indicator.ip, {
+          limit: this.evidenceLimit,
+          importId: threatState.activeImportId,
+          datasetState: threatState,
+        })
       : Promise.resolve({
           status: "not_configured",
           direct: { count: 0, evidence: [] },

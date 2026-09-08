@@ -75,10 +75,13 @@ test("Alert model defines required persistence indexes", () => {
       { alertId: 1 },
       { eventHash: 1 },
       { createdAt: -1 },
+      { eventTime: -1 },
+      { eventTime: -1, signature: 1 },
       { createdAt: -1, signature: 1 },
       { status: 1, createdAt: -1 },
       { aiStatus: 1, createdAt: -1 },
       { severity: 1, createdAt: -1 },
+      { severity: 1, eventTime: -1 },
       { source: 1, createdAt: -1 },
       { "ruleMatch.status": 1, createdAt: -1 },
       { "analysis.severity": 1 },
@@ -538,4 +541,21 @@ test("GET /alerts/:id returns full alert and requested SOC fields", async () => 
   assert.equal(response.body.analysis.summary, "summary");
   assert.deepEqual(response.body.socFields.mitreAttack, { tactic: "Credential Access" });
   assert.deepEqual(response.body.socFields.iocs, [{ type: "ip", value: "10.0.0.1" }]);
+});
+
+
+test("resolveAlertEventTime normalizes source telemetry timestamps", () => {
+  const { resolveAlertEventTime } = require("../src/services/eventTime");
+
+  assert.equal(
+    resolveAlertEventTime({ _time: 1788840000 }).toISOString(),
+    new Date(1788840000 * 1000).toISOString(),
+  );
+  assert.equal(
+    resolveAlertEventTime({ timestamp: "2026-09-08T10:30:00.000Z" }).toISOString(),
+    "2026-09-08T10:30:00.000Z",
+  );
+
+  const fallback = new Date("2026-09-08T11:00:00.000Z");
+  assert.equal(resolveAlertEventTime({}, fallback).toISOString(), fallback.toISOString());
 });

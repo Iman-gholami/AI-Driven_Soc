@@ -68,6 +68,28 @@ function deriveConversationState({
     return normalizeConversationState(next);
   }
 
+  if (result?.operation === "correlate" && Array.isArray(result?.rows) && result.rows.length === 1) {
+    const row = result.rows[0];
+    const ip = firstString(row.ip);
+    const ruleId = firstString(row.ruleId);
+    const techniqueId = firstString(row.techniqueId);
+    const organization = firstString(row.organization);
+
+    if (ip) next.focus = { entityType: "ip", id: ip };
+    else if (ruleId) next.focus = { entityType: "rule", id: ruleId };
+    else if (techniqueId) next.focus = { entityType: "mitre_technique", id: techniqueId };
+    else if (organization) next.focus = { entityType: "organization", id: organization };
+
+    Object.assign(next.relatedEntities, sanitizeRelatedEntities({
+      sourceIp: ip,
+      organization,
+      ruleId,
+      mitreTechniques: techniqueId ? [techniqueId] : [],
+    }));
+
+    return normalizeConversationState(next);
+  }
+
   const rows = Array.isArray(result?.data?.rows) ? result.data.rows : [];
   if (rows.length === 1) {
     const derived = deriveEntityFromRow(result.dataset, rows[0]);

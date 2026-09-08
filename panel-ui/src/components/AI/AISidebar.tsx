@@ -28,6 +28,7 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
   const analysis:any = alert?.fullAnalysis || {};
   const risk = analysis.risk_assessment || {};
   const decision = analysis.analyst_decision || {};
+  const relationship = analysis.network_relationship_analysis || {};
   const networkIntel:any = alert?.soc?.networkIntelligence || {};
   const networkIps:any[] = Array.isArray(networkIntel.ips) ? networkIntel.ips : [];
   const networkCorrelations:any[] = Array.isArray(networkIntel.correlations) ? networkIntel.correlations : [];
@@ -55,6 +56,10 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
   const limitations = analysis.detection_analysis?.limitations || analysis.detection_analysis?.gaps;
   const riskReasoning = risk.reasoning || risk.rationale || 'No risk reasoning available.';
   const confidence = confidencePercent(risk.confidence);
+  const relationshipReasons = list(relationship.why_suspicious);
+  const relationshipDomains = list(relationship.current_alert_domains);
+  const relationshipPacketEvidence = list(relationship.current_alert_packet_evidence);
+  const relationshipFeedContext = list(relationship.threat_feed_context);
   const copy = async () => {
     if (!alert) return;
     await navigator.clipboard.writeText(JSON.stringify(alert,null,2));
@@ -132,6 +137,57 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
         </div> : <Text type="secondary">
           {networkIntel.status === 'not_applicable' ? 'No IPv4 indicators were found in this alert.' : 'Network intelligence is not available for this analysis.'}
         </Text>}
+      </Card>
+
+      <Card title="IP Relationship Analysis">
+        <Space wrap className="mb-2">
+          <Tag color={relationship.assessment==='MALICIOUS'?'error':relationship.assessment==='SUSPICIOUS'?'warning':relationship.assessment==='BENIGN'?'success':'default'}>
+            {renderValue(relationship.assessment, 'UNKNOWN')}
+          </Tag>
+          {relationship.source?.ip && <><Text strong>Source:</Text><Text code>{relationship.source.ip}</Text></>}
+          {relationship.destination?.ip && <><Text strong>Destination:</Text><Text code>{relationship.destination.ip}</Text></>}
+        </Space>
+        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{renderValue(relationship.summary, 'No relationship analysis was returned by the model.')}</Paragraph>
+
+        {(relationship.source?.ip || relationship.source?.context) && <Paragraph className="mb-1">
+          <Text strong>Source context:</Text> {relationship.source?.ip ? <><Text code>{relationship.source.ip}</Text>{' '}</> : null}
+          {relationship.source?.organization ? `${relationship.source.organization} · ` : ''}
+          {renderValue(relationship.source?.context)}
+        </Paragraph>}
+
+        {(relationship.destination?.ip || relationship.destination?.context) && <Paragraph className="mb-1">
+          <Text strong>Destination context:</Text> {relationship.destination?.ip ? <><Text code>{relationship.destination.ip}</Text>{' '}</> : null}
+          {relationship.destination?.organization ? `${relationship.destination.organization} · ` : ''}
+          {renderValue(relationship.destination?.context)}
+        </Paragraph>}
+
+        {relationshipReasons.length > 0 && <>
+          <Divider/>
+          <Text strong>Why this relationship is suspicious</Text>
+          {relationshipReasons.map((item:any,index:number)=><div key={index}>• {renderValue(item)}</div>)}
+        </>}
+
+        {relationshipDomains.length > 0 && <>
+          <Divider/>
+          <Text strong>Domains / URLs observed in this alert</Text>
+          {relationshipDomains.map((item:any,index:number)=><div key={index}>• <Text code>{renderValue(item)}</Text></div>)}
+        </>}
+
+        {relationshipPacketEvidence.length > 0 && <>
+          <Divider/>
+          <Text strong>Packet / body evidence from this alert</Text>
+          {relationshipPacketEvidence.map((item:any,index:number)=><Paragraph key={index} code className="mb-1">{renderValue(item)}</Paragraph>)}
+        </>}
+
+        {relationshipFeedContext.length > 0 && <>
+          <Divider/>
+          <Text strong>Threat-feed context (not current-alert traffic)</Text>
+          {relationshipFeedContext.map((item:any,index:number)=><div key={index}>• {renderValue(item)}</div>)}
+        </>}
+
+        {relationship.limitations && <Paragraph className="mt-2 mb-0">
+          <Text strong>Limitations:</Text> {renderValue(relationship.limitations)}
+        </Paragraph>}
       </Card>
 
       <Card title="Detection Logic">

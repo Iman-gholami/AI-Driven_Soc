@@ -12,6 +12,21 @@ const INCIDENT_FIELDS = [
 const MAX_ADDITIONAL_FIELDS = 40;
 const MAX_FIELD_CHARS = 2000;
 const MAX_RULE_RAW_CHARS = 12000;
+const MAX_COMMUNICATION_ITEMS = 8;
+const MAX_PACKET_EVIDENCE_CHARS = 1200;
+
+const DOMAIN_PATHS = [
+  "destination.fqdn", "destination.domain", "dst_fqdn", "dest_fqdn", "destination_fqdn",
+  "dns_query", "dns.query", "http_host", "http.host", "http.request.host",
+  "domain", "fqdn",
+];
+const URL_PATHS = [
+  "url", "uri", "request_url", "request_uri", "http.url", "http.request.url",
+];
+const PACKET_CONTENT_PATHS = [
+  "packet_body", "packet_payload", "payload", "request_body", "response_body", "http_body",
+  "http.request.body", "http.response.body",
+];
 
 function toSafeValue(value, { maxChars = MAX_FIELD_CHARS } = {}) {
   if (value === null || value === undefined) return null;
@@ -28,6 +43,58 @@ function toSafeValue(value, { maxChars = MAX_FIELD_CHARS } = {}) {
   } catch (_) {
     return String(value).slice(0, maxChars);
   }
+}
+
+function getPathValue(object, path) {
+  if (!object || typeof object !== "object") return undefined;
+  if (Object.prototype.hasOwnProperty.call(object, path)) return object[path];
+
+  let current = object;
+  for (const segment of path.split(".")) {
+    if (!current || typeof current !== "object" || !(segment in current)) return undefined;
+    current = current[segment];
+  }
+  return current;
+}
+
+function flattenEvidenceValues(value) {
+  if (Array.isArray(value)) return value.flatMap(flattenEvidenceValues);
+  if (value === null || value === undefined) return [];
+  return [value];
+}
+
+function collectCommunicationValues(rawIncident, paths, { maxChars = 500 } = {}) {
+  const items = [];
+  const seen = new Set();
+
+  for (const path of paths) {
+    for (const rawValue of flattenEvidenceValues(getPathValue(rawIncident, path))) {
+      const value = toSafeValue(rawValue, { maxChars });
+      if (value === null || value === undefined || value === "") continue;
+      const text = typeof value === "string" ? value : String(value);
+      const key = path + ":" + text;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ field: path, value: text });
+      if (items.length >= MAX_COMMUNICATION_ITEMS) return items;
+    }
+  }
+
+  return items;
+}
+
+function buildCommunicationEvidence(rawIncident = {}) {
+  const domains = collectCommunicationValues(rawIncident, DOMAIN_PATHS, { maxChars: 500 });
+  const urls = collectCommunicationValues(rawIncident, URL_PATHS, { maxChars: 1000 });
+  const packetContent = collectCommunicationValues(rawIncident, PACKET_CONTENT_PATHS, {
+    maxChars: MAX_PACKET_EVIDENCE_CHARS,
+  }).map((item) => ({ field: item.field, snippet: item.value }));
+
+  return {
+    domains,
+    urls,
+    packet_content: packetContent,
+  };
 }
 
 function buildIncidentEvidence(rawIncident = {}) {
@@ -50,6 +117,16 @@ function buildIncidentEvidence(rawIncident = {}) {
   }
 
   if (Object.keys(additionalFields).length > 0) incident.additional_fields = additionalFields;
+
+  const communicationEvidence = buildCommunicationEvidence(rawIncident);
+  if (
+    communicationEvidence.domains.length ||
+    communicationEvidence.urls.length ||
+    communicationEvidence.packet_content.length
+  ) {
+    incident.communication_evidence = communicationEvidence;
+  }
+
   return incident;
 }
 
@@ -109,4 +186,9 @@ function buildContext(rawIncident, ruleResolution, networkIntelligence) {
   };
 }
 
-module.exports = { buildContext, buildIncidentEvidence, buildDetectionRuleContext };
+module.exports = {
+  buildContext,
+  buildIncidentEvidence,
+  buildDetectionRuleContext,
+  buildCommunicationEvidence,
+};

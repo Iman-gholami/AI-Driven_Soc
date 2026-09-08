@@ -16,6 +16,8 @@ const {
 } = require("../src/services/networkIntelligenceService");
 const { parseJsonResponse } = require("../src/services/llmProviders");
 const { normalizeMmdbRecord } = require("../src/services/ipMetadataService");
+const { buildIncidentEvidence } = require("../src/services/contextBuilder");
+const { normalizeAnalysisPayload } = require("../src/models/incidentSchema");
 
 test("IPv4 extractor resolves top-level and nested source/destination fields deterministically", () => {
   const event = {
@@ -105,6 +107,46 @@ test("IPinfo Core MMDB records normalize flat fields and AS-prefixed ASN values"
       mobile: false,
       satellite: false,
     },
+  });
+});
+
+test("incident context preserves current-alert domain and packet/body evidence with provenance", () => {
+  const incident = buildIncidentEvidence({
+    src_ip: "10.0.0.10",
+    dst_ip: "45.77.249.79",
+    http_host: "example.org",
+    request_url: "https://example.org/admin",
+    request_body: "username=admin&action=login",
+  });
+
+  assert.deepEqual(incident.communication_evidence.domains, [
+    { field: "http_host", value: "example.org" },
+  ]);
+  assert.deepEqual(incident.communication_evidence.urls, [
+    { field: "request_url", value: "https://example.org/admin" },
+  ]);
+  assert.deepEqual(incident.communication_evidence.packet_content, [
+    { field: "request_body", snippet: "username=admin&action=login" },
+  ]);
+});
+
+test("analysis normalization supplies a stable IP relationship shape for legacy model output", () => {
+  const normalized = normalizeAnalysisPayload({
+    verdict: "SUSPICIOUS",
+    one_line_summary: "Example",
+    risk_assessment: {},
+  });
+
+  assert.deepEqual(normalized.network_relationship_analysis, {
+    assessment: "UNKNOWN",
+    summary: "",
+    source: { ip: "", organization: "", context: "" },
+    destination: { ip: "", organization: "", context: "" },
+    why_suspicious: [],
+    current_alert_domains: [],
+    current_alert_packet_evidence: [],
+    threat_feed_context: [],
+    limitations: "",
   });
 });
 

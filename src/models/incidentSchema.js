@@ -3,6 +3,13 @@ const { z } = require("zod");
 const severitySchema = z.enum(["critical", "high", "medium", "low", "info", "unknown"]);
 const verdictSchema = z.enum(["BENIGN", "SUSPICIOUS", "MALICIOUS", "UNKNOWN"]);
 const analystActionSchema = z.enum(["INVESTIGATE", "ESCALATE", "MONITOR", "CLOSE", "UNKNOWN"]);
+const relationshipAssessmentSchema = z.enum(["BENIGN", "SUSPICIOUS", "MALICIOUS", "UNKNOWN"]);
+
+const relationshipEndpointSchema = z.object({
+  ip: z.string(),
+  organization: z.string(),
+  context: z.string(),
+});
 
 const analysisResponseSchema = z.object({
   verdict: verdictSchema,
@@ -13,6 +20,17 @@ const analysisResponseSchema = z.object({
     evidence: z.array(z.string()),
   }),
   observed_evidence: z.array(z.string()),
+  network_relationship_analysis: z.object({
+    assessment: relationshipAssessmentSchema,
+    summary: z.string(),
+    source: relationshipEndpointSchema,
+    destination: relationshipEndpointSchema,
+    why_suspicious: z.array(z.string()),
+    current_alert_domains: z.array(z.string()),
+    current_alert_packet_evidence: z.array(z.string()),
+    threat_feed_context: z.array(z.string()),
+    limitations: z.string(),
+  }),
   detection_analysis: z.object({
     rule_logic: z.string(),
     limitations: z.string(),
@@ -58,6 +76,15 @@ function normalizeAnalysisPayload(input = {}) {
     ? payload.why_alert_triggered
     : {};
   const detection = payload.detection_analysis;
+  const relationship = payload.network_relationship_analysis && typeof payload.network_relationship_analysis === "object"
+    ? payload.network_relationship_analysis
+    : {};
+  const relationshipSource = relationship.source && typeof relationship.source === "object"
+    ? relationship.source
+    : {};
+  const relationshipDestination = relationship.destination && typeof relationship.destination === "object"
+    ? relationship.destination
+    : {};
   const decision = payload.analyst_decision && typeof payload.analyst_decision === "object"
     ? payload.analyst_decision
     : {};
@@ -71,6 +98,25 @@ function normalizeAnalysisPayload(input = {}) {
       evidence: toStringArray(why.evidence || why.matched_conditions),
     },
     observed_evidence: toStringArray(payload.observed_evidence),
+    network_relationship_analysis: {
+      assessment: normalizeRelationshipAssessment(relationship.assessment),
+      summary: firstString(relationship.summary),
+      source: {
+        ip: firstString(relationshipSource.ip),
+        organization: firstString(relationshipSource.organization),
+        context: firstString(relationshipSource.context),
+      },
+      destination: {
+        ip: firstString(relationshipDestination.ip),
+        organization: firstString(relationshipDestination.organization),
+        context: firstString(relationshipDestination.context),
+      },
+      why_suspicious: toStringArray(relationship.why_suspicious || relationship.reasons),
+      current_alert_domains: toStringArray(relationship.current_alert_domains),
+      current_alert_packet_evidence: toStringArray(relationship.current_alert_packet_evidence),
+      threat_feed_context: toStringArray(relationship.threat_feed_context),
+      limitations: firstString(relationship.limitations),
+    },
     detection_analysis: {
       rule_logic: normalizeTextObject(
         detection,
@@ -106,6 +152,11 @@ function normalizeSeverity(value) {
 function normalizeVerdict(value) {
   const normalized = String(value || "UNKNOWN").toUpperCase();
   return verdictSchema.safeParse(normalized).success ? normalized : "UNKNOWN";
+}
+
+function normalizeRelationshipAssessment(value) {
+  const normalized = String(value || "UNKNOWN").toUpperCase();
+  return relationshipAssessmentSchema.safeParse(normalized).success ? normalized : "UNKNOWN";
 }
 
 function normalizeAnalystAction(value) {

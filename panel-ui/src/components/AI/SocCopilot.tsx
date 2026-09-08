@@ -263,6 +263,27 @@ function isCorrelationResult(result: CopilotRenderableResult): result is Copilot
 const CopilotEvidence: React.FC<{ response: CopilotResponse }> = ({ response }) => {
   if (!response.result) return null;
 
+  if (isMetricResult(response.result)) {
+    return (
+      <div className="soc-copilot-evidence">
+        <Tag>metric</Tag>
+        <Tag>{response.result.operation}</Tag>
+        {response.metadata?.mcp && <Tag>MCP</Tag>}
+      </div>
+    );
+  }
+
+  if (isCorrelationResult(response.result)) {
+    return (
+      <div className="soc-copilot-evidence">
+        <Tag>correlation</Tag>
+        <Tag>{response.result.relationship}</Tag>
+        {response.result.timeRange?.label && <Tag>{response.result.timeRange.label}</Tag>}
+        {response.metadata?.mcp && <Tag>MCP</Tag>}
+      </div>
+    );
+  }
+
   if (isEntityContextResult(response.result)) {
     return (
       <div className="soc-copilot-evidence">
@@ -300,6 +321,14 @@ const CopilotEvidence: React.FC<{ response: CopilotResponse }> = ({ response }) 
 
 const CopilotStructuredResult: React.FC<{ response: CopilotResponse }> = ({ response }) => {
   if (!response.result) return null;
+
+  if (isMetricResult(response.result)) {
+    return <CopilotMetricBlock result={response.result} />;
+  }
+
+  if (isCorrelationResult(response.result)) {
+    return <CopilotCorrelationBlock result={response.result} />;
+  }
 
   if (isEntityContextResult(response.result)) {
     return <CopilotEntityContextBlock result={response.result} />;

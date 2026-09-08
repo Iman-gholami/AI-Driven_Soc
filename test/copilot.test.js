@@ -242,3 +242,68 @@ test("Copilot returns unsupported without executing a data query", async () => {
   assert.equal(response.supported, false);
   assert.equal(queryCalls, 0);
 });
+
+
+test("POST /copilot/query exposes the grounded Copilot response through the API", async () => {
+  const express = require("express");
+  const { createRouter } = require("../src/api/routes");
+
+  const copilot = {
+    async query(message) {
+      assert.equal(message, "در 24 ساعت گذشته چند Alert داشتیم؟");
+      return {
+        supported: true,
+        answer: "در 24 ساعت گذشته 42 Alert ثبت شده است.",
+        tool: "query_soc_data",
+        queryPlan: {
+          dataset: "alerts",
+          operation: "count",
+          timeRange: { type: "last_n_hours", value: 24 },
+        },
+        result: {
+          dataset: "alerts",
+          operation: "count",
+          data: { count: 42, rows: [] },
+          metadata: { readOnly: true },
+        },
+        metadata: {
+          provider: "test",
+          model: "planner-model",
+          readOnly: true,
+          mcp: true,
+          timezone: "Asia/Tehran",
+        },
+      };
+    },
+  };
+
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    req.log = { info() {}, warn() {}, error() {} };
+    next();
+  });
+  app.use(createRouter({
+    analyzer: {},
+    alertRepository: {},
+    copilot,
+  }));
+
+  const server = app.listen(0);
+  try {
+    const { port } = server.address();
+    const response = await fetch(`http://127.0.0.1:${port}/copilot/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "در 24 ساعت گذشته چند Alert داشتیم؟" }),
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.data.result.data.count, 42);
+    assert.equal(body.data.metadata.mcp, true);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

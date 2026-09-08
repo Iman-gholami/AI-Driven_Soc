@@ -13,6 +13,7 @@ const {
   summarizeThreatLookup,
 } = require("../src/services/networkIntelligenceService");
 const { parseJsonResponse } = require("../src/services/llmProviders");
+const { normalizeMmdbRecord } = require("../src/services/ipMetadataService");
 
 test("IPv4 extractor resolves top-level and nested source/destination fields deterministically", () => {
   const event = {
@@ -51,6 +52,48 @@ test("IPv4 normalization rejects malformed and non-IPv4 input", () => {
   assert.equal(normalizeIpv4("2001:db8::1"), null);
   assert.equal(classifyIpv4("10.1.2.3"), "private");
   assert.equal(classifyIpv4("8.8.8.8"), "public");
+});
+
+test("IPinfo Core MMDB records normalize flat fields and AS-prefixed ASN values", () => {
+  assert.deepEqual(normalizeMmdbRecord({
+    as_domain: "tci.ir",
+    as_name: "Iran Telecommunication Company PJS",
+    as_type: "isp",
+    asn: "AS58224",
+    city: "Golpāyegān",
+    country: "Iran",
+    country_code: "IR",
+    region: "Isfahan",
+    region_code: "28",
+    timezone: "Asia/Tehran",
+    latitude: 33.4537,
+    longitude: 50.28836,
+    is_anonymous: false,
+    is_anycast: false,
+    is_hosting: false,
+    is_mobile: false,
+    is_satellite: false,
+  }), {
+    asn: 58224,
+    asName: "Iran Telecommunication Company PJS",
+    asType: "isp",
+    domain: "tci.ir",
+    countryCode: "IR",
+    country: "Iran",
+    region: "Isfahan",
+    regionCode: "28",
+    city: "Golpāyegān",
+    timezone: "Asia/Tehran",
+    latitude: 33.4537,
+    longitude: 50.28836,
+    privacy: {
+      anonymous: false,
+      anycast: false,
+      hosting: false,
+      mobile: false,
+      satellite: false,
+    },
+  });
 });
 
 test("threat feed mapper preserves source classification and destination relationship fields", () => {

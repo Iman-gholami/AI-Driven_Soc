@@ -40,7 +40,16 @@ test("query compiler builds a read-only top-signature aggregation", () => {
 
   assert.equal(compiled.resultShape, "aggregate");
   assert.deepEqual(compiled.pipeline, [
-    { $match: { createdAt: { $gte: from, $lt: to } } },
+    {
+      $match: {
+        $expr: {
+          $and: [
+            { $gte: [{ $ifNull: ["$eventTime", "$createdAt"] }, from] },
+            { $lt: [{ $ifNull: ["$eventTime", "$createdAt"] }, to] },
+          ],
+        },
+      },
+    },
     { $group: { _id: "$signature", count: { $sum: 1 } } },
     { $project: { _id: 0, signature: "$_id", count: 1 } },
     { $sort: { count: -1 } },

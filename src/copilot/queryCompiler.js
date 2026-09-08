@@ -45,7 +45,7 @@ function compileSocQuery(plan, {
   if (matchClauses.length > 1) pipeline.push({ $match: { $and: matchClauses } });
 
   for (const path of unwindPaths) {
-    pipeline.push({ $unwind: { path: `${path}`, preserveNullAndEmptyArrays: false } });
+    pipeline.push({ $unwind: { path: "$" + path, preserveNullAndEmptyArrays: false } });
   }
 
   if (postUnwindFilters.length) {

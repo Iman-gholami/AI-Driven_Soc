@@ -26,7 +26,10 @@ async function importThreatIntel(filePath, { batchSize = DEFAULT_BATCH_SIZE } = 
   async function flush() {
     if (!batch.length) return;
 
-    const operations = batch.map((observation) => ({
+    const uniqueBatch = [
+      ...new Map(batch.map((observation) => [observation.uniqueId, observation])).values(),
+    ];
+    const operations = uniqueBatch.map((observation) => ({
       updateOne: {
         filter: { importId, uniqueId: observation.uniqueId },
         update: { $set: { ...observation, importId } },

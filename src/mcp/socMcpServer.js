@@ -1,5 +1,6 @@
 const { SocQueryService } = require("../services/socQueryService");
 const { describeSocSchema } = require("../copilot/schemaCatalog");
+const { SocEntityContextService } = require("../services/socEntityContextService");
 
 const PROTOCOL_VERSION = "2025-11-25";
 
@@ -89,6 +90,19 @@ const BATCH_INPUT_SCHEMA = {
   },
 };
 
+const ENTITY_CONTEXT_INPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["entityType", "id"],
+  properties: {
+    entityType: {
+      type: "string",
+      enum: ["alert", "ip", "organization", "rule", "mitre_technique"],
+    },
+    id: { type: "string", minLength: 1, maxLength: 500 },
+  },
+};
+
 const SOC_MCP_TOOLS = [
   {
     name: "describe_soc_schema",
@@ -124,6 +138,18 @@ const SOC_MCP_TOOLS = [
     },
   },
   {
+    name: "get_soc_entity_context",
+    description: "Get a grounded investigation context for a focused SOC entity such as an alert, IP, organization, rule, or MITRE technique. Use this for follow-up questions like summarize it, why is it malicious, what should we do, or what do we know about this IP.",
+    inputSchema: ENTITY_CONTEXT_INPUT_SCHEMA,
+    annotations: {
+      title: "Get SOC entity context",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
     name: "query_soc_data_batch",
     description: "Run 2 to 5 independent validated read-only SOC queries when one analyst question requires multiple datasets or comparisons.",
     inputSchema: BATCH_INPUT_SCHEMA,
@@ -138,8 +164,12 @@ const SOC_MCP_TOOLS = [
 ];
 
 class SocMcpServer {
-  constructor({ queryService = new SocQueryService() } = {}) {
+  constructor({
+    queryService = new SocQueryService(),
+    entityContextService = new SocEntityContextService(),
+  } = {}) {
     this.queryService = queryService;
+    this.entityContextService = entityContextService;
   }
 
   listTools() {
@@ -155,6 +185,11 @@ class SocMcpServer {
 
     if (name === "query_soc_data") {
       const data = await this.queryService.execute(args);
+      return toolSuccess(data);
+    }
+
+    if (name === "get_soc_entity_context") {
+      const data = await this.entityContextService.getContext(args);
       return toolSuccess(data);
     }
 
@@ -197,7 +232,7 @@ class SocMcpServer {
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "ai-driven-soc-mcp", version: "1.0.0" },
-          instructions: "Read-only SOC data access. Use describe_soc_schema, query_soc_data, or query_soc_data_batch only.",
+          instructions: "Read-only SOC data access. Use describe_soc_schema, query_soc_data, query_soc_data_batch, or get_soc_entity_context only.",
         });
       }
 
@@ -250,6 +285,7 @@ module.exports = {
   PROTOCOL_VERSION,
   QUERY_INPUT_SCHEMA,
   BATCH_INPUT_SCHEMA,
+  ENTITY_CONTEXT_INPUT_SCHEMA,
   SOC_MCP_TOOLS,
   SocMcpServer,
   toolSuccess,

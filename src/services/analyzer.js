@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { buildContext } = require("./contextBuilder");
 const { createEventHash } = require("./eventHash");
 const { LLMService } = require("./llmService");
+const { NetworkIntelligenceService } = require("./networkIntelligenceService");
 const { RuleResolver } = require("./ruleResolver");
 const { createLogger } = require("../core/logging");
 const { settings } = require("../core/config");
@@ -16,12 +17,15 @@ class IncidentAnalyzer {
     llm = new LLMService(),
     alertRepository = new AlertRepository(),
     ruleResolver = new RuleResolver(),
+    networkIntelligence,
     logger = createLogger(settings.logLevel),
   } = {}) {
     this.llm = llm;
     this.alertRepository = alertRepository;
     this.ruleResolver = ruleResolver;
     this.logger = logger;
+    this.networkIntelligence =
+      networkIntelligence || new NetworkIntelligenceService({ logger });
   }
 
   async analyzeIncident(payload) {
@@ -32,6 +36,7 @@ class IncidentAnalyzer {
       analyzed.analysis,
       analyzed.metadata.processingTimeMs,
       analyzed.ruleMatch,
+      analyzed.networkIntelligence,
     );
 
     return analyzed.analysis;
@@ -47,6 +52,7 @@ class IncidentAnalyzer {
         analyzed.analysis,
         analyzed.metadata.processingTimeMs,
         analyzed.ruleMatch,
+        analyzed.networkIntelligence,
       ),
     };
   }
@@ -54,7 +60,8 @@ class IncidentAnalyzer {
   async analyzePayload(payload, { ruleResolution: providedRuleResolution } = {}) {
     const startedAt = Date.now();
     const ruleResolution = providedRuleResolution || await this.resolveDetectionRule(payload);
-    const context = buildContext(payload, ruleResolution);
+    const networkIntelligence = await this.resolveNetworkIntelligence(payload);
+    const context = buildContext(payload, ruleResolution, networkIntelligence);
     const result = await this.llm.analyze(context);
     const normalized = normalizeAnalysisPayload(result);
     const response = analysisResponseSchema.parse(normalized);
@@ -65,10 +72,12 @@ class IncidentAnalyzer {
       analysis: response,
       ruleResolution,
       ruleMatch: summarizeRuleResolution(ruleResolution),
+      networkIntelligence,
       metadata: {
         provider: providerMetadata.provider || "unknown",
         model: providerMetadata.model || "unknown",
         processingTimeMs,
+        enrichmentStatus: networkIntelligence?.status || "unavailable",
       },
     };
   }
@@ -86,7 +95,38 @@ class IncidentAnalyzer {
     }
   }
 
-  async persistAnalyzedAlert(payload, analysisResult, processingTimeMs, ruleMatch) {
+  async resolveNetworkIntelligence(payload) {
+    if (!this.networkIntelligence || typeof this.networkIntelligence.enrich !== "function") {
+      return {
+        status: "unavailable",
+        reason: "network_intelligence_not_configured",
+        generatedAt: new Date().toISOString(),
+        ips: [],
+        correlations: [],
+      };
+    }
+
+    try {
+      return await this.networkIntelligence.enrich(payload || {});
+    } catch (error) {
+      this.logger.warn?.({ err: error }, "Network intelligence enrichment failed");
+      return {
+        status: "unavailable",
+        reason: "network_intelligence_failed",
+        generatedAt: new Date().toISOString(),
+        ips: [],
+        correlations: [],
+      };
+    }
+  }
+
+  async persistAnalyzedAlert(
+    payload,
+    analysisResult,
+    processingTimeMs,
+    ruleMatch,
+    networkIntelligence,
+  ) {
     const eventHash = createEventHash(payload);
     const alertId = getAlertId(payload);
 
@@ -97,7 +137,13 @@ class IncidentAnalyzer {
         severity: getSeverity(analysisResult),
         rawEvent: payload,
         eventHash,
-        ...this.buildAnalysisPersistence({ rawEvent: payload }, analysisResult, processingTimeMs, ruleMatch),
+        ...this.buildAnalysisPersistence(
+          { rawEvent: payload },
+          analysisResult,
+          processingTimeMs,
+          ruleMatch,
+          networkIntelligence,
+        ),
       });
       this.logger.info({ alertId, eventHash, status: "analyzed" }, "Alert stored successfully");
     } catch (error) {
@@ -105,8 +151,16 @@ class IncidentAnalyzer {
     }
   }
 
-  buildAnalysisPersistence(alert, analysisResult, processingTimeMs, ruleMatch) {
+  buildAnalysisPersistence(
+    alert,
+    analysisResult,
+    processingTimeMs,
+    ruleMatch,
+    networkIntelligence,
+  ) {
     const providerMetadata = this.llm.getMetadata ? this.llm.getMetadata() : {};
+    const hasNetworkSnapshot = Boolean(networkIntelligence);
+
     return {
       analysis: mapAnalysisSummary(analysisResult),
       fullAnalysis: analysisResult,
@@ -117,13 +171,57 @@ class IncidentAnalyzer {
       soc: {
         ...(alert?.soc || {}),
         mitreAttack: analysisResult.attack_mapping,
-        iocs: alert?.soc?.iocs,
-        correlation: alert?.soc?.correlation,
-        threatIntelligence: alert?.soc?.threatIntelligence,
+        iocs: hasNetworkSnapshot
+          ? buildNetworkIocs(networkIntelligence)
+          : alert?.soc?.iocs,
+        correlation: hasNetworkSnapshot
+          ? networkIntelligence.correlations || []
+          : alert?.soc?.correlation,
+        threatIntelligence: hasNetworkSnapshot
+          ? buildThreatIntelligenceSnapshot(networkIntelligence)
+          : alert?.soc?.threatIntelligence,
+        networkIntelligence: hasNetworkSnapshot
+          ? networkIntelligence
+          : alert?.soc?.networkIntelligence,
         providerMetadata,
       },
     };
   }
+}
+
+function buildNetworkIocs(networkIntelligence) {
+  const ips = Array.isArray(networkIntelligence?.ips) ? networkIntelligence.ips : [];
+  return ips.map((item) => ({
+    type: "ip",
+    value: item.ip,
+    roles: item.roles || [],
+    scope: item.scope || "unknown",
+    organizationalAsset: Boolean(item.asset?.owned),
+    organization: item.asset?.organization || null,
+    directThreatMatch: Boolean(item.threat?.directMatch),
+    relationshipThreatMatch: Boolean(item.threat?.relationshipMatch),
+  }));
+}
+
+function buildThreatIntelligenceSnapshot(networkIntelligence) {
+  const ips = Array.isArray(networkIntelligence?.ips) ? networkIntelligence.ips : [];
+
+  return {
+    status: networkIntelligence?.status || "unavailable",
+    dataset: networkIntelligence?.sources?.threatDataset || null,
+    indicators: ips
+      .filter((item) => item.threat?.directMatch || item.threat?.relationshipMatch)
+      .map((item) => ({
+        ip: item.ip,
+        roles: item.roles || [],
+        directMatch: Boolean(item.threat?.directMatch),
+        relationshipMatch: Boolean(item.threat?.relationshipMatch),
+        directObservationCount: Number(item.threat?.directObservationCount || 0),
+        relationshipObservationCount: Number(item.threat?.relationshipObservationCount || 0),
+        direct: item.threat?.direct || null,
+        relationship: item.threat?.relationship || null,
+      })),
+  };
 }
 
 function summarizeRuleResolution(resolution) {
@@ -155,7 +253,13 @@ function summarizeRuleResolution(resolution) {
 }
 
 function getAlertId(payload) {
-  return String(payload?.alertId || payload?.alert_id || payload?.event_id || payload?.id || crypto.randomUUID());
+  return String(
+    payload?.alertId ||
+      payload?.alert_id ||
+      payload?.event_id ||
+      payload?.id ||
+      crypto.randomUUID(),
+  );
 }
 
 function getAlertSource(payload) {
@@ -183,16 +287,30 @@ function getSeverity(analysisResult) {
 }
 
 function getSummary(analysisResult) {
-  if (typeof analysisResult.one_line_summary === "string" && analysisResult.one_line_summary.trim()) {
+  if (
+    typeof analysisResult.one_line_summary === "string" &&
+    analysisResult.one_line_summary.trim()
+  ) {
     return analysisResult.one_line_summary.trim();
   }
 
   const incidentSummary = analysisResult.incident_summary;
   if (typeof incidentSummary === "string") return incidentSummary;
   if (incidentSummary && typeof incidentSummary === "object") {
-    return incidentSummary.what_happened || incidentSummary.summary || incidentSummary.description || JSON.stringify(undefined);
+    return (
+      incidentSummary.what_happened ||
+      incidentSummary.summary ||
+      incidentSummary.description ||
+      JSON.stringify(undefined)
+    );
   }
   return analysisResult.final_soc_note || "";
 }
 
-module.exports = { IncidentAnalyzer, mapAnalysisSummary, summarizeRuleResolution };
+module.exports = {
+  IncidentAnalyzer,
+  mapAnalysisSummary,
+  summarizeRuleResolution,
+  buildNetworkIocs,
+  buildThreatIntelligenceSnapshot,
+};

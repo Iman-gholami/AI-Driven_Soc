@@ -4,12 +4,14 @@ const COMMON_STRING_OPERATORS = ["eq", "neq", "contains", "in", "exists"];
 const COMMON_NUMBER_OPERATORS = ["eq", "neq", "gt", "gte", "lt", "lte", "in", "exists"];
 const COMMON_BOOLEAN_OPERATORS = ["eq", "neq", "exists"];
 const COMMON_DATE_OPERATORS = ["eq", "neq", "gt", "gte", "lt", "lte", "exists"];
+const COMMON_MIXED_OPERATORS = ["eq", "neq", "contains", "in", "exists", "gt", "gte", "lt", "lte"];
 
 function field(path, type, description, options = {}) {
   const defaultOperators =
     type === "number" ? COMMON_NUMBER_OPERATORS :
     type === "boolean" ? COMMON_BOOLEAN_OPERATORS :
     type === "date" ? COMMON_DATE_OPERATORS :
+    type === "mixed" ? COMMON_MIXED_OPERATORS :
     COMMON_STRING_OPERATORS;
 
   return {
@@ -32,6 +34,23 @@ const SOC_SCHEMA_CATALOG = {
     description: "Security alerts ingested into the SOC, including rule resolution, AI triage and network intelligence.",
     aliases: ["alert", "alerts", "الر‌ت", "الر‌تها", "هشدار", "هشدارها"],
     defaultTimeField: "createdAt",
+    dynamicPrefixes: [
+      {
+        prefix: "rawEvent",
+        type: "mixed",
+        description: "A safe subfield from the original alert payload.",
+      },
+      {
+        prefix: "fullAnalysis",
+        type: "mixed",
+        description: "A safe subfield from persisted AI analysis.",
+      },
+      {
+        prefix: "soc",
+        type: "mixed",
+        description: "A safe subfield from persisted SOC enrichment.",
+      },
+    ],
     fields: {
       alertId: field("alertId", "string", "Unique alert identifier", { groupable: false }),
       signature: field("signature", "string", "Detection signature/title that fired", {
@@ -43,6 +62,11 @@ const SOC_SCHEMA_CATALOG = {
       eventType: field("eventType", "string", "Event type"),
       status: field("status", "string", "Alert processing status"),
       aiStatus: field("aiStatus", "string", "AI analysis status"),
+      llmProvider: field("llmProvider", "string", "LLM provider used for alert analysis"),
+      model: field("model", "string", "LLM model used for alert analysis"),
+      processingTimeMs: field("processingTimeMs", "number", "AI processing time in milliseconds", {
+        aliases: ["analysis time", "processing time", "زمان تحلیل"],
+      }),
       createdAt: field("createdAt", "date", "Alert ingestion timestamp"),
       updatedAt: field("updatedAt", "date", "Last alert update timestamp"),
       "rawEvent.src_ip": field("rawEvent.src_ip", "string", "Source IPv4 from current alert telemetry", {
@@ -310,7 +334,32 @@ function getDatasetSchema(dataset) {
 
 function getFieldSchema(dataset, fieldName) {
   const datasetSchema = getDatasetSchema(dataset);
-  return datasetSchema?.fields?.[String(fieldName || "").trim()] || null;
+  if (!datasetSchema) return null;
+
+  const name = String(fieldName || "").trim();
+  const exact = datasetSchema.fields?.[name];
+  if (exact) return exact;
+
+  if (!isSafeFieldPath(name)) return null;
+
+  for (const dynamic of datasetSchema.dynamicPrefixes || []) {
+    if (name.startsWith(dynamic.prefix + ".")) {
+      return field(name, dynamic.type || "mixed", dynamic.description || "Dynamic SOC field", {
+        aliases: [],
+        groupable: true,
+        selectable: true,
+        sortable: true,
+      });
+    }
+  }
+
+  return null;
+}
+
+function isSafeFieldPath(value) {
+  const path = String(value || "");
+  if (!path || path.length > 240) return false;
+  return path.split(".").every((segment) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(segment));
 }
 
 function describeSocSchema(dataset) {
@@ -333,6 +382,11 @@ function describeDataset(schema) {
     aliases: schema.aliases || [],
     defaultTimeField: schema.defaultTimeField || null,
     snapshotDataset: schema.snapshotDataset || null,
+    dynamicPrefixes: (schema.dynamicPrefixes || []).map((item) => ({
+      prefix: item.prefix,
+      type: item.type,
+      description: item.description,
+    })),
     fields: Object.entries(schema.fields).map(([name, metadata]) => ({
       name,
       type: metadata.type,
@@ -352,5 +406,6 @@ module.exports = {
   SOC_SCHEMA_CATALOG,
   getDatasetSchema,
   getFieldSchema,
+  isSafeFieldPath,
   describeSocSchema,
 };

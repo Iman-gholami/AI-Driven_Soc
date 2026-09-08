@@ -359,3 +359,53 @@ test("array-scoped aggregate filters are applied after unwind so unrelated IPs a
     { $limit: 10 },
   ]);
 });
+
+
+test("safe dynamic rawEvent fields are queryable while Mongo operator paths stay blocked", () => {
+  const dynamicPlan = socQueryPlanSchema.parse({
+    dataset: "alerts",
+    operation: "count",
+    filters: [
+      {
+        field: "rawEvent.destination_fqdn",
+        operator: "contains",
+        value: "example.ir",
+      },
+    ],
+  });
+
+  const compiled = compileSocQuery(dynamicPlan, {
+    resolvedTimeRange: { from: null, to: null, timezone: "Asia/Tehran", label: "all time" },
+  });
+
+  assert.deepEqual(compiled.pipeline, [
+    {
+      $match: {
+        "rawEvent.destination_fqdn": {
+          $regex: "example\\.ir",
+          $options: "i",
+        },
+      },
+    },
+    { $count: "count" },
+  ]);
+
+  const blockedPlan = socQueryPlanSchema.parse({
+    dataset: "alerts",
+    operation: "count",
+    filters: [
+      {
+        field: "rawEvent.$where",
+        operator: "eq",
+        value: "x",
+      },
+    ],
+  });
+
+  assert.throws(
+    () => compileSocQuery(blockedPlan, {
+      resolvedTimeRange: { from: null, to: null, timezone: "Asia/Tehran", label: "all time" },
+    }),
+    /not allowed/,
+  );
+});

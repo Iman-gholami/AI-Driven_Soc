@@ -139,7 +139,7 @@ function compileSocQuery(plan, {
 
 function validatePlanFields(plan, dataset) {
   const requireField = (fieldName, capability) => {
-    const metadata = dataset.fields[fieldName];
+    const metadata = getFieldSchema(dataset.name, fieldName);
     if (!metadata) throw new Error(`Field "${fieldName}" is not allowed for dataset "${dataset.name}"`);
     if (capability && !metadata[capability]) {
       throw new Error(`Field "${fieldName}" does not support ${capability}`);
@@ -213,7 +213,7 @@ function buildFilterClauses(filters, dataset) {
   const arrayGroups = new Map();
 
   for (const filter of plan.filters || []) {
-    const metadata = dataset.fields[filter.field];
+    const metadata = getFieldSchema(dataset.name, filter.field);
     const root = metadata?.unwind;
     const nestedInArray = root && metadata.path.startsWith(root + ".");
 
@@ -288,7 +288,7 @@ function getRequiredUnwinds(plan, dataset) {
   const paths = new Set();
 
   const addForField = (fieldName) => {
-    const unwind = dataset.fields[fieldName]?.unwind;
+    const unwind = getFieldSchema(dataset.name, fieldName)?.unwind;
     if (unwind) paths.add(unwind);
   };
 

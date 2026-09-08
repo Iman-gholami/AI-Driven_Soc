@@ -198,3 +198,80 @@ test("LLM JSON parser accepts fenced JSON for local model compatibility", () => 
     { verdict: "UNKNOWN" },
   );
 });
+
+test("IncidentAnalyzer sends enriched network context to the configured LLM provider", async () => {
+  const { IncidentAnalyzer } = require("../src/services/analyzer");
+  let capturedContext = null;
+
+  const networkSnapshot = {
+    status: "complete",
+    generatedAt: "2026-09-08T00:00:00.000Z",
+    ips: [
+      {
+        ip: "10.0.0.10",
+        roles: ["source"],
+        scope: "private",
+        asset: { owned: true, organization: "Organization A" },
+        threat: { directMatch: false, relationshipMatch: false },
+      },
+    ],
+    correlations: [],
+  };
+
+  const canonicalResponse = {
+    verdict: "SUSPICIOUS",
+    one_line_summary: "Organizational asset generated a network alert.",
+    attack_story: ["The supplied alert was observed."],
+    why_alert_triggered: { rule: "Example Rule", evidence: ["Matched alert evidence"] },
+    observed_evidence: ["Source IP belongs to Organization A."],
+    detection_analysis: { rule_logic: "Example detection", limitations: "Threat evidence absent." },
+    behavior_analysis: "Requires analyst review.",
+    attack_mapping: [],
+    risk_assessment: { severity: "medium", confidence: 70, reasoning: "Limited evidence." },
+    analyst_decision: { action: "INVESTIGATE", reason: "Validate activity." },
+    false_positive_analysis: ["Expected organizational traffic is possible."],
+    recommended_investigation_steps: ["Review source host telemetry."],
+    final_soc_note: "Investigate.",
+  };
+
+  const analyzer = new IncidentAnalyzer({
+    llm: {
+      getMetadata: () => ({ provider: "test", model: "test-model" }),
+      async analyze(context) {
+        capturedContext = context;
+        return canonicalResponse;
+      },
+    },
+    networkIntelligence: {
+      async enrich() {
+        return networkSnapshot;
+      },
+    },
+    alertRepository: {},
+    ruleResolver: {},
+    logger: { info() {}, warn() {}, error() {} },
+  });
+
+  const ruleResolution = {
+    status: "matched",
+    matchType: "exact_signature",
+    candidateCount: 1,
+    rule: {
+      ruleId: "1",
+      revision: 1,
+      title: "Example Rule",
+      protocol: "tcp",
+      parsedRule: { flow: [], contents: [], pcre: [], references: [] },
+      rawRule: "alert tcp any any -> any any",
+    },
+  };
+
+  const result = await analyzer.analyzePayload(
+    { src_ip: "10.0.0.10", signature: "Example Rule" },
+    { ruleResolution },
+  );
+
+  assert.equal(capturedContext.network_intelligence, networkSnapshot);
+  assert.equal(result.networkIntelligence, networkSnapshot);
+  assert.equal(result.metadata.enrichmentStatus, "complete");
+});

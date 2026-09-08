@@ -9,10 +9,12 @@ class SocQueryService {
   constructor({
     registry = createDefaultDatasetRegistry(),
     timezone = settings.socTimezone || "Asia/Tehran",
+    weekStart = settings.socWeekStart || "saturday",
     now = () => new Date(),
   } = {}) {
     this.registry = registry;
     this.timezone = timezone;
+    this.weekStart = weekStart;
     this.now = now;
   }
 
@@ -32,6 +34,7 @@ class SocQueryService {
     const resolvedTimeRange = resolveTimeRange(plan.timeRange, {
       now: this.now(),
       timezone: this.timezone,
+      weekStart: this.weekStart,
     });
 
     const compiled = compileSocQuery(plan, {

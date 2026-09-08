@@ -25,10 +25,7 @@ function compileSocQuery(plan, {
     matchClauses.push({ [timeSchema.path]: bounds });
   }
 
-  for (const filter of plan.filters || []) {
-    const metadata = getFieldSchema(plan.dataset, filter.field);
-    matchClauses.push(buildFilter(metadata, filter));
-  }
+  matchClauses.push(...buildFilterClauses(plan, dataset));
 
   const pipeline = [];
   if (matchClauses.length === 1) pipeline.push({ $match: matchClauses[0] });
@@ -189,8 +186,44 @@ function validatePlanFields(plan, dataset) {
   }
 }
 
-function buildFilter(metadata, filter) {
-  const path = metadata.path;
+function buildFilterClauses(plan, dataset) {
+  const plain = [];
+  const arrayGroups = new Map();
+
+  for (const filter of plan.filters || []) {
+    const metadata = dataset.fields[filter.field];
+    const root = metadata?.unwind;
+    const nestedInArray = root && metadata.path.startsWith(root + ".");
+
+    if (!nestedInArray) {
+      plain.push(buildFilter(metadata, filter));
+      continue;
+    }
+
+    if (!arrayGroups.has(root)) arrayGroups.set(root, []);
+    arrayGroups.get(root).push({ metadata, filter });
+  }
+
+  for (const [root, entries] of arrayGroups.entries()) {
+    const elementConditions = [];
+    for (const { metadata, filter } of entries) {
+      const relativePath = metadata.path.slice(root.length + 1);
+      elementConditions.push(buildFilter(metadata, filter, relativePath));
+    }
+    plain.push({
+      [root]: {
+        $elemMatch: elementConditions.length === 1
+          ? elementConditions[0]
+          : { $and: elementConditions },
+      },
+    });
+  }
+
+  return plain;
+}
+
+function buildFilter(metadata, filter, pathOverride) {
+  const path = pathOverride || metadata.path;
   const value = coerceFilterValue(metadata.type, filter.value);
 
   switch (filter.operator) {
@@ -314,5 +347,6 @@ module.exports = {
   compileSocQuery,
   validatePlanFields,
   buildFilter,
+  buildFilterClauses,
   outputFieldName,
 };

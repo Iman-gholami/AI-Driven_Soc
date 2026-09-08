@@ -3,6 +3,7 @@ const { settings } = require("../core/config");
 function resolveTimeRange(range, {
   now = new Date(),
   timezone = settings.socTimezone || "Asia/Tehran",
+  weekStart = settings.socWeekStart || "saturday",
 } = {}) {
   if (!range || range.type === "all") {
     return { from: null, to: null, timezone, label: "all time" };
@@ -57,18 +58,19 @@ function resolveTimeRange(range, {
   }
 
   const weekday = localWeekday(today);
-  const daysSinceMonday = (weekday + 6) % 7;
-  const monday = shiftLocalDate(today, -daysSinceMonday);
-  const thisWeekStart = localMidnightToUtc(monday, timezone);
+  const weekStartIndex = getWeekStartIndex(weekStart);
+  const daysSinceWeekStart = (weekday - weekStartIndex + 7) % 7;
+  const weekStartDate = shiftLocalDate(today, -daysSinceWeekStart);
+  const thisWeekStart = localMidnightToUtc(weekStartDate, timezone);
 
   if (range.type === "this_week") {
     return { from: thisWeekStart, to: now, timezone, label: "this week" };
   }
 
   if (range.type === "previous_week") {
-    const previousMonday = shiftLocalDate(monday, -7);
+    const previousWeekStart = shiftLocalDate(weekStartDate, -7);
     return {
-      from: localMidnightToUtc(previousMonday, timezone),
+      from: localMidnightToUtc(previousWeekStart, timezone),
       to: thisWeekStart,
       timezone,
       label: "previous week",
@@ -166,8 +168,24 @@ function localWeekday(parts) {
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
 }
 
+function getWeekStartIndex(value) {
+  const normalized = String(value || "saturday").trim().toLowerCase();
+  const days = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
+  if (!(normalized in days)) throw new Error("Unsupported SOC_WEEK_START: " + value);
+  return days[normalized];
+}
+
 module.exports = {
   resolveTimeRange,
   getLocalDateParts,
   localMidnightToUtc,
+  getWeekStartIndex,
 };

@@ -10,6 +10,7 @@ const settings = {
   environment: env.NODE_ENV || "production",
   logLevel: env.LOG_LEVEL || "info",
   socTimezone: env.SOC_TIMEZONE || "Asia/Tehran",
+  socWeekStart: env.SOC_WEEK_START || "saturday",
   airGapped: toBool(env.AIR_GAPPED, false),
   llmProvider: env.LLM_PROVIDER || "openai",
   openaiApiKey: env.OPENAI_API_KEY || "",

@@ -1,5 +1,8 @@
 require("dotenv").config();
 
+const fs = require("node:fs");
+const path = require("node:path");
+
 const MitreTechnique = require("../src/models/MitreTechnique");
 const MitreCoverageSnapshot = require("../src/models/MitreCoverageSnapshot");
 const { connectMongo, disconnectMongo } = require("../src/database/mongo");
@@ -13,15 +16,10 @@ async function main() {
   const connected = await connectMongo(logger);
   if (!connected) throw new Error("MongoDB connection is required");
 
-  logger.info({ url: MITRE_URL }, "downloading_mitre_enterprise_attack");
-  const response = await fetch(MITRE_URL, {
-    headers: { "User-Agent": "AI-Driven-SOC-MITRE-Importer/1.0" },
-  });
-  if (!response.ok) {
-    throw new Error(`MITRE download failed: HTTP ${response.status}`);
-  }
-
-  const bundle = await response.json();
+  const localPath = process.argv[2] || process.env.MITRE_ATTACK_PATH;
+  const bundle = localPath
+    ? loadLocalBundle(localPath)
+    : await downloadBundle(MITRE_URL);
   const objects = Array.isArray(bundle?.objects) ? bundle.objects : [];
   const tactics = buildTacticMap(objects);
   const techniqueIdByStix = buildTechniqueIdByStix(objects);
@@ -66,6 +64,23 @@ async function main() {
     },
     "mitre_enterprise_attack_imported",
   );
+}
+
+function loadLocalBundle(filePath) {
+  const resolved = path.resolve(filePath);
+  logger.info({ file: resolved }, "loading_local_mitre_enterprise_attack");
+  return JSON.parse(fs.readFileSync(resolved, "utf8"));
+}
+
+async function downloadBundle(url) {
+  logger.info({ url }, "downloading_mitre_enterprise_attack");
+  const response = await fetch(url, {
+    headers: { "User-Agent": "AI-Driven-SOC-MITRE-Importer/1.0" },
+  });
+  if (!response.ok) {
+    throw new Error(`MITRE download failed: HTTP ${response.status}`);
+  }
+  return response.json();
 }
 
 function buildTacticMap(objects) {

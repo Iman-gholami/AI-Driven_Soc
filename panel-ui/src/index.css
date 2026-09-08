@@ -845,3 +845,14 @@ a:focus-visible,
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+
+.soc-copilot-bubble[lang="fa"] {
+  text-align: right;
+  direction: rtl;
+}
+
+.soc-copilot-bubble[lang="en"] {
+  text-align: left;
+  direction: ltr;
+}

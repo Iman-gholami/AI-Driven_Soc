@@ -101,6 +101,21 @@ const entityContextToolSelectionSchema = z.object({
   }).strict(),
 }).strict();
 
+const correlationToolSelectionSchema = z.object({
+  tool: z.literal("correlate_soc_entities"),
+  arguments: z.object({
+    relationship: z.enum([
+      "alert_source_ip_to_threat_source",
+      "alert_destination_ip_to_asset",
+      "alert_rule_to_detection_rule",
+      "detection_rule_to_mitre_technique",
+      "alert_ip_to_organization",
+    ]),
+    timeRange: timeRangeSchema.optional(),
+    limit: z.number().int().positive().max(100).default(20),
+  }).strict(),
+}).strict();
+
 const unsupportedPlanSchema = z.object({
   tool: z.literal("unsupported"),
   reason: z.string().min(1).max(1000),
@@ -111,6 +126,7 @@ const copilotPlanSchema = z.union([
   batchToolSelectionSchema,
   entityContextToolSelectionSchema,
   metricAnalysisToolSelectionSchema,
+  correlationToolSelectionSchema,
   unsupportedPlanSchema,
 ]);
 
@@ -124,6 +140,7 @@ module.exports = {
   labeledCountQuerySchema,
   metricAnalysisArgumentsSchema,
   metricAnalysisToolSelectionSchema,
+  correlationToolSelectionSchema,
   toolSelectionSchema,
   batchQuerySchema,
   batchToolSelectionSchema,

@@ -257,10 +257,6 @@ const CopilotEvidence: React.FC<{ response: CopilotResponse }> = ({ response }) 
     );
   }
 
-  if (isEntityContextResult(response.result)) {
-    return <CopilotEntityContextBlock result={response.result} />;
-  }
-
   if (isBatchResult(response.result)) {
     return (
       <div className="soc-copilot-evidence">
@@ -287,6 +283,10 @@ const CopilotEvidence: React.FC<{ response: CopilotResponse }> = ({ response }) 
 
 const CopilotStructuredResult: React.FC<{ response: CopilotResponse }> = ({ response }) => {
   if (!response.result) return null;
+
+  if (isEntityContextResult(response.result)) {
+    return <CopilotEntityContextBlock result={response.result} />;
+  }
 
   if (isBatchResult(response.result)) {
     return (

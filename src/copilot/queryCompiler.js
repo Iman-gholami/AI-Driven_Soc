@@ -13,7 +13,7 @@ function compileSocQuery(plan, {
   const preUnwindFilters = [];
   const postUnwindFilters = [];
 
-  for (const filter of filters || []) {
+  for (const filter of plan.filters || []) {
     const metadata = getFieldSchema(plan.dataset, filter.field);
     if (metadata?.unwind && unwindPaths.includes(metadata.unwind)) {
       postUnwindFilters.push(filter);
@@ -212,7 +212,7 @@ function buildFilterClauses(filters, dataset) {
   const plain = [];
   const arrayGroups = new Map();
 
-  for (const filter of plan.filters || []) {
+  for (const filter of filters || []) {
     const metadata = getFieldSchema(dataset.name, filter.field);
     const root = metadata?.unwind;
     const nestedInArray = root && metadata.path.startsWith(root + ".");

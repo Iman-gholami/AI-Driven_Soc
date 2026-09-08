@@ -347,6 +347,101 @@ const CopilotStructuredResult: React.FC<{ response: CopilotResponse }> = ({ resp
   return <CopilotResultBlock result={response.result} />;
 };
 
+const CopilotMetricBlock: React.FC<{ result: CopilotMetricResult }> = ({ result }) => {
+  if (result.operation === 'compare') {
+    return (
+      <div className="soc-copilot-result-block">
+        <div className="soc-copilot-result-title">
+          <span>comparison</span>
+          {result.changePercent !== null && result.changePercent !== undefined && (
+            <strong>{result.changePercent.toLocaleString()}%</strong>
+          )}
+        </div>
+        <div className="soc-copilot-result-rows">
+          <div className="soc-copilot-result-row">
+            <span><em>{result.left?.label || 'left'}</em><b>{Number(result.left?.count || 0).toLocaleString()}</b></span>
+          </div>
+          <div className="soc-copilot-result-row">
+            <span><em>{result.right?.label || 'right'}</em><b>{Number(result.right?.count || 0).toLocaleString()}</b></span>
+          </div>
+          <div className="soc-copilot-result-row">
+            <span><em>difference</em><b>{Number(result.difference || 0).toLocaleString()}</b></span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.operation === 'percentage') {
+    const displayPercentage = result.percentage === null || result.percentage === undefined
+      ? '—'
+      : result.percentage.toLocaleString() + '%';
+    return (
+      <div className="soc-copilot-result-block">
+        <div className="soc-copilot-result-title">
+          <span>percentage</span>
+          <strong>{displayPercentage}</strong>
+        </div>
+        <div className="soc-copilot-result-rows">
+          <div className="soc-copilot-result-row">
+            <span><em>{result.numerator?.label || 'numerator'}</em><b>{Number(result.numerator?.count || 0).toLocaleString()}</b></span>
+          </div>
+          <div className="soc-copilot-result-row">
+            <span><em>{result.denominator?.label || 'denominator'}</em><b>{Number(result.denominator?.count || 0).toLocaleString()}</b></span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="soc-copilot-result-block">
+      <div className="soc-copilot-result-title">
+        <span>{result.bucket || 'trend'} trend</span>
+        <strong>{result.points?.length || 0} pts</strong>
+      </div>
+      <div className="soc-copilot-result-rows">
+        {(result.points || []).slice(-8).map((point) => (
+          <div className="soc-copilot-result-row" key={point.from}>
+            <span><em>{formatCopilotTime(point.from)}</em><b>{point.count.toLocaleString()}</b></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const CopilotCorrelationBlock: React.FC<{ result: CopilotCorrelationResult }> = ({ result }) => (
+  <div className="soc-copilot-result-block">
+    <div className="soc-copilot-result-title">
+      <span>{result.relationship}</span>
+      <strong>{result.count.toLocaleString()}</strong>
+    </div>
+    <div className="soc-copilot-result-rows">
+      {result.rows.slice(0, 5).map((row, index) => (
+        <div className="soc-copilot-result-row" key={index}>
+          {Object.entries(row).slice(0, 5).map(([key, value]) => (
+            <span key={key}>
+              <em>{key}</em>
+              <b dir="auto">{formatCopilotValue(value)}</b>
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+function formatCopilotTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('fa-IR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
 const CopilotEntityContextBlock: React.FC<{ result: CopilotEntityContextResult }> = ({ result }) => {
   const related = result.relatedEntities || {};
   return (

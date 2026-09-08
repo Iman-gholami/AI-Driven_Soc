@@ -112,6 +112,13 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
               {item.threat.relationship?.latestObservedAt ? ` · last observed ${new Date(item.threat.relationship.latestObservedAt).toLocaleString()}` : ''}
             </Paragraph>}
           </Card>)}
+          {(networkIntel.sources?.threatDataset || networkIntel.sources?.assetDataset) && <Paragraph className="mb-0">
+            <Text type="secondary">
+              Intelligence snapshot
+              {networkIntel.sources?.threatDataset?.sourceFile ? ` · TI: ${networkIntel.sources.threatDataset.sourceFile}` : ''}
+              {networkIntel.sources?.threatDataset?.importedAt ? ` · imported ${new Date(networkIntel.sources.threatDataset.importedAt).toLocaleString()}` : ''}
+            </Text>
+          </Paragraph>}
           {networkCorrelations.length > 0 && <>
             <Divider/>
             <Text strong>Deterministic correlations</Text>

@@ -34,6 +34,7 @@ const alertSchema = new Schema(
     signature: { type: String, default: undefined, trim: true },
     eventType: { type: String, default: undefined, trim: true },
     host: { type: String, default: undefined, trim: true },
+    eventTime: { type: Date, default: undefined },
     rawEvent: { type: Schema.Types.Mixed, required: true },
     ruleMatch: { type: Schema.Types.Mixed, default: undefined },
     aiStatus: {
@@ -70,10 +71,13 @@ const alertSchema = new Schema(
 alertSchema.index({ alertId: 1 }, { unique: true });
 alertSchema.index({ eventHash: 1 }, { unique: true });
 alertSchema.index({ createdAt: -1 });
+alertSchema.index({ eventTime: -1 });
+alertSchema.index({ eventTime: -1, signature: 1 });
 alertSchema.index({ createdAt: -1, signature: 1 });
 alertSchema.index({ status: 1, createdAt: -1 });
 alertSchema.index({ aiStatus: 1, createdAt: -1 });
 alertSchema.index({ severity: 1, createdAt: -1 });
+alertSchema.index({ severity: 1, eventTime: -1 });
 alertSchema.index({ source: 1, createdAt: -1 });
 alertSchema.index({ "ruleMatch.status": 1, createdAt: -1 });
 alertSchema.index({ "analysis.severity": 1 });

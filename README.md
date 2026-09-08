@@ -58,6 +58,7 @@ npm run dev
 ## Environment variables
 
 - `PORT` (default `8000`)
+- `AIR_GAPPED` (default `false`; when `true`, cloud OpenAI calls are blocked and MITRE imports require a local file)
 - `LLM_PROVIDER` (default `openai`; set `local` for an on-prem OpenAI-compatible endpoint)
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (default `gpt-4.1`)
@@ -331,7 +332,7 @@ Incident + detection rule + network intelligence
 Configured LLM provider
 ```
 
-The current development provider can remain OpenAI. Production can switch to an internal OpenAI-compatible model endpoint by setting `LLM_PROVIDER=local`; the analysis context and canonical output contract do not change.
+The current development provider can remain OpenAI. Production can switch to an internal OpenAI-compatible model endpoint by setting `LLM_PROVIDER=local`; the analysis context and canonical output contract do not change. Set `AIR_GAPPED=true` in the isolated environment to prevent accidental cloud-LLM use.
 
 ### Import organizational IPv4 assets
 

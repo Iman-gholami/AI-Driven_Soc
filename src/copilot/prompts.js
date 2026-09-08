@@ -78,6 +78,38 @@ function buildPlannerUserPrompt({ question, history, state, schema, tools, timez
   ].join("\n");
 }
 
+function buildPlannerRepairPrompt({
+  question,
+  history,
+  state,
+  schema,
+  tools,
+  timezone,
+  now,
+  rejectedPlan,
+  validationError,
+}) {
+  return [
+    buildPlannerUserPrompt({
+      question,
+      history,
+      state,
+      schema,
+      tools,
+      timezone,
+      now,
+    }),
+    "",
+    "The previous plan was rejected by the deterministic backend validator.",
+    "Rejected plan:",
+    JSON.stringify(rejectedPlan || {}),
+    "Validation/execution error:",
+    String(validationError || "").slice(0, 2000),
+    "",
+    "Return exactly one corrected JSON plan. Do not repeat the rejected field/operator unless it is explicitly valid in the supplied catalog.",
+  ].join("\n");
+}
+
 function buildAnswerUserPrompt({ question, queryResult }) {
   return [
     "Analyst question:",
@@ -92,5 +124,6 @@ module.exports = {
   PLANNER_SYSTEM_PROMPT,
   ANSWER_SYSTEM_PROMPT,
   buildPlannerUserPrompt,
+  buildPlannerRepairPrompt,
   buildAnswerUserPrompt,
 };

@@ -9,6 +9,7 @@ const { buildDetectionRuleContext } = require('../services/contextBuilder');
 const { getIncidentSignature } = require('../services/ruleResolver');
 const { AlertRepository } = require('../repositories/AlertRepository');
 const { createEventHash } = require('../services/eventHash');
+const { normalizeIpv4 } = require('../services/ipExtractor');
 const {
   createGetAllAlerts,
   toAlertSummary,
@@ -187,6 +188,7 @@ function createRouter({
           analysis: alert.fullAnalysis,
           ruleMatch: alert.ruleMatch,
           detectionRule: await resolveStoredDetectionRuleContext(analyzer, alert),
+          networkIntelligence: alert.soc?.networkIntelligence || null,
           metadata: {
             provider: alert.llmProvider || null,
             model: alert.model || null,
@@ -262,6 +264,7 @@ function createRouter({
         analysis: analyzedResult.analysis,
         ruleMatch: analyzedResult.ruleMatch,
         detectionRule: buildDetectionRuleContext(analyzedResult.ruleResolution),
+        networkIntelligence: analyzedResult.networkIntelligence || null,
         metadata: {
           ...analyzedResult.metadata,
           cached: false,
@@ -302,6 +305,27 @@ function createRouter({
         detail: 'Internal error during alert analysis',
         aiStatus: 'failed',
       });
+    }
+  });
+
+  router.get('/intelligence/ip/:ip', async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const ip = normalizeIpv4(req.params.ip);
+
+    if (!ip) {
+      return res.status(400).json({ detail: 'A valid IPv4 address is required' });
+    }
+
+    try {
+      const data = typeof analyzer.resolveNetworkIntelligence === 'function'
+        ? await analyzer.resolveNetworkIntelligence({ src_ip: ip })
+        : { status: 'unavailable', reason: 'network_intelligence_not_configured', ips: [] };
+
+      req.log.info({ requestId, ip, status: data.status }, 'ip_intelligence_loaded');
+      return successResponse(res, data);
+    } catch (error) {
+      req.log.error({ requestId, ip, err: error }, 'ip_intelligence_failed');
+      return res.status(500).json({ detail: 'Internal error while loading IP intelligence' });
     }
   });
 
@@ -427,7 +451,7 @@ function getAlertSeverity(payload) {
 }
 
 function getRequestedSocFields(query) {
-  const allowed = ['mitreAttack', 'iocs', 'correlation', 'threatIntelligence'];
+  const allowed = ['mitreAttack', 'iocs', 'correlation', 'threatIntelligence', 'networkIntelligence'];
   const fields = new Set();
 
   for (const field of allowed) {

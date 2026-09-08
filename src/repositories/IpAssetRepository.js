@@ -36,12 +36,16 @@ class IpAssetRepository {
     this.stateCache = null;
   }
 
-  async findByIp(ip) {
-    const state = await this.getActiveState();
-    if (!state?.activeImportId) return null;
+  async findByIp(ip, { importId } = {}) {
+    let activeImportId = importId;
+    if (!activeImportId) {
+      const state = await this.getActiveState();
+      activeImportId = state?.activeImportId;
+    }
+    if (!activeImportId) return null;
 
     return this.assetModel
-      .findOne({ importId: state.activeImportId, ip })
+      .findOne({ importId: activeImportId, ip })
       .lean()
       .exec();
   }

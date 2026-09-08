@@ -281,6 +281,7 @@ function coerceFilterValue(type, value) {
     if (Number.isNaN(date.getTime())) throw new Error(`Expected date filter value, got "${value}"`);
     return date;
   }
+  if (type === "mixed") return value;
   return String(value);
 }
 

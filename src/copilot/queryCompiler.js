@@ -35,7 +35,7 @@ function compileSocQuery(plan, {
     const bounds = {};
     if (resolvedTimeRange.from) bounds.$gte = resolvedTimeRange.from;
     if (resolvedTimeRange.to) bounds.$lt = resolvedTimeRange.to;
-    matchClauses.push({ [timeSchema.path]: bounds });
+    matchClauses.push(buildTimeRangeMatch(plan.dataset, timeField, timeSchema, bounds));
   }
 
   matchClauses.push(...buildFilterClauses(preUnwindFilters, dataset));
@@ -63,16 +63,33 @@ function compileSocQuery(plan, {
   }
 
   if (plan.operation === "list") {
-    if (plan.select?.length) {
-      const projection = { _id: 0 };
-      for (const fieldName of plan.select) {
-        projection[getFieldSchema(plan.dataset, fieldName).path] = 1;
-      }
-      pipeline.push({ $project: projection });
+    const usesEventTimeFallback = plan.dataset === "alerts"
+      && (plan.sort || []).some((item) => item.field === "eventTime");
+
+    if (usesEventTimeFallback) {
+      pipeline.push({
+        $set: {
+          __socEventTime: { $ifNull: ["$eventTime", "$createdAt"] },
+        },
+      });
     }
 
     const sort = buildDocumentSort(plan);
     if (Object.keys(sort).length) pipeline.push({ $sort: sort });
+
+    if (plan.select?.length) {
+      const projection = { _id: 0 };
+      for (const fieldName of plan.select) {
+        const metadata = getFieldSchema(plan.dataset, fieldName);
+        if (plan.dataset === "alerts" && fieldName === "eventTime") {
+          projection.eventTime = { $ifNull: ["$eventTime", "$createdAt"] };
+        } else {
+          projection[metadata.path] = 1;
+        }
+      }
+      pipeline.push({ $project: projection });
+    }
+
     pipeline.push({ $limit: Math.min(plan.limit || 20, 100) });
     return { pipeline, resultShape: "rows" };
   }
@@ -375,9 +392,27 @@ function buildDocumentSort(plan) {
   for (const item of plan.sort || []) {
     const metadata = getFieldSchema(plan.dataset, item.field);
     if (!metadata?.sortable) throw new Error(`Invalid sort field: ${item.field}`);
-    sort[metadata.path] = item.direction === "asc" ? 1 : -1;
+    const path = plan.dataset === "alerts" && item.field === "eventTime"
+      ? "__socEventTime"
+      : metadata.path;
+    sort[path] = item.direction === "asc" ? 1 : -1;
   }
   return sort;
+}
+
+function buildTimeRangeMatch(datasetName, timeField, timeSchema, bounds) {
+  if (datasetName === "alerts" && timeField === "eventTime") {
+    const effectiveTime = { $ifNull: ["$eventTime", "$createdAt"] };
+    const clauses = [];
+    if (bounds.$gte) clauses.push({ $gte: [effectiveTime, bounds.$gte] });
+    if (bounds.$lt) clauses.push({ $lt: [effectiveTime, bounds.$lt] });
+    if (bounds.$lte) clauses.push({ $lte: [effectiveTime, bounds.$lte] });
+    return clauses.length === 1
+      ? { $expr: clauses[0] }
+      : { $expr: { $and: clauses } };
+  }
+
+  return { [timeSchema.path]: bounds };
 }
 
 function buildAggregateSort(plan, groupFields, metrics) {
@@ -411,5 +446,6 @@ module.exports = {
   buildFilter,
   buildFilterClauses,
   buildDistinctDocumentCountStages,
+  buildTimeRangeMatch,
   outputFieldName,
 };

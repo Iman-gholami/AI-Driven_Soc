@@ -7,6 +7,7 @@ const MitreTechnique = require("../src/models/MitreTechnique");
 const MitreCoverageSnapshot = require("../src/models/MitreCoverageSnapshot");
 const { connectMongo, disconnectMongo } = require("../src/database/mongo");
 const { createLogger } = require("../src/core/logging");
+const { settings } = require("../src/core/config");
 
 const logger = createLogger(process.env.LOG_LEVEL || "info");
 const MITRE_URL = process.env.MITRE_ATTACK_URL
@@ -17,6 +18,10 @@ async function main() {
   if (!connected) throw new Error("MongoDB connection is required");
 
   const localPath = process.argv[2] || process.env.MITRE_ATTACK_PATH;
+  if (settings.airGapped && !localPath) {
+    throw new Error("MITRE_ATTACK_PATH or a local file argument is required while AIR_GAPPED=true");
+  }
+
   const bundle = localPath
     ? loadLocalBundle(localPath)
     : await downloadBundle(MITRE_URL);

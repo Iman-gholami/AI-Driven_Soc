@@ -1,4 +1,5 @@
 const { describeSocRelationships } = require("./relationshipCatalog");
+const { describeSocConcepts } = require("./semanticConcepts");
 const SOC_SCHEMA_VERSION = 2;
 
 const COMMON_STRING_OPERATORS = ["eq", "neq", "contains", "in", "exists"];
@@ -495,6 +496,7 @@ function describeSocSchema(dataset) {
     version: SOC_SCHEMA_VERSION,
     datasets: Object.values(SOC_SCHEMA_CATALOG).map(describeDataset),
     relationships: describeSocRelationships(),
+    concepts: describeSocConcepts(),
   };
 }
 

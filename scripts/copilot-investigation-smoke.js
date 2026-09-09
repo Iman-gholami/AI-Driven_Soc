@@ -77,6 +77,13 @@ async function main() {
     });
   }
 
+  if (second.result?.analysisAvailable === false) {
+    throw new Error(
+      "Focused investigation selected an alert without persisted analysis; the smoke test requires an analyzed alert: "
+      + JSON.stringify(buildDiagnostic(second)),
+    );
+  }
+
   if (second.tool !== "get_soc_entity_context") {
     throw new Error(`Expected get_soc_entity_context, got ${second.tool || "none"}`);
   }

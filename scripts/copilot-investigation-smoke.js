@@ -18,7 +18,17 @@ async function main() {
   const first = await service.query(firstQuestion);
 
   if (!first?.state?.focus || first.state.focus.entityType !== "alert") {
-    throw new Error("Latest-alert query did not establish an alert focus in conversation state");
+    const diagnostic = {
+      tool: first?.tool || null,
+      queryPlan: first?.queryPlan || null,
+      result: first?.result || null,
+      state: first?.state || null,
+      answer: first?.answer || null,
+    };
+    throw new Error(
+      "Latest-alert query did not establish an alert focus in conversation state: "
+      + JSON.stringify(diagnostic),
+    );
   }
 
   const secondQuestion = "یه تحلیل خلاصه ازش بده؛ بگو از چه IP به چه مقصد و سازمانی بوده، چرا مهمه و چه اقداماتی باید انجام بشه.";

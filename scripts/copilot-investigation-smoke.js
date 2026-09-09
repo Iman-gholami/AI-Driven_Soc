@@ -18,6 +18,7 @@ async function main() {
   const primaryQuestion = "آخرین Alert امروز چی بود؟";
   let selectedQuestion = primaryQuestion;
   let selected = await service.query(primaryQuestion);
+  const firstTodayResult = selected;
   let selectionScope = "today";
 
   if (!hasAlertFocus(selected)) {
@@ -35,15 +36,15 @@ async function main() {
       );
     }
 
-    selectedQuestion = "آخرین Alert موجود چی بود؟";
-    selectionScope = "all_time_fallback";
+    selectedQuestion = "آخرین Alert تحلیل‌شده موجود چی بود؟";
+    selectionScope = "all_time_analyzed_fallback";
     selected = await service.query(selectedQuestion);
 
     if (!hasAlertFocus(selected)) {
       throw new Error(
         "No alert could be selected for investigation. The today query was empty and the all-time fallback also produced no alert focus: "
         + JSON.stringify({
-          today: buildDiagnostic(await service.query(primaryQuestion)),
+          today: buildDiagnostic(firstTodayResult),
           fallback: buildDiagnostic(selected),
         }),
       );
@@ -51,13 +52,30 @@ async function main() {
   }
 
   const secondQuestion = "یه تحلیل خلاصه ازش بده؛ بگو از چه IP به چه مقصد و سازمانی بوده، چرا مهمه و چه اقداماتی باید انجام بشه.";
-  const second = await service.query(secondQuestion, {
-    state: selected.state,
-    history: [
-      { role: "user", content: selectedQuestion },
-      { role: "assistant", content: selected.answer },
-    ],
+  let second = await runFocusedFollowUp(service, {
+    selected,
+    selectedQuestion,
+    secondQuestion,
   });
+
+  if (second.result?.analysisAvailable === false && selectionScope === "today") {
+    selectedQuestion = "آخرین Alert تحلیل‌شده موجود چی بود؟";
+    selectionScope = "all_time_analyzed_fallback";
+    selected = await service.query(selectedQuestion);
+
+    if (!hasAlertFocus(selected)) {
+      throw new Error(
+        "The latest alert today has no persisted analysis and no analyzed alert could be selected for the investigation fallback: "
+        + JSON.stringify(buildDiagnostic(selected)),
+      );
+    }
+
+    second = await runFocusedFollowUp(service, {
+      selected,
+      selectedQuestion,
+      secondQuestion,
+    });
+  }
 
   if (second.tool !== "get_soc_entity_context") {
     throw new Error(`Expected get_soc_entity_context, got ${second.tool || "none"}`);
@@ -105,6 +123,20 @@ async function main() {
   };
 
   process.stdout.write(JSON.stringify(output, null, 2) + "\n");
+}
+
+async function runFocusedFollowUp(service, {
+  selected,
+  selectedQuestion,
+  secondQuestion,
+}) {
+  return service.query(secondQuestion, {
+    state: selected.state,
+    history: [
+      { role: "user", content: selectedQuestion },
+      { role: "assistant", content: selected.answer },
+    ],
+  });
 }
 
 function hasAlertFocus(response) {

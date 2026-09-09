@@ -79,7 +79,8 @@ function compileSocQuery(plan, {
 
     if (plan.select?.length) {
       const projection = { _id: 0 };
-      for (const fieldName of plan.select) {
+      const selectedFields = withIdentityField(plan.dataset, plan.select);
+      for (const fieldName of selectedFields) {
         const metadata = getFieldSchema(plan.dataset, fieldName);
         if (plan.dataset === "alerts" && fieldName === "eventTime") {
           projection.eventTime = { $ifNull: ["$eventTime", "$createdAt"] };
@@ -387,6 +388,22 @@ function outputFieldName(value) {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(text) ? text : safeGroupKey(text);
 }
 
+function identityFieldForDataset(datasetName) {
+  return {
+    alerts: "alertId",
+    detection_rules: "ruleId",
+    ip_assets: "ip",
+    mitre_techniques: "techniqueId",
+  }[String(datasetName || "")] || null;
+}
+
+function withIdentityField(datasetName, selectedFields = []) {
+  const identityField = identityFieldForDataset(datasetName);
+  const fields = [...new Set((selectedFields || []).map((item) => String(item)))];
+  if (identityField && !fields.includes(identityField)) fields.unshift(identityField);
+  return fields;
+}
+
 function buildDocumentSort(plan) {
   const sort = {};
   for (const item of plan.sort || []) {
@@ -447,5 +464,7 @@ module.exports = {
   buildFilterClauses,
   buildDistinctDocumentCountStages,
   buildTimeRangeMatch,
+  identityFieldForDataset,
+  withIdentityField,
   outputFieldName,
 };

@@ -289,7 +289,7 @@ function buildFocusedEntityPlan(question, state) {
 
 function looksLikeFocusedInvestigation(value) {
   const text = String(value || "");
-  return /(?:خلاصه|تحلیل|بررسی|چرا|دلیل|علت|اقدام|چه\s*کار|چیکار|پیشنهاد|توصیه|جزئیات|اطلاعات|مبدا|مبدأ|مقصد|سازمان|تهدید|ریسک|میترا|MITRE|verdict|summary|summarize|analysis|analyze|explain|why|recommend|action|investigat|detail|source|destination|organization|threat|risk)/i.test(text);
+  return /(?:خلاصه|تحلیل|بررسی|چرا|دلیل|علت|اقدام|چه\s*کار|چیکار|پیشنهاد|توصیه|جزئیات|اطلاعات|مبدا|مبدأ|مقصد|سازمان|تهدید|ریسک|میترا|MITRE|IP|ip|آی[‌\s-]?پی|کجاست|مال\s+کدوم|verdict|summary|summarize|analysis|analyze|explain|why|recommend|action|investigat|detail|source|destination|organization|threat|risk)/i.test(text);
 }
 
 function looksQuantitativeOrCrossEntity(value) {
@@ -309,8 +309,15 @@ function resolveExplicitFocusedReference(question, state) {
     return { entityType: "rule", id: related.ruleId };
   }
 
-  if (/(?:این|همین)\s*(?:IP|ip|آی[‌\s-]?پی)/i.test(text) && related.sourceIp) {
-    return { entityType: "ip", id: related.sourceIp };
+  if (/(?:این|همین)\s*(?:IP|ip|آی[‌\s-]?پی)/i.test(text)) {
+    if (/(?:مقصد|destination|dst)/i.test(text) && related.destinationIp) {
+      return { entityType: "ip", id: related.destinationIp };
+    }
+    if (/(?:مبدا|مبدأ|source|src)/i.test(text) && related.sourceIp) {
+      return { entityType: "ip", id: related.sourceIp };
+    }
+    if (related.sourceIp) return { entityType: "ip", id: related.sourceIp };
+    if (related.destinationIp) return { entityType: "ip", id: related.destinationIp };
   }
 
   const techniques = Array.isArray(related.mitreTechniques) ? related.mitreTechniques : [];

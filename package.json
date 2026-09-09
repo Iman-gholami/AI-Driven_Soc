@@ -23,6 +23,7 @@
     "mcp:serve": "node src/mcp/stdio.js",
     "copilot:smoke": "node scripts/copilot-smoke.js",
     "copilot:ask": "node scripts/copilot-ask.js",
+    "copilot:investigation-smoke": "node scripts/copilot-investigation-smoke.js",
     "copilot:backfill-event-time": "node scripts/backfill-alert-event-time.js"
   },
   "dependencies": {

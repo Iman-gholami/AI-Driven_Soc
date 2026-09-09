@@ -46,6 +46,48 @@ class CopilotService {
     const safeHistory = normalizeHistory(history);
     const safeState = normalizeConversationState(state);
 
+    const focusedPlan = buildFocusedEntityPlan(message, safeState);
+    if (focusedPlan) {
+      let focusedResult;
+      try {
+        focusedResult = await this.mcpClient.callTool(focusedPlan.tool, focusedPlan.arguments);
+      } catch (error) {
+        throw new CopilotQueryError("The focused SOC entity context could not be loaded", { cause: error });
+      }
+
+      let focusedAnswer;
+      try {
+        const formatted = await this.llm.completeJson({
+          systemPrompt: ANSWER_SYSTEM_PROMPT,
+          userPrompt: buildAnswerUserPrompt({ question: message, queryResult: focusedResult }),
+          temperature: 0,
+        });
+        focusedAnswer = answerSchema.parse(formatted).answer;
+      } catch (_) {
+        focusedAnswer = fallbackAnswer(focusedResult, message);
+      }
+
+      const nextState = deriveConversationState({
+        previousState: safeState,
+        tool: focusedPlan.tool,
+        result: focusedResult,
+        queryPlan: focusedPlan.arguments,
+      });
+
+      return {
+        supported: true,
+        answer: focusedAnswer,
+        tool: focusedPlan.tool,
+        queryPlan: focusedPlan.arguments,
+        result: focusedResult,
+        metadata: {
+          ...this.buildMetadata(),
+          focusedEntityShortcut: true,
+        },
+        state: nextState,
+      };
+    }
+
     const tools = await this.mcpClient.listTools();
     const schema = await this.mcpClient.callTool("describe_soc_schema", {});
     const currentTime = this.now();
@@ -223,6 +265,62 @@ function isRepairableTool(tool) {
   ].includes(String(tool || ""));
 }
 
+function buildFocusedEntityPlan(question, state) {
+  const normalizedState = normalizeConversationState(state);
+  if (!normalizedState.focus?.entityType || !normalizedState.focus?.id) return null;
+
+  const text = String(question || "").trim();
+  if (!text) return null;
+
+  if (looksQuantitativeOrCrossEntity(text)) return null;
+  if (!looksLikeFocusedInvestigation(text)) return null;
+
+  const entity = resolveExplicitFocusedReference(text, normalizedState) || normalizedState.focus;
+  if (!entity?.entityType || !entity?.id) return null;
+
+  return {
+    tool: "get_soc_entity_context",
+    arguments: {
+      entityType: entity.entityType,
+      id: entity.id,
+    },
+  };
+}
+
+function looksLikeFocusedInvestigation(value) {
+  const text = String(value || "");
+  return /(?:خلاصه|تحلیل|بررسی|چرا|دلیل|علت|اقدام|چه\s*کار|چیکار|پیشنهاد|توصیه|جزئیات|اطلاعات|مبدا|مبدأ|مقصد|سازمان|تهدید|ریسک|میترا|MITRE|verdict|summary|summarize|analysis|analyze|explain|why|recommend|action|investigat|detail|source|destination|organization|threat|risk)/i.test(text);
+}
+
+function looksQuantitativeOrCrossEntity(value) {
+  const text = String(value || "");
+  return /(?:چند|چندتا|تعداد|بیشترین|کمترین|پرتکرار|روند|مقایسه|درصد|لیست|همه\s+(?:alert|الر|هشدار)|count|how\s+many|top|most|least|trend|compare|percentage|list|show\s+all)/i.test(text);
+}
+
+function resolveExplicitFocusedReference(question, state) {
+  const text = String(question || "");
+  const related = state?.relatedEntities || {};
+
+  if (/(?:این|همین)\s*(?:سازمان|organization)/i.test(text) && related.organization) {
+    return { entityType: "organization", id: related.organization };
+  }
+
+  if (/(?:این|همین)\s*(?:rule|رول|قانون)/i.test(text) && related.ruleId) {
+    return { entityType: "rule", id: related.ruleId };
+  }
+
+  if (/(?:این|همین)\s*(?:IP|ip|آی[‌\s-]?پی)/i.test(text) && related.sourceIp) {
+    return { entityType: "ip", id: related.sourceIp };
+  }
+
+  const techniques = Array.isArray(related.mitreTechniques) ? related.mitreTechniques : [];
+  if (/(?:این|همین)\s*(?:MITRE|میترا|تکنیک)/i.test(text) && techniques.length === 1) {
+    return { entityType: "mitre_technique", id: techniques[0] };
+  }
+
+  return null;
+}
+
 function normalizeHistory(history) {
   if (!Array.isArray(history)) return [];
 
@@ -332,6 +430,10 @@ module.exports = {
   CopilotPlannerError,
   CopilotQueryError,
   isRepairableTool,
+  buildFocusedEntityPlan,
+  looksLikeFocusedInvestigation,
+  looksQuantitativeOrCrossEntity,
+  resolveExplicitFocusedReference,
   normalizeHistory,
   isPersianText,
   buildUnsupportedAnswer,

@@ -1094,3 +1094,65 @@ test("focused investigation follow-ups bypass query planning but quantitative fo
     null,
   );
 });
+
+
+test("canonical alert event-time parsing handles ISO, epoch seconds, and createdAt fallback", () => {
+  const { resolveAlertEventTime } = require("../src/services/eventTime");
+
+  assert.equal(
+    resolveAlertEventTime(
+      { _time: "2026-09-09T06:30:00.000Z" },
+      new Date("2026-09-01T00:00:00.000Z"),
+    ).toISOString(),
+    "2026-09-09T06:30:00.000Z",
+  );
+
+  assert.equal(
+    resolveAlertEventTime(
+      { timestamp: 1788935400 },
+      new Date("2026-09-01T00:00:00.000Z"),
+    ).toISOString(),
+    new Date(1788935400 * 1000).toISOString(),
+  );
+
+  assert.equal(
+    resolveAlertEventTime(
+      {},
+      new Date("2026-09-08T12:34:56.000Z"),
+    ).toISOString(),
+    "2026-09-08T12:34:56.000Z",
+  );
+});
+
+test("focused IP references distinguish source and destination endpoints", () => {
+  const { resolveExplicitFocusedReference, buildFocusedEntityPlan } = require("../src/services/copilotService");
+  const state = {
+    focus: { entityType: "alert", id: "alert-1" },
+    relatedEntities: {
+      sourceIp: "151.234.175.98",
+      destinationIp: "10.0.0.190",
+      organization: "سازمان نمونه",
+    },
+  };
+
+  assert.deepEqual(
+    resolveExplicitFocusedReference("این IP مقصد مال کجاست؟", state),
+    { entityType: "ip", id: "10.0.0.190" },
+  );
+
+  assert.deepEqual(
+    resolveExplicitFocusedReference("این IP مبدا چه اطلاعاتی داره؟", state),
+    { entityType: "ip", id: "151.234.175.98" },
+  );
+
+  assert.deepEqual(
+    buildFocusedEntityPlan("این IP مقصد مال کجاست؟", state),
+    {
+      tool: "get_soc_entity_context",
+      arguments: {
+        entityType: "ip",
+        id: "10.0.0.190",
+      },
+    },
+  );
+});

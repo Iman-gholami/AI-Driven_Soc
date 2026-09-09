@@ -929,19 +929,14 @@ test("focused latest alert can be summarized from persisted investigation contex
       }
 
       if (completions.length === 3) {
-        assert.match(request.userPrompt, /alert-latest-1/);
+        assert.match(request.userPrompt, /151\.234\.175\.98/);
+        assert.match(request.userPrompt, /10\.0\.0\.190/);
         return {
-          tool: "get_soc_entity_context",
-          arguments: {
-            entityType: "alert",
-            id: "alert-latest-1",
-          },
+          answer: "این Alert از IP 151.234.175.98 به 10.0.0.190 متعلق به سازمان نمونه بوده، MALICIOUS ارزیابی شده و بررسی و مسدودسازی مبدأ پیشنهاد شده است.",
         };
       }
 
-      return {
-        answer: "این Alert از IP 151.234.175.98 به 10.0.0.190 متعلق به سازمان نمونه بوده، MALICIOUS ارزیابی شده و بررسی و مسدودسازی مبدأ پیشنهاد شده است.",
-      };
+      throw new Error("unexpected extra LLM completion");
     },
   };
 
@@ -1039,10 +1034,63 @@ test("focused latest alert can be summarized from persisted investigation contex
   });
 
   assert.equal(second.tool, "get_soc_entity_context");
+  assert.equal(second.metadata.focusedEntityShortcut, true);
   assert.equal(second.result.analysis.verdict, "MALICIOUS");
   assert.equal(second.result.relatedEntities.organization, "سازمان نمونه");
   assert.match(second.answer, /151\.234\.175\.98/);
   assert.match(second.answer, /10\.0\.0\.190/);
   assert.match(second.answer, /سازمان نمونه/);
   assert.equal(mcpCalls.length, 2);
+  assert.equal(completions.length, 3);
+});
+
+
+test("Copilot list projections always preserve entity identity", () => {
+  const plan = socQueryPlanSchema.parse({
+    dataset: "alerts",
+    operation: "list",
+    timeRange: { type: "today" },
+    select: ["signature", "eventTime"],
+    sort: [{ field: "eventTime", direction: "desc" }],
+    limit: 1,
+  });
+
+  const from = new Date("2026-09-08T00:00:00.000Z");
+  const to = new Date("2026-09-08T12:00:00.000Z");
+  const compiled = compileSocQuery(plan, {
+    resolvedTimeRange: { from, to, timezone: "Asia/Tehran", label: "today" },
+  });
+
+  const project = compiled.pipeline.find((stage) => stage.$project)?.$project;
+  assert.equal(project.alertId, 1);
+  assert.equal(project.signature, 1);
+  assert.deepEqual(project.eventTime, { $ifNull: ["$eventTime", "$createdAt"] });
+});
+
+test("focused investigation follow-ups bypass query planning but quantitative follow-ups do not", () => {
+  const {
+    buildFocusedEntityPlan,
+  } = require("../src/services/copilotService");
+
+  const state = {
+    focus: { entityType: "alert", id: "alert-1" },
+    relatedEntities: {
+      sourceIp: "151.234.175.98",
+      destinationIp: "10.0.0.190",
+      organization: "سازمان نمونه",
+    },
+  };
+
+  assert.deepEqual(
+    buildFocusedEntityPlan("یه تحلیل خلاصه ازش بده و بگو چه کاری باید انجام بشه", state),
+    {
+      tool: "get_soc_entity_context",
+      arguments: { entityType: "alert", id: "alert-1" },
+    },
+  );
+
+  assert.equal(
+    buildFocusedEntityPlan("از اینا چندتا High بودن؟", state),
+    null,
+  );
 });

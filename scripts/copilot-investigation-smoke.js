@@ -14,29 +14,48 @@ async function main() {
   }
 
   const service = new CopilotService();
-  const firstQuestion = "آخرین Alert امروز چی بود؟";
-  const first = await service.query(firstQuestion);
 
-  if (!first?.state?.focus || first.state.focus.entityType !== "alert") {
-    const diagnostic = {
-      tool: first?.tool || null,
-      queryPlan: first?.queryPlan || null,
-      result: first?.result || null,
-      state: first?.state || null,
-      answer: first?.answer || null,
-    };
-    throw new Error(
-      "Latest-alert query did not establish an alert focus in conversation state: "
-      + JSON.stringify(diagnostic),
-    );
+  const primaryQuestion = "آخرین Alert امروز چی بود؟";
+  let selectedQuestion = primaryQuestion;
+  let selected = await service.query(primaryQuestion);
+  let selectionScope = "today";
+
+  if (!hasAlertFocus(selected)) {
+    const primaryRows = selected?.result?.data?.rows;
+    const primaryIsEmptyAlertList = selected?.tool === "query_soc_data"
+      && selected?.result?.dataset === "alerts"
+      && selected?.result?.operation === "list"
+      && Array.isArray(primaryRows)
+      && primaryRows.length === 0;
+
+    if (!primaryIsEmptyAlertList) {
+      throw new Error(
+        "Latest-alert query failed before focus resolution: "
+        + JSON.stringify(buildDiagnostic(selected)),
+      );
+    }
+
+    selectedQuestion = "آخرین Alert موجود چی بود؟";
+    selectionScope = "all_time_fallback";
+    selected = await service.query(selectedQuestion);
+
+    if (!hasAlertFocus(selected)) {
+      throw new Error(
+        "No alert could be selected for investigation. The today query was empty and the all-time fallback also produced no alert focus: "
+        + JSON.stringify({
+          today: buildDiagnostic(await service.query(primaryQuestion)),
+          fallback: buildDiagnostic(selected),
+        }),
+      );
+    }
   }
 
   const secondQuestion = "یه تحلیل خلاصه ازش بده؛ بگو از چه IP به چه مقصد و سازمانی بوده، چرا مهمه و چه اقداماتی باید انجام بشه.";
   const second = await service.query(secondQuestion, {
-    state: first.state,
+    state: selected.state,
     history: [
-      { role: "user", content: firstQuestion },
-      { role: "assistant", content: first.answer },
+      { role: "user", content: selectedQuestion },
+      { role: "assistant", content: selected.answer },
     ],
   });
 
@@ -51,10 +70,15 @@ async function main() {
   const result = second.result;
   const output = {
     success: true,
+    selection: {
+      requestedScope: "today",
+      usedScope: selectionScope,
+      fellBack: selectionScope !== "today",
+    },
     firstTurn: {
-      question: firstQuestion,
-      answer: first.answer,
-      focus: first.state.focus,
+      question: selectedQuestion,
+      answer: selected.answer,
+      focus: selected.state.focus,
     },
     followUp: {
       question: secondQuestion,
@@ -81,6 +105,24 @@ async function main() {
   };
 
   process.stdout.write(JSON.stringify(output, null, 2) + "\n");
+}
+
+function hasAlertFocus(response) {
+  return Boolean(
+    response?.state?.focus
+    && response.state.focus.entityType === "alert"
+    && response.state.focus.id,
+  );
+}
+
+function buildDiagnostic(response) {
+  return {
+    tool: response?.tool || null,
+    queryPlan: response?.queryPlan || null,
+    result: response?.result || null,
+    state: response?.state || null,
+    answer: response?.answer || null,
+  };
 }
 
 main()

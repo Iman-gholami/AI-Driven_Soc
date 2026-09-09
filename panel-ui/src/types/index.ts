@@ -77,6 +77,7 @@ export interface Alert {
   aiStatus: 'not_analyzed' | 'analyzing' | 'analyzed' | 'failed';
   aiEligibility: { eligible: boolean; scenario: string | null; reason: string | null };
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info' | 'unknown';
+  eventTime?: string;
   createdAt: string;
   updatedAt: string;
   eventHash: string;

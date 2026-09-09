@@ -182,13 +182,15 @@ class SocEntityContextService {
         .exec(),
     ]);
 
+    const alertEndpoints = recentAlerts.flatMap((alert) =>
+      (Array.isArray(alert.soc?.networkIntelligence?.ips) ? alert.soc.networkIntelligence.ips : [])
+        .filter((item) => item.ip === ip),
+    );
+    const latestEndpoint = alertEndpoints[0] || null;
+
     const organizations = uniqueStrings([
       asset?.bunit,
-      ...recentAlerts.flatMap((alert) =>
-        (Array.isArray(alert.soc?.networkIntelligence?.ips) ? alert.soc.networkIntelligence.ips : [])
-          .filter((item) => item.ip === ip)
-          .map((item) => item.asset?.organization),
-      ),
+      ...alertEndpoints.map((item) => item.asset?.organization),
     ]);
 
     return {
@@ -203,6 +205,7 @@ class SocEntityContextService {
             province: asset.province || null,
           }
         : { owned: false },
+      networkIntelligence: summarizeEndpoint(latestEndpoint),
       threatIntelligence: {
         directObservationCount: Number(directCount || 0),
         relationshipObservationCount: Number(relationshipCount || 0),

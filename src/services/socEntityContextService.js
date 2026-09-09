@@ -75,6 +75,7 @@ class SocEntityContextService {
       ...arrayify(alert.fullAnalysis?.analyst_decision?.recommended_actions),
       ...arrayify(alert.fullAnalysis?.analyst_decision?.actions),
       ...arrayify(alert.fullAnalysis?.analyst_decision?.next_steps),
+      ...arrayify(alert.fullAnalysis?.analyst_decision?.action),
       ...arrayify(alert.analysis?.at?.(-1)?.recommendations),
     ]).slice(0, 20);
 
@@ -119,6 +120,7 @@ class SocEntityContextService {
       source: summarizeEndpoint(sourceEndpoint),
       destination: summarizeEndpoint(destinationEndpoint),
       analysis,
+      analysisAvailable: Boolean(alert.fullAnalysis && typeof alert.fullAnalysis === "object"),
       relationshipAnalysis: relationship,
       mitre: alert.soc?.mitreAttack || alert.fullAnalysis?.attack_mapping || [],
       iocs: Array.isArray(alert.soc?.iocs) ? alert.soc.iocs.slice(0, 30) : [],
@@ -126,7 +128,7 @@ class SocEntityContextService {
       recommendedActions,
       relatedEntities: sanitizeRelatedEntities(relatedEntities),
       evidencePolicy: {
-        persistedAnalysis: true,
+        persistedAnalysis: Boolean(alert.fullAnalysis && typeof alert.fullAnalysis === "object"),
         deterministicNetworkIntelligence: Boolean(alert.soc?.networkIntelligence),
         rawPayloadIncluded: false,
       },

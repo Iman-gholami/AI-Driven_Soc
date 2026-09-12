@@ -128,7 +128,88 @@ export const api = {
     });
     return response.data.data;
   },
+
+  streamThreatHunt: async ({
+    goal,
+    maxSteps = 6,
+    signal,
+    onEvent,
+  }: {
+    goal: string;
+    maxSteps?: number;
+    signal?: AbortSignal;
+    onEvent: (event: any) => void;
+  }): Promise<void> => {
+    const token = localStorage.getItem('access_token');
+    const response = await fetch(buildApiUrl('/hunting/stream'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ goal, maxSteps }),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Threat hunt request failed (${response.status})`);
+    }
+    if (!response.body) throw new Error('Threat hunt stream is unavailable');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const text = line.trim();
+        if (!text) continue;
+        onEvent(JSON.parse(text));
+      }
+      if (done) break;
+    }
+
+    if (buffer.trim()) onEvent(JSON.parse(buffer.trim()));
+  },
+
+  generateDetectionProposal: async ({
+    goal,
+    report,
+    days = 30,
+  }: {
+    goal: string;
+    report: any;
+    days?: number;
+  }): Promise<any> => {
+    const response = await apiClient.post<ApiResponse<any>>('/hunting/detection-proposal', {
+      goal,
+      report,
+      days,
+    });
+    return response.data.data;
+  },
+
+  getBehaviorAnomalies: async (params: {
+    dimension?: 'signature' | 'host' | 'source' | 'rule';
+    hours?: number;
+    baselineDays?: number;
+    limit?: number;
+  } = {}): Promise<any> => {
+    const response = await apiClient.get<ApiResponse<any>>('/hunting/behavior/anomalies', {
+      params: cleanParams(params),
+    });
+    return response.data.data;
+  },
 };
+
+function buildApiUrl(path: string): string {
+  const base = String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  return `${base}${path}`;
+}
 
 function cleanParams<T extends Record<string, any>>(params: T): Partial<T> {
   return Object.fromEntries(

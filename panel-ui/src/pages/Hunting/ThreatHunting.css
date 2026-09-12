@@ -1,0 +1,396 @@
+.hunt-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hunt-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hunt-heading h2 {
+  margin: 5px 0 3px !important;
+}
+
+.hunt-eyebrow {
+  color: var(--panel-primary);
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .13em;
+}
+
+.hunt-status {
+  min-width: 96px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel-surface-soft);
+  color: var(--panel-muted);
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .09em;
+}
+
+.hunt-status span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--panel-muted);
+}
+
+.hunt-status.is-running {
+  color: var(--panel-cyan);
+  border-color: color-mix(in srgb, var(--panel-cyan) 35%, var(--panel-border));
+  background: var(--panel-cyan-soft);
+}
+
+.hunt-status.is-running span {
+  background: var(--panel-cyan);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--panel-cyan) 12%, transparent);
+  animation: huntPulse 1.2s ease-in-out infinite;
+}
+
+.hunt-status.is-complete {
+  color: var(--panel-success);
+  border-color: color-mix(in srgb, var(--panel-success) 32%, var(--panel-border));
+  background: var(--panel-success-soft);
+}
+
+.hunt-status.is-complete span { background: var(--panel-success); }
+.hunt-status.is-failed { color: var(--panel-danger); border-color: color-mix(in srgb, var(--panel-danger) 32%, var(--panel-border)); }
+.hunt-status.is-failed span { background: var(--panel-danger); }
+
+.hunt-command-card {
+  border-color: color-mix(in srgb, var(--panel-primary) 22%, var(--panel-border));
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--panel-primary) 6%, transparent), transparent 42%),
+    var(--panel-surface);
+}
+
+.hunt-command-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.hunt-command-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--panel-primary);
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .1em;
+}
+
+.hunt-command-actions {
+  min-width: 165px;
+  display: grid;
+  gap: 8px;
+}
+
+.hunt-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.hunt-suggestions button {
+  max-width: 360px;
+  padding: 6px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-surface-soft);
+  color: var(--panel-muted);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1.55;
+  text-align: start;
+  transition: .16s ease;
+}
+
+.hunt-suggestions button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--panel-primary) 38%, var(--panel-border));
+  color: var(--panel-text);
+  background: var(--panel-primary-soft);
+}
+
+.hunt-agent-card,
+.hunt-report-card,
+.hunt-feature-card {
+  height: 100%;
+}
+
+.hunt-agent-card .ant-card-head-title,
+.hunt-report-card .ant-card-head-title,
+.hunt-feature-card .ant-card-head-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hunt-timeline {
+  margin-top: 8px;
+}
+
+.hunt-event {
+  padding: 9px 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel-surface-soft);
+}
+
+.hunt-event.is-muted {
+  color: var(--panel-muted);
+  background: transparent;
+}
+
+.hunt-event.is-success {
+  border-color: color-mix(in srgb, var(--panel-success) 24%, var(--panel-border));
+}
+
+.hunt-event.is-error {
+  border-color: color-mix(in srgb, var(--panel-danger) 28%, var(--panel-border));
+  background: var(--panel-danger-soft);
+}
+
+.hunt-event-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hunt-event-head > span:last-child {
+  margin-left: auto;
+  color: var(--panel-muted);
+  font-size: 9px;
+}
+
+.hunt-event p {
+  margin: 7px 0 0;
+  color: var(--panel-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.hunt-tool-call {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-primary) 7%, transparent);
+  color: var(--panel-primary);
+  font: 650 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.hunt-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed color-mix(in srgb, var(--panel-primary) 35%, var(--panel-border));
+  border-radius: 9px;
+  background: var(--panel-primary-soft);
+  color: var(--panel-muted);
+  font-size: 11px;
+}
+
+.hunt-report-empty {
+  min-height: 300px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--panel-muted);
+}
+
+.hunt-report-empty > .anticon {
+  font-size: 34px;
+  color: var(--panel-primary);
+  opacity: .65;
+}
+
+.hunt-report-empty strong { color: var(--panel-text); }
+.hunt-report-empty span { max-width: 330px; font-size: 10px; line-height: 1.6; }
+
+.hunt-verdict-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.hunt-verdict-row > div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.hunt-verdict-row strong { font-size: 22px; }
+.hunt-verdict-row span { color: var(--panel-muted); font-size: 9px; }
+.hunt-summary { margin: 14px 0 !important; line-height: 1.7; }
+
+.hunt-findings {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.hunt-finding {
+  padding: 11px;
+  border: 1px solid var(--panel-border);
+  border-left-width: 3px;
+  border-radius: 9px;
+  background: var(--panel-surface-soft);
+}
+
+.hunt-finding.severity-critical,
+.hunt-finding.severity-high { border-left-color: var(--panel-danger); }
+.hunt-finding.severity-medium { border-left-color: var(--panel-warning); }
+.hunt-finding.severity-low { border-left-color: var(--panel-primary); }
+.hunt-finding.severity-info { border-left-color: var(--panel-cyan); }
+
+.hunt-finding-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hunt-finding p {
+  margin: 8px 0;
+  color: var(--panel-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.hunt-evidence-refs,
+.hunt-entities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.hunt-evidence-refs span {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--panel-success-soft);
+  color: var(--panel-success);
+  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.hunt-entities { margin-top: 8px; }
+
+.hunt-report-list {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.hunt-report-list ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--panel-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.hunt-limitations {
+  display: flex;
+  gap: 9px;
+  margin: 14px 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--panel-warning-soft);
+  color: var(--panel-warning);
+}
+
+.hunt-limitations > div {
+  display: grid;
+  gap: 4px;
+}
+
+.hunt-limitations span { font-size: 10px; line-height: 1.5; }
+
+.hunt-json {
+  max-height: 340px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel-bg) 70%, transparent);
+  color: var(--panel-text);
+  font: 9px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detection-result,
+.behavior-result {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.detection-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detection-title > div {
+  display: grid;
+  gap: 4px;
+}
+
+.detection-title span {
+  color: var(--panel-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.detection-filters {
+  display: grid;
+  gap: 6px;
+}
+
+.detection-filters code {
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-surface-soft);
+  color: var(--panel-cyan);
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+
+.behavior-note { margin-bottom: 2px; }
+
+@keyframes huntPulse {
+  0%, 100% { transform: scale(1); opacity: .75; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
+
+@media (max-width: 900px) {
+  .hunt-heading { flex-direction: column; }
+  .hunt-command-grid { grid-template-columns: 1fr; }
+  .hunt-command-actions { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 560px) {
+  .hunt-command-actions { grid-template-columns: 1fr; }
+  .hunt-suggestions button { max-width: none; width: 100%; }
+}

@@ -7,6 +7,7 @@ var cors = require('cors');
 const { settings } = require("./core/config");
 const { createLogger } = require("./core/logging");
 const { router } = require("./api/routes");
+const { createHuntingRouter } = require("./api/huntingRoutes");
 const { connectMongo, disconnectMongo } = require("./database/mongo");
 
 const logger = createLogger(settings.logLevel);
@@ -30,6 +31,7 @@ app.get("/panel/*", (req, res, next) => {
 });
 app.get("/", (_req, res) => res.redirect("/panel/"));
 app.use(router);
+app.use(createHuntingRouter());
 
 connectMongo(logger).catch((error) => {
   logger.error({ err: error }, "MongoDB initialization failed; continuing without alert persistence");

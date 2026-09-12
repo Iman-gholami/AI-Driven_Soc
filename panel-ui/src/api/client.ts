@@ -128,6 +128,29 @@ export const api = {
     });
     return response.data.data;
   },
+
+  getAiEvaluation: async (days = 30): Promise<any> => {
+    const response = await apiClient.get<ApiResponse<any>>('/workbench/ai-evaluation', { params: { days } });
+    return response.data.data;
+  },
+
+  getRuleInsights: async (ruleId: string, days = 30): Promise<any> => {
+    const response = await apiClient.get<ApiResponse<any>>(
+      `/workbench/rules/${encodeURIComponent(ruleId)}/insights`,
+      { params: { days } },
+    );
+    return response.data.data;
+  },
+
+  getEntityContext: async (
+    entityType: 'alert' | 'ip' | 'organization' | 'rule' | 'mitre_technique',
+    id: string,
+  ): Promise<any> => {
+    const response = await apiClient.get<ApiResponse<any>>(
+      `/workbench/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(id)}/context`,
+    );
+    return response.data.data;
+  },
 };
 
 function cleanParams<T extends Record<string, any>>(params: T): Partial<T> {

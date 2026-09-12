@@ -8,6 +8,7 @@ import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Alerts from './pages/Alerts/Alerts';
 import MitreCoverage from './pages/MitreCoverage/MitreCoverage';
+import SecurityAnalytics from './pages/Analytics/SecurityAnalytics';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,7 +69,7 @@ function AppContent() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="alerts" element={<Alerts />} />
             <Route path="mitre-coverage" element={<MitreCoverage />} />
-            <Route path="analytics" element={<PlaceholderPage eyebrow="ANALYTICS" title="Security Analytics" description="Advanced trend analysis and reporting will live here. The current dashboard continues to show production-backed operational metrics." />} />
+            <Route path="analytics" element={<SecurityAnalytics />} />
             <Route path="settings" element={<PlaceholderPage eyebrow="SYSTEM" title="Settings" description="Panel and integration settings are not exposed in V1 yet. Existing runtime configuration remains server-managed." />} />
           </Route>
         </Routes>

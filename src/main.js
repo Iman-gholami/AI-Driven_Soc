@@ -7,6 +7,7 @@ var cors = require('cors');
 const { settings } = require("./core/config");
 const { createLogger } = require("./core/logging");
 const { router } = require("./api/routes");
+const { createWorkbenchRouter } = require("./api/workbenchRoutes");
 const { connectMongo, disconnectMongo } = require("./database/mongo");
 
 const logger = createLogger(settings.logLevel);
@@ -29,6 +30,7 @@ app.get("/panel/*", (req, res, next) => {
   return res.sendFile(path.join(__dirname, "../panel-ui/dist/index.html"));
 });
 app.get("/", (_req, res) => res.redirect("/panel/"));
+app.use(createWorkbenchRouter());
 app.use(router);
 
 connectMongo(logger).catch((error) => {

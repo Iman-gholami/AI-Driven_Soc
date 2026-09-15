@@ -44,6 +44,13 @@ function classifyFindingV5(value) {
       cwe: null,
     },
     {
+      pattern: /(?:سرویس\s+پرخطر|سرویس\s+آسیب\s*پذیر|عدم\s+مدیریت).*rpc|\brpc\b.*(?:در\s+معرض\s+اینترنت|exposed|پرخطر)/,
+      type: "exposed_rpc",
+      name: "Exposed RPC Service",
+      category: "exposed_service",
+      cwe: null,
+    },
+    {
       pattern: /دسترسی\s+(?:نامجاز\s+و\s+)?بدون\s+احراز\s+هویت|unauthenticated\s+(?:file\s+)?access/,
       type: "unauthenticated_file_access",
       name: "Unauthenticated File Access",
@@ -76,13 +83,6 @@ function classifyFindingV5(value) {
       type: "vulnerable_ntlm",
       name: "Vulnerable NTLM",
       category: "authentication_protocol",
-      cwe: null,
-    },
-    {
-      pattern: /(?:سرویس\s+پرخطر|سرویس\s+آسیب\s*پذیر|عدم\s+مدیریت).*rpc|\brpc\b.*(?:در\s+معرض\s+اینترنت|exposed|پرخطر)/,
-      type: "exposed_rpc",
-      name: "Exposed RPC Service",
-      category: "exposed_service",
       cwe: null,
     },
     {

@@ -7,11 +7,13 @@ var cors = require('cors');
 const { settings } = require("./core/config");
 const { createLogger } = require("./core/logging");
 const { createReportRouter } = require("./api/reportRoutes");
-const { router } = require("./api/routes");
+const { createRouter } = require("./api/routes");
+const { UnifiedCopilotService } = require("./services/unifiedCopilotService");
 const { connectMongo, disconnectMongo } = require("./database/mongo");
 
 const logger = createLogger(settings.logLevel);
 const app = express();
+const router = createRouter({ copilot: new UnifiedCopilotService() });
 
 app.use(cors());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

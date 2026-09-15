@@ -19,6 +19,8 @@ import type {
   ReportImportResult,
   ReportImportScan,
   ReportStats,
+  ReportUploadCommitResult,
+  ReportUploadPreviewSession,
 } from '../types/reports';
 
 const apiClient = axios.create({
@@ -166,6 +168,37 @@ export const api = {
 
   importHistoricalReports: async (year: number, dryRun = false): Promise<ReportImportResult> => {
     const response = await apiClient.post<ApiResponse<ReportImportResult>>('/reports/import', { year, dryRun });
+    return response.data.data;
+  },
+
+  previewHistoricalReportUpload: async (year: number, files: File[]): Promise<ReportUploadPreviewSession> => {
+    const formData = new FormData();
+    formData.append('year', String(year));
+    files.forEach((file) => formData.append('reports', file, file.name));
+    const response = await apiClient.post<ApiResponse<ReportUploadPreviewSession>>(
+      '/reports/import/upload/preview',
+      formData,
+      { timeout: 120000 },
+    );
+    return response.data.data;
+  },
+
+  commitHistoricalReportUpload: async (
+    sessionToken: string,
+    selectedIds: string[],
+  ): Promise<ReportUploadCommitResult> => {
+    const response = await apiClient.post<ApiResponse<ReportUploadCommitResult>>(
+      '/reports/import/upload/commit',
+      { sessionToken, selectedIds },
+      { timeout: 120000 },
+    );
+    return response.data.data;
+  },
+
+  cancelHistoricalReportUpload: async (sessionToken: string): Promise<{ cancelled: boolean; sessionToken: string }> => {
+    const response = await apiClient.delete<ApiResponse<{ cancelled: boolean; sessionToken: string }>>(
+      `/reports/import/upload/${encodeURIComponent(sessionToken)}`,
+    );
     return response.data.data;
   },
 

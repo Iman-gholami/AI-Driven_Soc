@@ -143,6 +143,67 @@ function updateQualitySummary(quality, parsed, relativePath) {
 }
 
 function toPreview(parsed, relativePath) {
+  const normalizedRecord = {
+    reportNumber: parsed.reportNumber || null,
+    reportDateRaw: parsed.reportDateRaw || null,
+    year: parsed.year ?? null,
+    month: parsed.month ?? null,
+    day: parsed.day ?? null,
+    title: parsed.title || null,
+    reportType: parsed.reportType || "other",
+    provider: parsed.provider || null,
+    contact: parsed.contact || null,
+    effect: parsed.effect || null,
+    target: {
+      organization: parsed.target?.organization || null,
+      ip: parsed.target?.ip || null,
+      rawIp: parsed.target?.rawIp || null,
+    },
+    severity: {
+      raw: parsed.severity?.raw || null,
+      score: parsed.severity?.score ?? null,
+      level: parsed.severity?.level || "unknown",
+    },
+    urgency: {
+      raw: parsed.urgency?.raw || null,
+      normalized: parsed.urgency?.normalized || "unknown",
+    },
+    finding: {
+      type: parsed.finding?.type || "unknown",
+      name: parsed.finding?.name || null,
+      category: parsed.finding?.category || "unknown",
+      cwe: parsed.finding?.cwe || null,
+    },
+    vulnerability: {
+      name: parsed.vulnerability?.name || null,
+      normalizedName: parsed.vulnerability?.normalizedName || "unknown",
+      category: parsed.vulnerability?.category || "unknown",
+      cwe: parsed.vulnerability?.cwe || null,
+    },
+    cves: Array.isArray(parsed.cves) ? parsed.cves : [],
+    affectedCves: Array.isArray(parsed.affectedCves) ? parsed.affectedCves : [],
+    description: parsed.description || "",
+    conclusion: parsed.conclusion || "",
+    recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+    affectedSystems: Array.isArray(parsed.affectedSystems) ? parsed.affectedSystems : [],
+    phishingInfrastructure: Array.isArray(parsed.phishingInfrastructure) ? parsed.phishingInfrastructure : [],
+    indicators: Array.isArray(parsed.indicators) ? parsed.indicators : [],
+    source: {
+      filename: parsed.source?.filename || path.basename(relativePath),
+      relativePath,
+      sha256: parsed.source?.sha256 || null,
+      sizeBytes: parsed.source?.sizeBytes ?? 0,
+    },
+    extraction: {
+      parserVersion: parsed.extraction?.parserVersion || null,
+      paragraphCount: parsed.extraction?.paragraphCount ?? 0,
+      tableCount: parsed.extraction?.tableCount ?? 0,
+      warnings: Array.isArray(parsed.extraction?.warnings) ? parsed.extraction.warnings : [],
+      organizationMismatch: Boolean(parsed.extraction?.organizationMismatch),
+      ipMismatch: Boolean(parsed.extraction?.ipMismatch),
+    },
+  };
+
   return {
     file: relativePath,
     title: parsed.title || null,
@@ -160,33 +221,30 @@ function toPreview(parsed, relativePath) {
     finding: parsed.finding?.type || "unknown",
     findingName: parsed.finding?.name || null,
     vulnerability: parsed.vulnerability?.normalizedName || "unknown",
-    cves: Array.isArray(parsed.cves) ? parsed.cves : [],
-    affectedSystems: Array.isArray(parsed.affectedSystems) ? parsed.affectedSystems.length : 0,
-    affectedSystemPreview: Array.isArray(parsed.affectedSystems)
-      ? parsed.affectedSystems.slice(0, 5).map((item) => ({
-        organization: item.organization || null,
-        ip: item.ip || null,
-        domain: item.domain || null,
-        url: item.url || null,
-        service: item.service || null,
-        port: item.port ?? null,
-        packetCount: item.packetCount ?? null,
-        participantIpCount: item.participantIpCount ?? null,
-        trafficVolume: item.trafficVolumeRaw || null,
-        eventDate: item.eventDateRaw || null,
-        timeRange: item.timeRange || null,
-        softwareVersion: item.softwareVersion || null,
-        cves: Array.isArray(item.cves) ? item.cves : [],
-      }))
-      : [],
-    phishingInfrastructure: Array.isArray(parsed.phishingInfrastructure)
-      ? parsed.phishingInfrastructure.slice(0, 5)
-      : [],
-    recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.length : 0,
-    recommendationPreview: Array.isArray(parsed.recommendations) ? parsed.recommendations.slice(0, 5) : [],
-    descriptionPreview: compactPreviewText(parsed.description, 900),
-    conclusionPreview: compactPreviewText(parsed.conclusion, 500),
-    warnings: parsed.extraction?.warnings || [],
+    cves: normalizedRecord.cves,
+    affectedSystems: normalizedRecord.affectedSystems.length,
+    affectedSystemPreview: normalizedRecord.affectedSystems.slice(0, 5).map((item) => ({
+      organization: item.organization || null,
+      ip: item.ip || null,
+      domain: item.domain || null,
+      url: item.url || null,
+      service: item.service || null,
+      port: item.port ?? null,
+      packetCount: item.packetCount ?? null,
+      participantIpCount: item.participantIpCount ?? null,
+      trafficVolume: item.trafficVolumeRaw || null,
+      eventDate: item.eventDateRaw || null,
+      timeRange: item.timeRange || null,
+      softwareVersion: item.softwareVersion || null,
+      cves: Array.isArray(item.cves) ? item.cves : [],
+    })),
+    phishingInfrastructure: normalizedRecord.phishingInfrastructure.slice(0, 5),
+    recommendations: normalizedRecord.recommendations.length,
+    recommendationPreview: normalizedRecord.recommendations.slice(0, 5),
+    descriptionPreview: compactPreviewText(normalizedRecord.description, 900),
+    conclusionPreview: compactPreviewText(normalizedRecord.conclusion, 500),
+    warnings: normalizedRecord.extraction.warnings,
+    record: normalizedRecord,
   };
 }
 

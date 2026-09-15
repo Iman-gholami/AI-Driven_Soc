@@ -102,6 +102,21 @@ export interface ReportImportScan {
   }>;
 }
 
+export interface ReportImportPreview {
+  file: string;
+  reportNumber?: string | null;
+  date?: string | null;
+  organization?: string | null;
+  ip?: string | null;
+  severityScore?: number | null;
+  severityLevel: string;
+  urgency: string;
+  vulnerability: string;
+  affectedSystems: number;
+  recommendations: number;
+  warnings: string[];
+}
+
 export interface ReportImportResult {
   year: number;
   discovered: number;
@@ -111,6 +126,7 @@ export interface ReportImportResult {
   skipped: number;
   failed: number;
   dryRun: boolean;
+  previews: ReportImportPreview[];
   errors: Array<{ file: string; error: string }>;
 }
 

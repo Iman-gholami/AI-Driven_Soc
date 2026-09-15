@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  AutoComplete,
   Button,
   Card,
   Col,
@@ -191,6 +192,19 @@ const Reports: React.FC = () => {
     return `سال ${year}`;
   }, [filters.day, filters.month, year]);
 
+  const organizationOptions = useMemo(
+    () => (stats?.topOrganizations || []).map((item) => ({
+      value: item.organization,
+      label: (
+        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span>{item.organization}</span>
+          <Text type="secondary">{item.count} گزارش</Text>
+        </span>
+      ),
+    })),
+    [stats?.topOrganizations],
+  );
+
   const dashboard = useMemo(() => {
     if (!stats) return null;
     const activeMonths = stats.byMonth
@@ -321,7 +335,17 @@ const Reports: React.FC = () => {
           options={['immediate', 'action_required', 'informational', 'unknown'].map((value) => ({ value, label: value }))}
           style={{ width: 150 }}
         />
-        <Input allowClear placeholder="Organization" value={String(filters.organization || '')} onChange={(event) => setFilter('organization', event.target.value)} style={{ width: 210 }} />
+        <AutoComplete
+          allowClear
+          value={String(filters.organization || '')}
+          options={organizationOptions}
+          placeholder="سازمان؛ مثلاً دانشگاه علوم"
+          onChange={(value) => setFilter('organization', value)}
+          onSelect={(value) => setFilter('organization', value)}
+          filterOption={false}
+          notFoundContent={filters.organization && !statsQuery.isFetching ? 'سازمانی پیدا نشد' : null}
+          style={{ width: 270 }}
+        />
         <Input allowClear placeholder="Finding type e.g. xss" value={String(filters.finding || '')} onChange={(event) => setFilter('finding', event.target.value)} style={{ width: 180 }} />
         <Input allowClear placeholder="IP" value={String(filters.ip || '')} onChange={(event) => setFilter('ip', event.target.value)} style={{ width: 150 }} />
         <Input allowClear placeholder="Port" value={String(filters.port || '')} onChange={(event) => setFilter('port', event.target.value)} style={{ width: 90 }} />

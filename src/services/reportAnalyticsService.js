@@ -14,10 +14,16 @@ class ReportAnalyticsService {
     ]).exec();
   }
 
-  async getStats(yearInput) {
-    const year = normalizeYear(yearInput);
+  async getStats(input = {}) {
+    const params = typeof input === "object" && input !== null ? input : { year: input };
+    const filter = buildReportFilter(params);
+    if (!Object.prototype.hasOwnProperty.call(filter, "year")) {
+      filter.year = normalizeYear(params.year);
+    }
+    const year = filter.year;
+
     const [result = {}] = await this.model.aggregate([
-      { $match: { year } },
+      { $match: filter },
       {
         $facet: {
           summary: [
@@ -94,14 +100,14 @@ class ReportAnalyticsService {
           byFinding: [
             { $group: { _id: "$finding.type", count: { $sum: 1 }, name: { $first: "$finding.name" }, category: { $first: "$finding.category" } } },
             { $sort: { count: -1, _id: 1 } },
-            { $limit: 15 },
+            { $limit: 30 },
             { $project: { _id: 0, key: "$_id", name: { $ifNull: ["$name", "$_id"] }, category: 1, count: 1 } },
           ],
           byVulnerability: [
             { $match: { "vulnerability.normalizedName": { $nin: [null, "", "unknown"] } } },
             { $group: { _id: "$vulnerability.normalizedName", count: { $sum: 1 }, name: { $first: "$vulnerability.name" } } },
             { $sort: { count: -1, _id: 1 } },
-            { $limit: 12 },
+            { $limit: 20 },
             { $project: { _id: 0, key: "$_id", name: { $ifNull: ["$name", "$_id"] }, count: 1 } },
           ],
           byReportType: [
@@ -123,14 +129,14 @@ class ReportAnalyticsService {
             { $match: { "target.organization": { $nin: [null, ""] } } },
             { $group: { _id: "$target.organization", count: { $sum: 1 } } },
             { $sort: { count: -1, _id: 1 } },
-            { $limit: 10 },
+            { $limit: 25 },
             { $project: { _id: 0, organization: "$_id", count: 1 } },
           ],
           topIps: [
             { $match: { "target.ip": { $nin: [null, ""] } } },
             { $group: { _id: "$target.ip", count: { $sum: 1 } } },
             { $sort: { count: -1, _id: 1 } },
-            { $limit: 10 },
+            { $limit: 25 },
             { $project: { _id: 0, ip: "$_id", count: 1 } },
           ],
           topPorts: [
@@ -138,7 +144,7 @@ class ReportAnalyticsService {
             { $match: { "affectedSystems.port": { $ne: null } } },
             { $group: { _id: "$affectedSystems.port", count: { $sum: 1 } } },
             { $sort: { count: -1, _id: 1 } },
-            { $limit: 10 },
+            { $limit: 25 },
             { $project: { _id: 0, port: "$_id", count: 1 } },
           ],
           repeated: [
@@ -178,6 +184,7 @@ class ReportAnalyticsService {
 
     return {
       year,
+      scope: summarizeScope(params),
       summary: {
         ...summary,
         immediatePercent: percent(summary.immediate, summary.total),
@@ -235,38 +242,64 @@ class ReportAnalyticsService {
 function buildReportFilter(input = {}) {
   const filter = {};
   if (input.year !== undefined && input.year !== null && input.year !== "") filter.year = normalizeYear(input.year);
-  if (input.month) filter.month = clampInt(input.month, 1, 12, 1);
+  if (input.month !== undefined && input.month !== null && input.month !== "") filter.month = clampInt(input.month, 1, 12, 1);
+  if (input.day !== undefined && input.day !== null && input.day !== "") filter.day = clampInt(input.day, 1, 31, 1);
   if (input.severity) filter["severity.level"] = String(input.severity).toLowerCase();
   if (input.urgency) filter["urgency.normalized"] = String(input.urgency).toLowerCase();
   if (input.reportType) filter.reportType = String(input.reportType).toLowerCase();
   if (input.finding) filter["finding.type"] = String(input.finding).toLowerCase();
+  if (input.findingCategory) filter["finding.category"] = String(input.findingCategory).toLowerCase();
   if (input.vulnerability) filter["vulnerability.normalizedName"] = String(input.vulnerability).toLowerCase();
+  if (input.provider) filter.provider = { $regex: escapeRegex(input.provider), $options: "i" };
   if (input.organization) filter["target.organization"] = { $regex: escapeRegex(input.organization), $options: "i" };
   if (input.cve) filter.cves = String(input.cve).toUpperCase();
-  if (input.port) filter["affectedSystems.port"] = clampInt(input.port, 0, 65535, 0);
+  if (input.port !== undefined && input.port !== null && input.port !== "") filter["affectedSystems.port"] = clampInt(input.port, 0, 65535, 0);
+  if (input.service) filter["affectedSystems.service"] = { $regex: escapeRegex(input.service), $options: "i" };
+  if (input.domain) filter["affectedSystems.domain"] = { $regex: escapeRegex(input.domain), $options: "i" };
   if (input.ip) {
     const ip = String(input.ip).trim();
     filter.$or = [{ "target.ip": ip }, { "affectedSystems.ip": ip }];
   }
+  const severityScore = {};
+  if (input.minScore !== undefined && input.minScore !== null && input.minScore !== "") severityScore.$gte = Number(input.minScore);
+  if (input.maxScore !== undefined && input.maxScore !== null && input.maxScore !== "") severityScore.$lte = Number(input.maxScore);
+  if (Object.keys(severityScore).length) filter["severity.score"] = severityScore;
   if (input.search) {
     const regex = { $regex: escapeRegex(String(input.search).trim()), $options: "i" };
     const searchOr = [
       { title: regex },
       { reportNumber: regex },
+      { provider: regex },
+      { effect: regex },
       { "target.organization": regex },
       { "target.ip": regex },
       { "finding.name": regex },
+      { "finding.type": regex },
+      { "finding.category": regex },
       { "vulnerability.name": regex },
       { description: regex },
       { conclusion: regex },
+      { recommendations: regex },
       { cves: regex },
       { "affectedSystems.domain": regex },
       { "affectedSystems.service": regex },
+      { "affectedSystems.url": regex },
     ];
     if (filter.$or) filter.$and = [{ $or: filter.$or }, { $or: searchOr }], delete filter.$or;
     else filter.$or = searchOr;
   }
   return filter;
+}
+
+function summarizeScope(input = {}) {
+  const keys = [
+    "month", "day", "reportType", "severity", "urgency", "finding", "findingCategory",
+    "vulnerability", "provider", "organization", "ip", "port", "service", "domain", "cve",
+    "minScore", "maxScore", "search",
+  ];
+  return Object.fromEntries(keys
+    .filter((key) => input[key] !== undefined && input[key] !== null && input[key] !== "")
+    .map((key) => [key, input[key]]));
 }
 
 function percent(numerator, denominator) {

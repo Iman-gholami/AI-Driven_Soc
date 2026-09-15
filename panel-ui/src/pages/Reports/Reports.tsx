@@ -194,15 +194,16 @@ const Reports: React.FC = () => {
 
           <Row gutter={[14, 14]}>
             <Col xs={24} xl={12}>
-              <Card title="Top Vulnerabilities">
+              <Card title="Top Findings">
                 <Table
                   rowKey={(row) => row.key}
                   pagination={false}
                   size="small"
-                  dataSource={stats.byVulnerability}
+                  dataSource={stats.byFinding}
                   columns={[
-                    { title: 'Vulnerability', dataIndex: 'name', render: (value, row) => value || row.key },
-                    { title: 'Count', dataIndex: 'count', width: 90, align: 'right' as const },
+                    { title: 'Finding', dataIndex: 'name', render: (value, row) => value || row.key },
+                    { title: 'Category', dataIndex: 'category', width: 150, render: (value) => value || '—' },
+                    { title: 'Count', dataIndex: 'count', width: 80, align: 'right' as const },
                   ]}
                 />
               </Card>
@@ -223,9 +224,40 @@ const Reports: React.FC = () => {
             </Col>
           </Row>
 
+          <Row gutter={[14, 14]}>
+            <Col xs={24} xl={12}>
+              <Card title="Report Types">
+                <Table
+                  rowKey="reportType"
+                  pagination={false}
+                  size="small"
+                  dataSource={stats.byReportType}
+                  columns={[
+                    { title: 'Type', dataIndex: 'reportType' },
+                    { title: 'Reports', dataIndex: 'count', width: 90, align: 'right' as const },
+                  ]}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} xl={12}>
+              <Card title="Observed Ports">
+                <Table
+                  rowKey={(row) => String(row.port)}
+                  pagination={false}
+                  size="small"
+                  dataSource={stats.topPorts}
+                  columns={[
+                    { title: 'Port', dataIndex: 'port' },
+                    { title: 'Reports / systems', dataIndex: 'count', width: 130, align: 'right' as const },
+                  ]}
+                />
+              </Card>
+            </Col>
+          </Row>
+
           <Card title="Repeated Finding Signal">
             <div className="report-repeat-strip">
-              <div><strong>{stats.repeated.repeatedGroups}</strong><span>organization + vulnerability combinations appeared more than once</span></div>
+              <div><strong>{stats.repeated.repeatedGroups}</strong><span>organization + finding combinations appeared more than once</span></div>
               <div><strong>{stats.repeated.reportsInRepeatedGroups}</strong><span>reports belong to repeated groups</span></div>
             </div>
           </Card>
@@ -241,7 +273,7 @@ const Reports: React.FC = () => {
           <Input
             allowClear
             prefix={<SearchOutlined />}
-            placeholder="Search title, organization, IP, report number, domain..."
+            placeholder="Search title, organization, IP, report number, finding, CVE, domain..."
             value={search}
             onChange={(event) => { setSearch(event.target.value); setPage(1); }}
           />
@@ -257,7 +289,7 @@ const Reports: React.FC = () => {
             placeholder="Urgency"
             value={urgency}
             onChange={(value) => { setUrgency(value); setPage(1); }}
-            options={['immediate', 'high', 'normal', 'low', 'unknown'].map((value) => ({ value, label: value }))}
+            options={['immediate', 'action_required', 'informational', 'high', 'normal', 'low', 'unknown'].map((value) => ({ value, label: value }))}
           />
         </div>
       </Card>
@@ -275,13 +307,14 @@ const Reports: React.FC = () => {
             showSizeChanger: false,
             onChange: setPage,
           }}
-          scroll={{ x: 1050 }}
+          scroll={{ x: 1180 }}
           columns={[
             { title: 'Date', dataIndex: 'reportDateRaw', width: 110 },
             { title: 'Report No', dataIndex: 'reportNumber', width: 165, render: (value) => value || '—' },
+            { title: 'Type', dataIndex: 'reportType', width: 130 },
             { title: 'Organization', dataIndex: ['target', 'organization'], width: 250, ellipsis: true },
             { title: 'IP', dataIndex: ['target', 'ip'], width: 135, render: (value) => <Text code>{value || '—'}</Text> },
-            { title: 'Vulnerability', dataIndex: ['vulnerability', 'name'], width: 210, render: (value, row) => value || row.vulnerability.normalizedName },
+            { title: 'Finding', dataIndex: ['finding', 'name'], width: 210, render: (value, row) => value || row.finding?.type || 'unknown' },
             {
               title: 'Severity',
               dataIndex: ['severity', 'level'],
@@ -291,8 +324,8 @@ const Reports: React.FC = () => {
             {
               title: 'Urgency',
               dataIndex: ['urgency', 'normalized'],
-              width: 120,
-              render: (value) => <Tag color={value === 'immediate' ? 'red' : 'default'}>{value}</Tag>,
+              width: 130,
+              render: (value) => <Tag color={value === 'immediate' ? 'red' : value === 'informational' ? 'blue' : 'default'}>{value}</Tag>,
             },
           ]}
         />
@@ -310,11 +343,12 @@ const Reports: React.FC = () => {
           <Text strong>Examples</Text>
           <div className="report-question-chips">
             {[
-              `در سال ${year} چند گزارش داشتیم؟`,
-              `بیشترین آسیب‌پذیری سال ${year} چه بوده؟`,
-              `کدام سازمان بیشترین گزارش High داشته؟`,
+              `در سال ${year} چند گزارش حادثه داشتیم؟`,
+              `بیشترین Finding سال ${year} چه بوده؟`,
+              `کدام سازمان بیشترین گزارش UDP Amplification داشته؟`,
               `چند درصد گزارش‌های ${year} نیازمند اقدام فوری بوده‌اند؟`,
               `روند ماهانه گزارش‌های ${year} را نشان بده`,
+              'روی پورت 443 چند گزارش ثبت شده؟',
               'برای IP 62.60.167.73 چه گزارش‌هایی داریم؟',
             ].map((question) => (
               <button key={question} type="button" onClick={() => askCopilot(question)}>{question}</button>
@@ -340,7 +374,7 @@ const Reports: React.FC = () => {
             <Input.TextArea
               autoSize={{ minRows: 2, maxRows: 4 }}
               value={copilotInput}
-              placeholder="مثلاً: در سال ۱۴۰۴ چند گزارش XSS داشتیم؟"
+              placeholder="مثلاً: در سال ۱۴۰۴ چند گزارش UDP Amplification داشتیم؟"
               onChange={(event) => setCopilotInput(event.target.value)}
               onPressEnter={(event) => {
                 if (!event.shiftKey) {
@@ -445,7 +479,7 @@ const Reports: React.FC = () => {
       />
 
       <Drawer
-        width={720}
+        width={800}
         title={selectedReport?.reportNumber || selectedReport?.title || 'Report detail'}
         open={Boolean(selectedReport)}
         onClose={() => setSelectedReport(null)}
@@ -465,12 +499,16 @@ const ReportDetail: React.FC<{ report: HistoricalReport }> = ({ report }) => (
     <Descriptions bordered column={1} size="small">
       <Descriptions.Item label="Title">{report.title}</Descriptions.Item>
       <Descriptions.Item label="Date">{report.reportDateRaw || '—'}</Descriptions.Item>
+      <Descriptions.Item label="Report type"><Tag>{report.reportType}</Tag></Descriptions.Item>
       <Descriptions.Item label="Organization">{report.target.organization || '—'}</Descriptions.Item>
-      <Descriptions.Item label="IP"><Text code>{report.target.ip || '—'}</Text></Descriptions.Item>
-      <Descriptions.Item label="Vulnerability">{report.vulnerability.name || report.vulnerability.normalizedName}</Descriptions.Item>
-      <Descriptions.Item label="CWE">{report.vulnerability.cwe || '—'}</Descriptions.Item>
+      <Descriptions.Item label="IP"><Text code>{report.target.ip || report.target.rawIp || '—'}</Text></Descriptions.Item>
+      <Descriptions.Item label="Finding">{report.finding?.name || report.finding?.type || 'unknown'}</Descriptions.Item>
+      <Descriptions.Item label="Category">{report.finding?.category || '—'}</Descriptions.Item>
+      <Descriptions.Item label="CWE">{report.finding?.cwe || report.vulnerability?.cwe || '—'}</Descriptions.Item>
+      <Descriptions.Item label="CVEs">{report.cves?.length ? report.cves.map((cve) => <Tag key={cve}>{cve}</Tag>) : '—'}</Descriptions.Item>
       <Descriptions.Item label="Severity"><Tag color={severityTag[report.severity.level] || 'default'}>{report.severity.level} {report.severity.score ?? ''}</Tag></Descriptions.Item>
       <Descriptions.Item label="Urgency">{report.urgency.raw || report.urgency.normalized}</Descriptions.Item>
+      <Descriptions.Item label="Effect">{report.effect || '—'}</Descriptions.Item>
       <Descriptions.Item label="Source"><Text code>{report.source.relativePath}</Text></Descriptions.Item>
     </Descriptions>
 
@@ -478,23 +516,39 @@ const ReportDetail: React.FC<{ report: HistoricalReport }> = ({ report }) => (
       <Alert className="report-detail-alert" type="warning" showIcon icon={<WarningOutlined />} message="Extraction review recommended" description={report.extraction.warnings.join(' · ')} />
     ) : null}
 
-    <Title level={5}>Incident / Vulnerability Description</Title>
+    <Title level={5}>Description</Title>
     <Paragraph className="report-preserve-lines">{report.description || 'No description extracted.'}</Paragraph>
 
-    <Title level={5}>Affected Systems</Title>
+    {report.conclusion ? (
+      <>
+        <Title level={5}>Conclusion</Title>
+        <Paragraph className="report-preserve-lines">{report.conclusion}</Paragraph>
+      </>
+    ) : null}
+
+    <Title level={5}>Affected Systems / Event Details</Title>
     <Table
       size="small"
       pagination={false}
       rowKey={(_, index) => String(index)}
       dataSource={report.affectedSystems || []}
-      scroll={{ x: 720 }}
+      scroll={{ x: 1250 }}
       columns={[
-        { title: 'Method', dataIndex: 'method', width: 80 },
-        { title: 'Parameter', dataIndex: 'parameter', width: 100 },
-        { title: 'URL', dataIndex: 'url', ellipsis: true },
-        { title: 'Domain', dataIndex: 'domain', width: 140 },
         { title: 'Organization', dataIndex: 'organization', width: 220, ellipsis: true },
         { title: 'IP', dataIndex: 'ip', width: 130 },
+        { title: 'Domain', dataIndex: 'domain', width: 160 },
+        { title: 'Service', dataIndex: 'service', width: 170, ellipsis: true },
+        { title: 'Port', dataIndex: 'port', width: 80 },
+        { title: 'Method', dataIndex: 'method', width: 80 },
+        { title: 'Parameter', dataIndex: 'parameter', width: 120 },
+        { title: 'URL / Path', dataIndex: 'url', width: 250, ellipsis: true },
+        { title: 'Packets', dataIndex: 'packetCount', width: 120 },
+        { title: 'Participant IPs', dataIndex: 'participantIpCount', width: 120 },
+        { title: 'Traffic', dataIndex: 'trafficVolumeRaw', width: 110 },
+        { title: 'Event date', dataIndex: 'eventDateRaw', width: 110 },
+        { title: 'Time', dataIndex: 'timeRange', width: 130 },
+        { title: 'Version', dataIndex: 'softwareVersion', width: 100 },
+        { title: 'Reported finding', dataIndex: 'reportedFinding', width: 220, ellipsis: true },
       ]}
     />
 

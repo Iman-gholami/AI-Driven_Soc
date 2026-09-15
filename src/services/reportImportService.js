@@ -145,9 +145,11 @@ function updateQualitySummary(quality, parsed, relativePath) {
 function toPreview(parsed, relativePath) {
   return {
     file: relativePath,
+    title: parsed.title || null,
     reportNumber: parsed.reportNumber || null,
     date: parsed.reportDateRaw || null,
     reportType: parsed.reportType || "other",
+    provider: parsed.provider || null,
     organization: parsed.target?.organization || null,
     ip: parsed.target?.ip || null,
     rawIp: parsed.target?.rawIp || null,
@@ -161,7 +163,7 @@ function toPreview(parsed, relativePath) {
     cves: Array.isArray(parsed.cves) ? parsed.cves : [],
     affectedSystems: Array.isArray(parsed.affectedSystems) ? parsed.affectedSystems.length : 0,
     affectedSystemPreview: Array.isArray(parsed.affectedSystems)
-      ? parsed.affectedSystems.slice(0, 3).map((item) => ({
+      ? parsed.affectedSystems.slice(0, 5).map((item) => ({
         organization: item.organization || null,
         ip: item.ip || null,
         domain: item.domain || null,
@@ -178,11 +180,21 @@ function toPreview(parsed, relativePath) {
       }))
       : [],
     phishingInfrastructure: Array.isArray(parsed.phishingInfrastructure)
-      ? parsed.phishingInfrastructure.slice(0, 3)
+      ? parsed.phishingInfrastructure.slice(0, 5)
       : [],
     recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.length : 0,
+    recommendationPreview: Array.isArray(parsed.recommendations) ? parsed.recommendations.slice(0, 5) : [],
+    descriptionPreview: compactPreviewText(parsed.description, 900),
+    conclusionPreview: compactPreviewText(parsed.conclusion, 500),
     warnings: parsed.extraction?.warnings || [],
   };
+}
+
+function compactPreviewText(value, maxChars) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars - 1).trimEnd()}…`;
 }
 
 async function walkDocxFiles(directory) {

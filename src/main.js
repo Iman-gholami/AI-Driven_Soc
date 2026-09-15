@@ -6,6 +6,7 @@ const pinoHttp = require("pino-http");
 var cors = require('cors');
 const { settings } = require("./core/config");
 const { createLogger } = require("./core/logging");
+const { createReportRouter } = require("./api/reportRoutes");
 const { router } = require("./api/routes");
 const { connectMongo, disconnectMongo } = require("./database/mongo");
 
@@ -29,6 +30,7 @@ app.get("/panel/*", (req, res, next) => {
   return res.sendFile(path.join(__dirname, "../panel-ui/dist/index.html"));
 });
 app.get("/", (_req, res) => res.redirect("/panel/"));
+app.use(createReportRouter());
 app.use(router);
 
 connectMongo(logger).catch((error) => {

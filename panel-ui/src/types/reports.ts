@@ -23,6 +23,20 @@ export interface HistoricalAffectedSystem {
   cves?: string[];
 }
 
+export interface HistoricalPhishingInfrastructure {
+  url?: string | null;
+  domain?: string | null;
+  ip?: string | null;
+  rawIp?: string | null;
+  pageTitle?: string | null;
+}
+
+export interface HistoricalIndicator {
+  type: string;
+  role?: string | null;
+  value: string;
+}
+
 export interface HistoricalReport {
   _id: string;
   documentKey: string;
@@ -68,6 +82,8 @@ export interface HistoricalReport {
   conclusion?: string;
   recommendations: string[];
   affectedSystems: HistoricalAffectedSystem[];
+  phishingInfrastructure?: HistoricalPhishingInfrastructure[];
+  indicators?: HistoricalIndicator[];
   source: {
     filename: string;
     relativePath: string;
@@ -76,6 +92,8 @@ export interface HistoricalReport {
   };
   extraction: {
     parserVersion: string;
+    paragraphCount?: number;
+    tableCount?: number;
     warnings: string[];
     organizationMismatch?: boolean;
     ipMismatch?: boolean;
@@ -156,6 +174,67 @@ export interface ReportImportQuality {
   warningCounts: Record<string, number>;
 }
 
+export interface ReportUploadNormalizedRecord {
+  reportNumber?: string | null;
+  reportDateRaw?: string | null;
+  year?: number | null;
+  month?: number | null;
+  day?: number | null;
+  title?: string | null;
+  reportType: string;
+  provider?: string | null;
+  contact?: string | null;
+  effect?: string | null;
+  target: {
+    organization?: string | null;
+    ip?: string | null;
+    rawIp?: string | null;
+  };
+  severity: {
+    raw?: string | null;
+    score?: number | null;
+    level: string;
+  };
+  urgency: {
+    raw?: string | null;
+    normalized: string;
+  };
+  finding: {
+    type: string;
+    name?: string | null;
+    category: string;
+    cwe?: string | null;
+  };
+  vulnerability: {
+    name?: string | null;
+    normalizedName: string;
+    category: string;
+    cwe?: string | null;
+  };
+  cves: string[];
+  affectedCves: string[];
+  description: string;
+  conclusion: string;
+  recommendations: string[];
+  affectedSystems: HistoricalAffectedSystem[];
+  phishingInfrastructure: HistoricalPhishingInfrastructure[];
+  indicators: HistoricalIndicator[];
+  source: {
+    filename?: string | null;
+    relativePath: string;
+    sha256?: string | null;
+    sizeBytes: number;
+  };
+  extraction: {
+    parserVersion?: string | null;
+    paragraphCount: number;
+    tableCount: number;
+    warnings: string[];
+    organizationMismatch: boolean;
+    ipMismatch: boolean;
+  };
+}
+
 export interface ReportUploadPreviewItem {
   id: string;
   action: 'new' | 'update' | 'unchanged';
@@ -192,18 +271,13 @@ export interface ReportUploadPreviewItem {
     softwareVersion?: string | null;
     cves?: string[];
   }>;
-  phishingInfrastructure?: Array<{
-    url?: string | null;
-    domain?: string | null;
-    ip?: string | null;
-    rawIp?: string | null;
-    pageTitle?: string | null;
-  }>;
+  phishingInfrastructure?: HistoricalPhishingInfrastructure[];
   recommendations: number;
   recommendationPreview?: string[];
   descriptionPreview?: string | null;
   conclusionPreview?: string | null;
   warnings: string[];
+  record: ReportUploadNormalizedRecord;
 }
 
 export interface ReportUploadPreviewSession {

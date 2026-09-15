@@ -5,6 +5,7 @@ const {
   parseWordXml,
   extractReportRecord,
   parseJalaliDate,
+  parseScore,
   scoreToSeverity,
   classifyFinding,
   classifyVulnerability,
@@ -138,8 +139,8 @@ const routerOsXml = documentXml([
   p("MikroTik RouterOS در نسخه‌های قدیمی دارای چند آسیب‌پذیری است."),
   table([
     ["آسیب‌پذیری", "تشریح آسیب پذیری", "CVSS", "نسخه‌های آسیب پذیر"],
-    ["CVE-2022-45315", "اجرای کد", "9.8", "x < 7.6"],
-    ["CVE-2022-45313", "اجرای کد", "8.8", "x < 7.5"],
+    ["CVE-2022-45315", "اجرای کد", "9.8", "نسخه قدیمی"],
+    ["CVE-2022-45313", "اجرای کد", "8.8", "نسخه قدیمی"],
   ]),
   table([
     ["نوع آسیب پذیری", "نسخه RouterOS", "پورت", "نام سازمان", "آدرس سازمان"],
@@ -147,6 +148,63 @@ const routerOsXml = documentXml([
   ]),
   p("راهکار"),
   p("• به‌روزرسانی RouterOS به آخرین نسخه"),
+]);
+
+const phpMyAdminXml = documentXml([
+  p("آسیب‌پذیری - نسخه آسیب‌پذیر phpMyAdmin"),
+  table([
+    ["تاریخ ارائه گزارش:", "16/01/1404", "ارائه‌کننده گزارش:", "مرکز آبیاری"],
+    ["شماره گزارش:", "14040116_212642_36F", "اطلاعات تماس:", "9"],
+  ]),
+  table([
+    ["سازمان هدف:", "شرکت پشمک", "شدت رخداد:", "جدول 1"],
+    ["آدرس IP:", "X.X.X.X", "فوریت رخداد:", "نیازمند اقدام فوری"],
+  ]),
+  p("شرح رخداد"),
+  p("phpMyAdmin نرم‌افزاری تحت وب است و نسخه‌های قدیمی آن می‌توانند چند آسیب‌پذیری داشته باشند."),
+  table([
+    ["نسخه تحت تأثیر", "توضیح آسیب‌پذیری", "شدت رخداد", "شناسه آسیب‌پذیری"],
+    ["5.2.2", "آسیب‌پذیری XSS", "6.4", "CVE-2025-24529 CVE-2025-24530"],
+    ["5.1.1", "بازیابی اطلاعات حساس", "7.5", "CVE-2022-0813"],
+  ]),
+  table([
+    ["نمونه آسیب پذیری", "نسخه آسیب‌پذیر", "مسیر دسترسی", "نام سازمان", "آدرس سازمان"],
+    ["CVE-2025-24529 CVE-2025-24530", "5.2.1", "https://X.X.X.X/phpmyadmin/", "شرکت پشمک", "X.X.X.X"],
+    ["https://X.X.X.X/phpmyadmin/doc/html/index.html"],
+    ["https://X.X.X.X/phpmyadmin/js/messages.php"],
+  ]),
+  p("راهکار"),
+  p("• ارتقاء به آخرین نسخه امن نرم‌افزار phpMyAdmin"),
+  p("منابع"),
+  p("https://www.phpmyadmin.net/security"),
+]);
+
+const roundcubeXml = documentXml([
+  p("پیکربندی نامناسب – استفاده از نسخه آسیب‌پذیر Roundcube"),
+  table([
+    ["تاریخ ارائه گزارش:", "17/01/1404", "ارائه‌کننده گزارش:", "مرکز آبیاری"],
+    ["شماره گزارش:", "14040117_213031_37F", "اطلاعات تماس:", "9"],
+  ]),
+  table([
+    ["سازمان هدف:", "دانشگاه هاوارد", "شدت رخداد:", "7.5"],
+    ["آدرس IP:", "X.X.X.X", "فوریت اقدام:", "نیازمند اقدام فوری"],
+  ]),
+  p("شرح رخداد"),
+  p("Roundcube Webmail در نسخه‌های قدیمی دارای چند آسیب‌پذیری امنیتی است."),
+  table([
+    ["نسخه تحت تاثیر", "تشریح آسیب‌پذیری", "CVSS", "شناسه آسیب‌پذیری"],
+    ["1.5.x", "آسیب‌پذیری XSS", "6.1", "CVE-2024-42008"],
+    ["1.6.x", "نشت اطلاعات", "7.5", "CVE-2024-42010"],
+    ["1.4.x", "اجرای کد", "9.8", "CVE-2020-12640"],
+  ]),
+  table([
+    ["نمونه شناسه آسیب پذیر", "نسخه سرویس", "آدرس Webmail", "نام سازمان", "آدرس سازمان"],
+    ["CVE-2024-42008 CVE-2024-42009 CVE-2024-42010 CVE-2023-47272 CVE-2023-5631", "1.5.0", "http://X.X.X.X/webmail", "دانشگاه هاوارد", "X.X.X.X"],
+  ]),
+  p("راهکار"),
+  p("• ارتقا نسخه سرویس به نسخه امن"),
+  p("منابع"),
+  p("https://roundcube.net/"),
 ]);
 
 test("parses WordprocessingML into paragraphs and tables", () => {
@@ -230,16 +288,63 @@ test("keeps reference CVEs separate while extracting the affected RouterOS syste
   assert.equal(report.affectedSystems[0].softwareVersion, "7.6");
   assert.equal(report.affectedSystems[0].port, 8088);
   assert.deepEqual(report.affectedSystems[0].cves, ["CVE-2018-5951", "CVE-2021-3014", "CVE-2023-41570"]);
+  assert.deepEqual(report.affectedCves, ["CVE-2018-5951", "CVE-2021-3014", "CVE-2023-41570"]);
   assert.ok(report.cves.includes("CVE-2022-45315"));
   assert.ok(report.cves.includes("CVE-2023-41570"));
 });
 
+test("handles phpMyAdmin severity references, urgency label variants and multi-URL asset evidence", () => {
+  const report = extractReportRecord(parseWordXml(phpMyAdminXml), { yearHint: 1404 });
+  assert.equal(report.reportType, "vulnerability");
+  assert.equal(report.finding.type, "vulnerable_phpmyadmin");
+  assert.equal(report.severity.raw, "جدول 1");
+  assert.equal(report.severity.score, null);
+  assert.equal(report.severity.level, "unknown");
+  assert.equal(report.urgency.normalized, "immediate");
+  assert.equal(report.target.rawIp, "X.X.X.X");
+  assert.equal(report.target.ip, null);
+  assert.equal(report.affectedSystems.length, 1);
+  assert.equal(report.affectedSystems[0].softwareVersion, "5.2.1");
+  assert.equal(report.affectedSystems[0].rawIp, "X.X.X.X");
+  assert.equal(report.affectedSystems[0].url, "https://X.X.X.X/phpmyadmin/");
+  assert.deepEqual(report.affectedSystems[0].additionalUrls, [
+    "https://X.X.X.X/phpmyadmin/doc/html/index.html",
+    "https://X.X.X.X/phpmyadmin/js/messages.php",
+  ]);
+  assert.deepEqual(report.affectedCves, ["CVE-2025-24529", "CVE-2025-24530"]);
+  assert.ok(report.cves.includes("CVE-2022-0813"));
+});
+
+test("extracts the affected Roundcube version and affected CVE subset", () => {
+  const report = extractReportRecord(parseWordXml(roundcubeXml), { yearHint: 1404 });
+  assert.equal(report.reportType, "misconfiguration");
+  assert.equal(report.finding.type, "vulnerable_roundcube");
+  assert.equal(report.severity.score, 7.5);
+  assert.equal(report.severity.level, "high");
+  assert.equal(report.affectedSystems.length, 1);
+  assert.equal(report.affectedSystems[0].softwareVersion, "1.5.0");
+  assert.equal(report.affectedSystems[0].url, "http://X.X.X.X/webmail");
+  assert.equal(report.affectedSystems[0].rawIp, "X.X.X.X");
+  assert.deepEqual(report.affectedCves, [
+    "CVE-2024-42008",
+    "CVE-2024-42009",
+    "CVE-2024-42010",
+    "CVE-2023-47272",
+    "CVE-2023-5631",
+  ]);
+  assert.ok(report.cves.includes("CVE-2020-12640"));
+});
+
 test("normalizes dates, severity, traffic sizes and common findings", () => {
   assert.deepEqual(parseJalaliDate("۰۱/۰۲/۱۴۰۴"), { day: 1, month: 2, year: 1404 });
+  assert.equal(parseScore("جدول 1"), null);
+  assert.equal(parseScore("7.5"), 7.5);
   assert.equal(scoreToSeverity(9.2), "critical");
   assert.equal(scoreToSeverity(7.4), "high");
   assert.equal(scoreToSeverity(6.1), "medium");
   assert.equal(classifyVulnerability("آسیب‌پذیری SQL Injection").normalizedName, "sql_injection");
+  assert.equal(classifyFinding("آسیب‌پذیری - نسخه آسیب‌پذیر phpMyAdmin").type, "vulnerable_phpmyadmin");
+  assert.equal(classifyFinding("پیکربندی نامناسب – استفاده از نسخه آسیب‌پذیر Roundcube").type, "vulnerable_roundcube");
   assert.equal(classifyFinding("گزارش منع سرویس UDP Amplification").type, "udp_amplification");
   assert.equal(parseTrafficBytes("8.10 GB"), Math.round(8.1 * (1024 ** 3)));
   assert.deepEqual(extractCves("CVE-2022-45315 و CVE-2022-45315 و CVE-2020-20231"), ["CVE-2022-45315", "CVE-2020-20231"]);

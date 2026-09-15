@@ -37,7 +37,14 @@ function classifyFindingV5(value) {
   const text = normalize(value);
   const catalog = [
     {
-      pattern: /دسترسی\s+(?:نامجاز\s+و\s+)?بدون\s+احراز\s+هویت|دسترسی\s+بدون\s+احراز\s+هویت.*(?:web\.config|فایل)|unauthenticated\s+(?:file\s+)?access/,
+      pattern: /(?:دسترسی\s+بدون\s+احراز\s+هویت|unauthenticated).*redis|redis.*(?:بدون\s+احراز\s+هویت|پیکربندی\s+نامناسب|6379|6380)/,
+      type: "unauthenticated_redis",
+      name: "Unauthenticated Redis",
+      category: "exposed_service",
+      cwe: null,
+    },
+    {
+      pattern: /(?:دسترسی\s+(?:نامجاز\s+و\s+)?بدون\s+احراز\s+هویت|unauthenticated\s+(?:file\s+)?access).*(?:web\.config|فایل|دایرکتوری|directory|config)|(?:web\.config|فایل|دایرکتوری|directory|config).*(?:بدون\s+احراز\s+هویت|unauthenticated)/,
       type: "unauthenticated_file_access",
       name: "Unauthenticated File Access",
       category: "access_control",
@@ -69,13 +76,6 @@ function classifyFindingV5(value) {
       type: "vulnerable_ntlm",
       name: "Vulnerable NTLM",
       category: "authentication_protocol",
-      cwe: null,
-    },
-    {
-      pattern: /(?:دسترسی\s+بدون\s+احراز\s+هویت|unauthenticated).*redis|redis.*(?:بدون\s+احراز\s+هویت|پیکربندی\s+نامناسب|6379|6380)/,
-      type: "unauthenticated_redis",
-      name: "Unauthenticated Redis",
-      category: "exposed_service",
       cwe: null,
     },
     {

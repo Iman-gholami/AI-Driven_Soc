@@ -71,10 +71,13 @@ const ReportUploadReview: React.FC<ReportUploadReviewProps> = ({ year, onCommitt
   const [lastCommit, setLastCommit] = useState<ReportUploadCommitResult | null>(null);
 
   const selectedCount = selectedIds.length;
-  const files = useMemo(
-    () => fileList.map((item) => item.originFileObj).filter((item): item is File => item instanceof File),
-    [fileList],
-  );
+  const files = useMemo<File[]>(() => {
+    const selected: File[] = [];
+    for (const item of fileList) {
+      if (item.originFileObj) selected.push(item.originFileObj);
+    }
+    return selected;
+  }, [fileList]);
 
   const uploadProps: UploadProps = {
     accept: '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -376,7 +379,7 @@ const PreviewDetails: React.FC<{ report: ReportUploadPreviewItem }> = ({ report 
 
     {report.affectedSystemPreview?.length ? (
       <>
-        <Divider orientation="left">Affected system preview</Divider>
+        <Divider orientation="start">Affected system preview</Divider>
         <Table
           rowKey={(_, index) => String(index)}
           size="small"
@@ -398,7 +401,7 @@ const PreviewDetails: React.FC<{ report: ReportUploadPreviewItem }> = ({ report 
 
     {report.phishingInfrastructure?.length ? (
       <>
-        <Divider orientation="left">Phishing infrastructure / IOC preview</Divider>
+        <Divider orientation="start">Phishing infrastructure / IOC preview</Divider>
         <List
           size="small"
           dataSource={report.phishingInfrastructure}
@@ -418,7 +421,7 @@ const PreviewDetails: React.FC<{ report: ReportUploadPreviewItem }> = ({ report 
 
     {report.recommendationPreview?.length ? (
       <>
-        <Divider orientation="left">Recommendation preview</Divider>
+        <Divider orientation="start">Recommendation preview</Divider>
         <List
           size="small"
           dataSource={report.recommendationPreview}

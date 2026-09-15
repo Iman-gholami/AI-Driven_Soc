@@ -3,6 +3,7 @@ import { Layout, Menu } from 'antd';
 import {
   BarChartOutlined,
   DashboardOutlined,
+  FileSearchOutlined,
   FileTextOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -26,6 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const menuItems = [
     { key: '/dashboard', icon: <DashboardOutlined />, label: 'Command Center' },
     { key: '/alerts', icon: <FileTextOutlined />, label: 'Alerts' },
+    { key: '/reports', icon: <FileSearchOutlined />, label: 'Reports' },
     { key: '/mitre-coverage', icon: <RadarChartOutlined />, label: 'MITRE Coverage' },
     { key: '/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
     { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },

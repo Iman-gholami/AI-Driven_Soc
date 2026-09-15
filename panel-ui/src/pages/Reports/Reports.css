@@ -1,0 +1,203 @@
+.report-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.report-page-heading h2 {
+  margin: 5px 0 3px !important;
+}
+
+.report-page-heading p {
+  margin-bottom: 0 !important;
+}
+
+.report-eyebrow {
+  color: var(--panel-primary);
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .13em;
+}
+
+.report-tab-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.report-metric-card {
+  height: 100%;
+}
+
+.report-metric-card .ant-statistic-title {
+  min-height: 32px;
+}
+
+.report-metric-suffix {
+  margin-left: 5px;
+  color: var(--panel-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.report-chart-card .ant-card-body {
+  height: 320px;
+}
+
+.report-repeat-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-repeat-strip > div {
+  padding: 15px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-surface-soft);
+}
+
+.report-repeat-strip strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--panel-text);
+  font-size: 24px;
+}
+
+.report-repeat-strip span {
+  color: var(--panel-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.report-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 160px 160px;
+  gap: 10px;
+}
+
+.report-clickable-row {
+  cursor: pointer;
+}
+
+.report-clickable-row:hover td {
+  background: var(--panel-primary-soft) !important;
+}
+
+.report-question-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.report-question-chips button {
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-surface-soft);
+  color: var(--panel-text);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: right;
+  direction: rtl;
+  transition: .16s ease;
+}
+
+.report-question-chips button:hover {
+  border-color: var(--panel-primary);
+  background: var(--panel-primary-soft);
+}
+
+.report-chat-card .ant-card-body {
+  display: flex;
+  min-height: 520px;
+  flex-direction: column;
+}
+
+.report-chat-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 470px;
+  overflow-y: auto;
+}
+
+.report-chat-message {
+  max-width: 88%;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-surface-soft);
+}
+
+.report-chat-message.is-user {
+  align-self: flex-end;
+  background: var(--panel-primary-soft);
+}
+
+.report-chat-message.is-assistant {
+  align-self: flex-start;
+}
+
+.report-chat-message > span {
+  color: var(--panel-muted);
+  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .1em;
+}
+
+.report-chat-message pre {
+  margin: 7px 0 0;
+  color: var(--panel-text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.report-chat-thinking {
+  color: var(--panel-muted);
+  font-size: 11px;
+}
+
+.report-import-descriptions {
+  margin-top: 16px;
+}
+
+.report-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-detail h5 {
+  margin: 12px 0 0 !important;
+}
+
+.report-detail-alert {
+  margin-top: 4px;
+}
+
+.report-preserve-lines {
+  white-space: pre-line;
+  line-height: 1.9;
+}
+
+@media (max-width: 900px) {
+  .report-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .report-repeat-strip {
+    grid-template-columns: 1fr;
+  }
+}

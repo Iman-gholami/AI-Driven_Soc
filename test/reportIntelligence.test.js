@@ -206,7 +206,7 @@ test("extracts UDP amplification traffic metrics and informational urgency", () 
   assert.equal(report.affectedSystems[0].trafficVolumeRaw, "8.10 GB");
   assert.equal(report.affectedSystems[0].eventYear, 1404);
   assert.equal(report.affectedSystems[0].eventMonth, 1);
-  assert.equal(report.recommendations[0], "فعال سازی قابلیت Rate Limiting");
+  assert.equal(report.recommendations[0], "فعالسازی قابلیت Rate Limiting");
 });
 
 test("extracts TCP SYN flood packet and participant counts from incident tables", () => {

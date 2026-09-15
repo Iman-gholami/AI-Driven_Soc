@@ -419,7 +419,7 @@ const Reports: React.FC = () => {
     <div className="report-tab-stack">
       <ReportUploadReview year={year} onCommitted={refreshReportData} />
 
-      <Divider orientation="start">Advanced: server folder workflow</Divider>
+      <Divider>Advanced: server folder workflow</Divider>
       <Row gutter={[14, 14]}>
         <Col xs={24} xl={10}>
           <Card title={<><FolderOpenOutlined /> Existing local DOCX folder</>}>

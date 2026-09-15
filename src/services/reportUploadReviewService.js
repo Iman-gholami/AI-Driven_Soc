@@ -61,15 +61,16 @@ class ReportUploadReviewService {
     try {
       for (let index = 0; index < uploads.length; index += 1) {
         const upload = uploads[index] || {};
-        const originalName = safeDocxFilename(upload.originalname || upload.filename || `report-${index + 1}.docx`);
+        const rawName = path.basename(String(upload.originalname || upload.filename || `report-${index + 1}.docx`));
 
-        if (path.extname(originalName).toLowerCase() !== ".docx") {
-          errors.push({ file: originalName, error: "only_docx_files_are_supported" });
+        if (path.extname(rawName).toLowerCase() !== ".docx") {
+          errors.push({ file: rawName || `report-${index + 1}`, error: "only_docx_files_are_supported" });
           await safeUnlink(upload.path);
           pendingTempPaths.delete(upload.path);
           continue;
         }
 
+        const originalName = safeDocxFilename(rawName);
         const sizeBytes = Number(upload.size || 0);
         if (sizeBytes > this.maxFileBytes) {
           errors.push({ file: originalName, error: "file_too_large" });
@@ -103,19 +104,8 @@ class ReportUploadReviewService {
           const id = buildItemId(parsed, index);
 
           updateQualitySummary(quality, parsed, originalName);
-          const preview = {
-            id,
-            action,
-            ...toPreview(parsed, originalName),
-          };
-          previews.push(preview);
-          items.push({
-            id,
-            action,
-            originalName,
-            stagedFilename,
-            parsed,
-          });
+          previews.push({ id, action, ...toPreview(parsed, originalName) });
+          items.push({ id, action, originalName, stagedFilename, parsed });
         } catch (error) {
           errors.push({ file: originalName, error: safeError(error) });
           await safeUnlink(stagedPath);
@@ -165,7 +155,7 @@ class ReportUploadReviewService {
 
   async commitUpload(token, { selectedIds } = {}) {
     const manifest = await this.readManifest(token);
-    const selected = Array.isArray(selectedIds) && selectedIds.length
+    const selected = Array.isArray(selectedIds)
       ? new Set(selectedIds.map(String))
       : null;
     const items = manifest.items.filter((item) => !selected || selected.has(String(item.id)));
@@ -308,25 +298,26 @@ class ReportUploadReviewService {
     const stem = path.basename(safeName, extension);
     let candidate = path.join(yearDirectory, safeName);
 
-    const existingHash = await fileSha256(candidate);
+    let existingHash = await fileSha256(candidate);
     if (existingHash && sha256 && existingHash === sha256) {
-      return {
-        filename: path.basename(candidate),
-        relativePath: toPortablePath(path.relative(this.root, candidate)),
-      };
+      return storedFileReference(this.root, candidate);
     }
 
     if (existingHash) {
       const suffix = String(sha256 || crypto.randomBytes(4).toString("hex")).slice(0, 8);
       candidate = path.join(yearDirectory, `${stem}-${suffix}${extension}`);
+      existingHash = await fileSha256(candidate);
+      if (existingHash && sha256 && existingHash === sha256) {
+        return storedFileReference(this.root, candidate);
+      }
+      if (existingHash) {
+        candidate = path.join(yearDirectory, `${stem}-${suffix}-${crypto.randomBytes(3).toString("hex")}${extension}`);
+      }
     }
 
     await fs.copyFile(stagedPath, candidate);
     await fs.chmod(candidate, 0o600).catch(() => {});
-    return {
-      filename: path.basename(candidate),
-      relativePath: toPortablePath(path.relative(this.root, candidate)),
-    };
+    return storedFileReference(this.root, candidate);
   }
 }
 
@@ -353,6 +344,13 @@ function safeDocxFilename(value) {
   if (!filename) filename = "report.docx";
   if (path.extname(filename).toLowerCase() !== ".docx") filename += ".docx";
   return filename.slice(0, 220);
+}
+
+function storedFileReference(root, candidate) {
+  return {
+    filename: path.basename(candidate),
+    relativePath: toPortablePath(path.relative(root, candidate)),
+  };
 }
 
 async function moveFile(source, destination) {

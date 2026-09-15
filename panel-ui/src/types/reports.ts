@@ -110,8 +110,31 @@ export interface HistoricalReportListResult {
   };
 }
 
+export interface ReportFilterParams {
+  year: number;
+  month?: number;
+  day?: number;
+  reportType?: string;
+  severity?: string;
+  urgency?: string;
+  finding?: string;
+  findingCategory?: string;
+  vulnerability?: string;
+  provider?: string;
+  organization?: string;
+  ip?: string;
+  port?: number | string;
+  service?: string;
+  domain?: string;
+  cve?: string;
+  minScore?: number | string;
+  maxScore?: number | string;
+  search?: string;
+}
+
 export interface ReportStats {
   year: number;
+  scope?: Partial<Omit<ReportFilterParams, 'year'>>;
   summary: {
     total: number;
     uniqueOrganizations: number;

@@ -6,7 +6,7 @@ const { promisify } = require("node:util");
 const { normalizeIpv4 } = require("./ipExtractor");
 
 const execFileAsync = promisify(execFile);
-const PARSER_VERSION = "docx-v2";
+const PARSER_VERSION = "docx-v3";
 
 async function parseDocxReport(filePath, { yearHint } = {}) {
   const absolutePath = path.resolve(filePath);
@@ -103,8 +103,9 @@ function extractReportRecord(parsed, { yearHint } = {}) {
   const targetOrganization = firstField(fieldMap, flatText, ["سازمان هدف", "نام سازمان هدف"]);
   const targetIpRaw = firstField(fieldMap, flatText, ["آدرس IP", "آدرس آی پی", "آدرس آی‌پی"]);
   let targetIp = normalizeFirstIp(targetIpRaw);
-  const severityScore = parseScore(firstField(fieldMap, flatText, ["شدت رخداد", "شدت حادثه", "امتیاز شدت"]));
-  const urgencyRaw = firstField(fieldMap, flatText, ["فوریت اقدام"]);
+  const severityRaw = firstField(fieldMap, flatText, ["شدت رخداد", "شدت حادثه", "امتیاز شدت"]);
+  const severityScore = parseScore(severityRaw);
+  const urgencyRaw = firstField(fieldMap, flatText, ["فوریت اقدام", "فوریت رخداد", "فوریت حادثه"]);
   const effect = firstField(fieldMap, flatText, ["اثر رخداد", "اثر حادثه"]);
 
   const date = parseJalaliDate(reportDateRaw, yearHint);
@@ -133,12 +134,14 @@ function extractReportRecord(parsed, { yearHint } = {}) {
     [/^راهکار/, /^منابع$/],
   );
   const recommendations = extractRecommendations(paragraphs);
-  const vulnerability = classifyVulnerability(`${title}\n${description}`);
-  const finding = classifyFinding(`${title}\n${description}`);
+  const titleFinding = classifyFinding(title);
+  const finding = titleFinding.type !== "unknown" ? titleFinding : classifyFinding(description);
+  const vulnerability = vulnerabilityFromFinding(finding);
   const severityLevel = scoreToSeverity(severityScore);
   const urgency = normalizeUrgency(urgencyRaw);
   const reportType = classifyReportType(title);
   const cves = extractCves(flatText);
+  const affectedCves = [...new Set(affectedSystems.flatMap((item) => item.cves || []))];
 
   const affectedOrganizations = [...new Set(affectedSystems.map((item) => item.organization).filter(Boolean))];
   const organizationMismatch = Boolean(
@@ -183,6 +186,7 @@ function extractReportRecord(parsed, { yearHint } = {}) {
       rawIp: targetIpRaw || null,
     },
     severity: {
+      raw: severityRaw || null,
       score: severityScore,
       level: severityLevel,
     },
@@ -193,6 +197,7 @@ function extractReportRecord(parsed, { yearHint } = {}) {
     finding,
     vulnerability,
     cves,
+    affectedCves,
     description,
     conclusion,
     recommendations,
@@ -254,15 +259,26 @@ function extractAffectedSystems(tables) {
     if (recognized < 2 || !hasAssetIdentity) continue;
 
     for (const row of table.slice(1)) {
+      const rowText = row.join(" ");
+      const rowUrls = extractUrls(rowText);
+      const isUrlContinuation = rowUrls.length > 0 && row.length <= 2 && headers.length >= 4 && output.length > 0;
+      if (isUrlContinuation) {
+        const previous = output[output.length - 1];
+        previous.additionalUrls = [...new Set([...(previous.additionalUrls || []), ...rowUrls])];
+        continue;
+      }
+
       const item = {};
       headers.forEach((key, index) => {
         if (!key || row[index] === undefined) return;
         item[key] = normalizeWhitespace(row[index]) || null;
       });
 
+      const rawIp = item.ip || extractMaskedIp(rowText);
       if (item.ip) item.ip = normalizeFirstIp(item.ip);
+      if (!item.url && rowUrls.length) item.url = rowUrls[0];
       if (item.url && !item.domain) item.domain = domainFromUrl(item.url);
-      if (!item.ip) item.ip = normalizeFirstIp(row.join(" "));
+      if (!item.ip) item.ip = normalizeFirstIp(rowText);
       if (item.port) item.port = parsePort(item.port);
       if (!item.port && item.service) item.port = parsePort(item.service);
       if (item.packetCount) item.packetCount = parseInteger(item.packetCount);
@@ -270,15 +286,17 @@ function extractAffectedSystems(tables) {
       if (item.trafficVolumeRaw) item.trafficVolumeBytes = parseTrafficBytes(item.trafficVolumeRaw);
 
       const eventDate = parseJalaliDate(item.eventDateRaw);
-      const rowCves = extractCves([item.reportedFinding, item.url, row.join(" ")].filter(Boolean).join("\n"));
+      const rowCves = extractCves([item.reportedFinding, item.url, rowText].filter(Boolean).join("\n"));
 
       const normalizedItem = {
         method: item.method || null,
         parameter: item.parameter || null,
         url: item.url || null,
+        additionalUrls: [],
         domain: item.domain || null,
         organization: item.organization || null,
         ip: item.ip || null,
+        rawIp: rawIp || null,
         port: item.port || null,
         service: item.service || null,
         packetCount: item.packetCount || null,
@@ -308,7 +326,7 @@ function normalizeHeader(value) {
   if (!text) return null;
   if (/^(متد|method)$/.test(text)) return "method";
   if (/پارامتر|parameter/.test(text)) return "parameter";
-  if (/مسیر.*(بهره|دسترسی)|url|آدرس.*وب|نشانی.*وب/.test(text)) return "url";
+  if (/مسیر.*(بهره|دسترسی)|url|آدرس.*وب|نشانی.*وب|webmail|آدرس.*mail/.test(text)) return "url";
   if (/دامنه|domain/.test(text)) return "domain";
   if (/نام.*سازمان|organization/.test(text)) return "organization";
   if (/آدرس.*سازمان|آدرس.*ip|آدرس.*آی|ip سازمانی|ip address|^ip$/.test(text)) return "ip";
@@ -319,8 +337,8 @@ function normalizeHeader(value) {
   if (/حجم.*ترافیک|traffic.*volume/.test(text)) return "trafficVolumeRaw";
   if (/^تاریخ$|تاریخ.*رخداد|event.*date/.test(text)) return "eventDateRaw";
   if (/بازه.*زمان|time.*range/.test(text)) return "timeRange";
-  if (/نسخه.*routeros|نسخه.*نرم|software.*version|^نسخه$/.test(text)) return "softwareVersion";
-  if (/نوع.*آسیب|آسیب پذیری|finding/.test(text)) return "reportedFinding";
+  if (/نسخه.*(routeros|نرم|سرویس|آسیب|تحت تاثیر|تحت تأثیر)|software.*version|^نسخه$/.test(text)) return "softwareVersion";
+  if (/نوع.*آسیب|نمونه.*آسیب|نمونه.*شناسه|شناسه.*آسیب|آسیب پذیری|finding/.test(text)) return "reportedFinding";
   return null;
 }
 
@@ -369,12 +387,14 @@ function extractRecommendations(paragraphs) {
 function classifyFinding(value) {
   const text = normalizePersianCharacters(String(value || "")).toLowerCase();
   const catalog = [
-    { pattern: /cross[-\s]?site scripting|\bxss\b/, type: "xss", name: "Cross-Site Scripting", category: "web", cwe: "CWE-79" },
+    { pattern: /phpmyadmin/, type: "vulnerable_phpmyadmin", name: "Vulnerable phpMyAdmin", category: "vulnerable_software", cwe: null },
+    { pattern: /roundcube/, type: "vulnerable_roundcube", name: "Vulnerable Roundcube", category: "vulnerable_software", cwe: null },
+    { pattern: /mikrotik\s+routeros|routeros/, type: "vulnerable_routeros", name: "Vulnerable MikroTik RouterOS", category: "vulnerable_software", cwe: null },
     { pattern: /dependency\s+confusion|dependency\s+hijack/, type: "dependency_confusion", name: "Dependency Confusion", category: "software_supply_chain", cwe: null },
     { pattern: /udp\s+amplification/, type: "udp_amplification", name: "UDP Amplification", category: "denial_of_service", cwe: null },
     { pattern: /(?:tcp\s+)?syn\s+flood|tcp\s+flood/, type: "tcp_syn_flood", name: "TCP SYN Flood", category: "denial_of_service", cwe: null },
     { pattern: /ترافیک.*ناهنجار|traffic\s+anomal/, type: "traffic_anomaly", name: "Traffic Anomaly", category: "network_anomaly", cwe: null },
-    { pattern: /mikrotik\s+routeros|routeros/, type: "vulnerable_routeros", name: "Vulnerable MikroTik RouterOS", category: "vulnerable_software", cwe: null },
+    { pattern: /cross[-\s]?site scripting|\bxss\b/, type: "xss", name: "Cross-Site Scripting", category: "web", cwe: "CWE-79" },
     { pattern: /sql injection|\bsqli\b|تزریق\s+sql/, type: "sql_injection", name: "SQL Injection", category: "web", cwe: "CWE-89" },
     { pattern: /server[-\s]?side request forgery|\bssrf\b/, type: "ssrf", name: "Server-Side Request Forgery", category: "web", cwe: "CWE-918" },
     { pattern: /cross[-\s]?site request forgery|\bcsrf\b/, type: "csrf", name: "Cross-Site Request Forgery", category: "web", cwe: "CWE-352" },
@@ -392,8 +412,7 @@ function classifyFinding(value) {
   };
 }
 
-function classifyVulnerability(value) {
-  const finding = classifyFinding(value);
+function vulnerabilityFromFinding(finding) {
   const vulnerabilityTypes = new Set([
     "xss",
     "dependency_confusion",
@@ -406,8 +425,10 @@ function classifyVulnerability(value) {
     "open_redirect",
     "weak_tls",
     "vulnerable_routeros",
+    "vulnerable_phpmyadmin",
+    "vulnerable_roundcube",
   ]);
-  if (!vulnerabilityTypes.has(finding.type)) {
+  if (!finding || !vulnerabilityTypes.has(finding.type)) {
     return { name: null, normalizedName: "unknown", category: "unknown", cwe: null };
   }
   return {
@@ -416,6 +437,10 @@ function classifyVulnerability(value) {
     category: finding.category,
     cwe: finding.cwe,
   };
+}
+
+function classifyVulnerability(value) {
+  return vulnerabilityFromFinding(classifyFinding(value));
 }
 
 function classifyReportType(title) {
@@ -438,11 +463,11 @@ function parseJalaliDate(value, yearHint) {
 
 function parseScore(value) {
   if (value === null || value === undefined) return null;
-  const normalized = toAsciiDigits(String(value)).replace(",", ".");
-  const match = normalized.match(/\d+(?:\.\d+)?/);
-  if (!match) return null;
-  const score = Number(match[0]);
-  return Number.isFinite(score) ? score : null;
+  const normalized = toAsciiDigits(String(value)).replace(",", ".").trim();
+  if (!/^\d{1,2}(?:\.\d+)?$/.test(normalized)) return null;
+  const score = Number(normalized);
+  if (!Number.isFinite(score) || score < 0 || score > 10) return null;
+  return score;
 }
 
 function scoreToSeverity(score) {
@@ -475,6 +500,11 @@ function normalizeFirstIp(value) {
   return null;
 }
 
+function extractMaskedIp(value) {
+  const match = String(value || "").match(/\b[xX](?:\.[xX]){3}\b/);
+  return match?.[0] || null;
+}
+
 function parseInteger(value) {
   const normalized = toAsciiDigits(String(value || "")).replace(/[,_\s]/g, "");
   const match = normalized.match(/\d+/);
@@ -504,6 +534,11 @@ function parseTrafficBytes(value) {
 function extractCves(value) {
   const matches = String(value || "").toUpperCase().match(/CVE-\d{4}-\d{4,7}/g) || [];
   return [...new Set(matches)];
+}
+
+function extractUrls(value) {
+  const matches = String(value || "").match(/https?:\/\/[^\s<>"']+/gi) || [];
+  return [...new Set(matches.map((item) => item.replace(/[),.;]+$/, "")))];
 }
 
 function domainFromUrl(value) {
@@ -596,10 +631,12 @@ module.exports = {
   scoreToSeverity,
   normalizeUrgency,
   normalizeFirstIp,
+  extractMaskedIp,
   parseInteger,
   parsePort,
   parseTrafficBytes,
   extractCves,
+  extractUrls,
   normalizeLabel,
   normalizePersianCharacters,
   normalizeWhitespace,

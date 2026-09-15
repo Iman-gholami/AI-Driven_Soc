@@ -12,6 +12,14 @@ import {
   CopilotChatHistoryItem,
   CopilotConversationState,
 } from '../types';
+import type {
+  HistoricalReport,
+  HistoricalReportListResult,
+  ReportCopilotResult,
+  ReportImportResult,
+  ReportImportScan,
+  ReportStats,
+} from '../types/reports';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
@@ -126,6 +134,43 @@ export const api = {
       history,
       state,
     });
+    return response.data.data;
+  },
+
+  getReportYears: async (): Promise<Array<{ year: number; count: number }>> => {
+    const response = await apiClient.get<ApiResponse<Array<{ year: number; count: number }>>>('/reports/years');
+    return response.data.data || [];
+  },
+
+  getReportStats: async (year: number): Promise<ReportStats> => {
+    const response = await apiClient.get<ApiResponse<ReportStats>>('/reports/stats', { params: { year } });
+    return response.data.data;
+  },
+
+  getHistoricalReports: async (params: Record<string, unknown> = {}): Promise<HistoricalReportListResult> => {
+    const response = await apiClient.get<ApiResponse<HistoricalReportListResult>>('/reports', {
+      params: cleanParams(params),
+    });
+    return response.data.data;
+  },
+
+  getHistoricalReport: async (id: string): Promise<HistoricalReport> => {
+    const response = await apiClient.get<ApiResponse<HistoricalReport>>(`/reports/${encodeURIComponent(id)}`);
+    return response.data.data;
+  },
+
+  scanHistoricalReports: async (year: number): Promise<ReportImportScan> => {
+    const response = await apiClient.get<ApiResponse<ReportImportScan>>('/reports/import/scan', { params: { year } });
+    return response.data.data;
+  },
+
+  importHistoricalReports: async (year: number, dryRun = false): Promise<ReportImportResult> => {
+    const response = await apiClient.post<ApiResponse<ReportImportResult>>('/reports/import', { year, dryRun });
+    return response.data.data;
+  },
+
+  queryReportCopilot: async (message: string): Promise<ReportCopilotResult> => {
+    const response = await apiClient.post<ApiResponse<ReportCopilotResult>>('/reports/copilot/query', { message });
     return response.data.data;
   },
 };

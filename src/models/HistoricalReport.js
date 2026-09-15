@@ -8,6 +8,20 @@ const affectedSystemSchema = new mongoose.Schema(
     domain: { type: String, default: null },
     organization: { type: String, default: null },
     ip: { type: String, default: null },
+    port: { type: Number, default: null },
+    service: { type: String, default: null },
+    packetCount: { type: Number, default: null },
+    participantIpCount: { type: Number, default: null },
+    trafficVolumeRaw: { type: String, default: null },
+    trafficVolumeBytes: { type: Number, default: null },
+    eventDateRaw: { type: String, default: null },
+    eventYear: { type: Number, default: null },
+    eventMonth: { type: Number, default: null },
+    eventDay: { type: Number, default: null },
+    timeRange: { type: String, default: null },
+    softwareVersion: { type: String, default: null },
+    reportedFinding: { type: String, default: null },
+    cves: { type: [String], default: [] },
   },
   { _id: false },
 );
@@ -25,10 +39,12 @@ const historicalReportSchema = new mongoose.Schema(
     reportType: { type: String, default: "unknown", index: true },
     provider: { type: String, default: null },
     contact: { type: String, default: null },
+    effect: { type: String, default: null },
 
     target: {
       organization: { type: String, default: null, index: true },
       ip: { type: String, default: null, index: true },
+      rawIp: { type: String, default: null },
     },
 
     severity: {
@@ -41,6 +57,15 @@ const historicalReportSchema = new mongoose.Schema(
       normalized: { type: String, default: "unknown", index: true },
     },
 
+    finding: {
+      type: { type: String, default: "unknown", index: true },
+      name: { type: String, default: null },
+      category: { type: String, default: "unknown", index: true },
+      cwe: { type: String, default: null },
+    },
+
+    // Kept for compatibility with the first report-intelligence schema and
+    // vulnerability-specific filtering. General analytics should prefer `finding`.
     vulnerability: {
       name: { type: String, default: null },
       normalizedName: { type: String, default: "unknown", index: true },
@@ -48,7 +73,9 @@ const historicalReportSchema = new mongoose.Schema(
       cwe: { type: String, default: null },
     },
 
+    cves: { type: [String], default: [], index: true },
     description: { type: String, default: "" },
+    conclusion: { type: String, default: "" },
     recommendations: { type: [String], default: [] },
     affectedSystems: { type: [affectedSystemSchema], default: [] },
     fullText: { type: String, default: "" },
@@ -62,7 +89,7 @@ const historicalReportSchema = new mongoose.Schema(
     },
 
     extraction: {
-      parserVersion: { type: String, default: "docx-v1" },
+      parserVersion: { type: String, default: "docx-v2" },
       paragraphCount: { type: Number, default: 0 },
       tableCount: { type: Number, default: 0 },
       warnings: { type: [String], default: [] },
@@ -74,16 +101,22 @@ const historicalReportSchema = new mongoose.Schema(
 );
 
 historicalReportSchema.index({ year: 1, month: 1 });
+historicalReportSchema.index({ year: 1, reportType: 1 });
 historicalReportSchema.index({ year: 1, "severity.level": 1 });
+historicalReportSchema.index({ year: 1, "finding.type": 1 });
 historicalReportSchema.index({ year: 1, "vulnerability.normalizedName": 1 });
 historicalReportSchema.index({ year: 1, "target.organization": 1 });
 historicalReportSchema.index({ "affectedSystems.ip": 1 });
 historicalReportSchema.index({ "affectedSystems.domain": 1 });
+historicalReportSchema.index({ "affectedSystems.port": 1 });
+historicalReportSchema.index({ "affectedSystems.eventYear": 1, "affectedSystems.eventMonth": 1 });
 historicalReportSchema.index({
   title: "text",
   description: "text",
+  conclusion: "text",
   recommendations: "text",
   "target.organization": "text",
+  "finding.name": "text",
   "vulnerability.name": "text",
 });
 

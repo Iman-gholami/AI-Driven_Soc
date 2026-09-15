@@ -16,6 +16,7 @@ import type {
   HistoricalReport,
   HistoricalReportListResult,
   ReportCopilotResult,
+  ReportFilterParams,
   ReportImportResult,
   ReportImportScan,
   ReportStats,
@@ -144,8 +145,10 @@ export const api = {
     return response.data.data || [];
   },
 
-  getReportStats: async (year: number): Promise<ReportStats> => {
-    const response = await apiClient.get<ApiResponse<ReportStats>>('/reports/stats', { params: { year } });
+  getReportStats: async (params: ReportFilterParams): Promise<ReportStats> => {
+    const response = await apiClient.get<ApiResponse<ReportStats>>('/reports/stats', {
+      params: cleanParams(params),
+    });
     return response.data.data;
   },
 

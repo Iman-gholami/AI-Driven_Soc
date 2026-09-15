@@ -55,6 +55,7 @@ class ReportImportService {
       skipped: 0,
       failed: 0,
       dryRun: Boolean(dryRun),
+      previews: [],
       errors: [],
     };
 
@@ -70,6 +71,10 @@ class ReportImportService {
         const parsed = await this.parser(absolutePath, { yearHint: scan.year });
         parsed.source.relativePath = file.relativePath;
         parsed.documentKey = String(parsed.reportNumber || parsed.source.sha256);
+
+        if (dryRun && result.previews.length < 20) {
+          result.previews.push(toPreview(parsed, file.relativePath));
+        }
 
         const existing = await this.model.findOne({ documentKey: parsed.documentKey }).lean().exec();
         if (existing?.source?.sha256 === parsed.source.sha256) {
@@ -111,6 +116,23 @@ class ReportImportService {
     }
     return candidate;
   }
+}
+
+function toPreview(parsed, relativePath) {
+  return {
+    file: relativePath,
+    reportNumber: parsed.reportNumber || null,
+    date: parsed.reportDateRaw || null,
+    organization: parsed.target?.organization || null,
+    ip: parsed.target?.ip || null,
+    severityScore: parsed.severity?.score ?? null,
+    severityLevel: parsed.severity?.level || "unknown",
+    urgency: parsed.urgency?.normalized || "unknown",
+    vulnerability: parsed.vulnerability?.normalizedName || "unknown",
+    affectedSystems: Array.isArray(parsed.affectedSystems) ? parsed.affectedSystems.length : 0,
+    recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.length : 0,
+    warnings: parsed.extraction?.warnings || [],
+  };
 }
 
 async function walkDocxFiles(directory) {
@@ -163,4 +185,5 @@ module.exports = {
   walkDocxFiles,
   normalizeYear,
   toPortablePath,
+  toPreview,
 };

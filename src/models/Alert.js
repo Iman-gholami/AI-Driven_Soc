@@ -22,6 +22,7 @@ const futureSocFieldsSchema = new Schema(
     correlation: { type: Schema.Types.Mixed, default: undefined },
     threatIntelligence: { type: Schema.Types.Mixed, default: undefined },
     networkIntelligence: { type: Schema.Types.Mixed, default: undefined },
+    historicalReports: { type: Schema.Types.Mixed, default: undefined },
     providerMetadata: { type: Schema.Types.Mixed, default: undefined },
   },
   { _id: false, strict: false },

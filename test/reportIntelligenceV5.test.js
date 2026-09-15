@@ -24,6 +24,15 @@ test("classifies all remaining observed 1404 report families", () => {
   }
 });
 
+test("prefers exposed RPC when an RPC report body also mentions NTLM", () => {
+  const finding = classifyFindingV5([
+    "پیکربندی نامناسب- عدم مدیریت سرویس پرخطر RPC",
+    "سرویس RPC جهت احراز هویت کاربران خود بطور پیش‌فرض از پروتکل NTLM استفاده می‌کند.",
+    "RPC هرگز نباید مستقیماً در معرض اینترنت قرار گیرد.",
+  ].join("\n"));
+  assert.equal(finding.type, "exposed_rpc");
+});
+
 test("recognizes Log4Shell by CVE evidence even when title wording varies", () => {
   const finding = classifyFindingV5(
     "کتابخانه جاوا دارای CVE-2021-44228 و CVE-2021-45046 است و بهره‌برداری Log4Shell رخ می‌دهد.",

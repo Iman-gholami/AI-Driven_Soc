@@ -216,6 +216,11 @@ const Reports: React.FC = () => {
     setPage(1);
   }
 
+  function selectMonth(month?: number) {
+    setFilters((current) => ({ ...current, month, day: undefined }));
+    setPage(1);
+  }
+
   function clearFilters() {
     setFilters({});
     setPage(1);
@@ -255,15 +260,34 @@ const Reports: React.FC = () => {
       title={<Space><SearchOutlined /><span>Analytics scope</span><Tag color={activeFilterCount ? 'blue' : 'default'}>{activeFilterCount ? `${activeFilterCount} filters` : 'Full year'}</Tag></Space>}
       extra={<Button size="small" disabled={!activeFilterCount} onClick={clearFilters}>Reset filters</Button>}
     >
+      <div style={{ marginBottom: 10 }}>
+        <Text type="secondary" style={{ display: 'block', marginBottom: 7, fontSize: 11 }}>Jalali month</Text>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <Button
+            size="small"
+            type={!filters.month ? 'primary' : 'default'}
+            onClick={() => selectMonth(undefined)}
+          >
+            کل سال
+          </Button>
+          {JALALI_MONTHS.map((label, index) => {
+            const month = index + 1;
+            const selected = Number(filters.month) === month;
+            return (
+              <Button
+                key={label}
+                size="small"
+                type={selected ? 'primary' : 'default'}
+                onClick={() => selectMonth(month)}
+              >
+                {label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
       <Space wrap size={[8, 8]}>
-        <Select
-          allowClear
-          placeholder="All months"
-          value={filters.month}
-          onChange={(value) => { setFilter('month', value); if (!value) setFilter('day', undefined); }}
-          options={JALALI_MONTHS.map((label, index) => ({ value: index + 1, label }))}
-          style={{ width: 135 }}
-        />
         <Select
           allowClear
           disabled={!filters.month}

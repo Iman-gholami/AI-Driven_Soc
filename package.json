@@ -20,6 +20,7 @@
     "mitre:gaps:apply": "node scripts/apply-mitre-gaps.js",
     "import:ip-assets": "node scripts/import-ip-assets.js",
     "import:threat-intel": "node scripts/import-threat-intel.js",
+    "import:reports": "node scripts/import-reports.js",
     "mcp:serve": "node src/mcp/stdio.js",
     "copilot:smoke": "node scripts/copilot-smoke.js",
     "copilot:ask": "node scripts/copilot-ask.js",

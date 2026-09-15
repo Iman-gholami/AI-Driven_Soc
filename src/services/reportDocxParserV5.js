@@ -44,7 +44,7 @@ function classifyFindingV5(value) {
       cwe: null,
     },
     {
-      pattern: /(?:دسترسی\s+(?:نامجاز\s+و\s+)?بدون\s+احراز\s+هویت|unauthenticated\s+(?:file\s+)?access).*(?:web\.config|فایل|دایرکتوری|directory|config)|(?:web\.config|فایل|دایرکتوری|directory|config).*(?:بدون\s+احراز\s+هویت|unauthenticated)/,
+      pattern: /دسترسی\s+(?:نامجاز\s+و\s+)?بدون\s+احراز\s+هویت|unauthenticated\s+(?:file\s+)?access/,
       type: "unauthenticated_file_access",
       name: "Unauthenticated File Access",
       category: "access_control",

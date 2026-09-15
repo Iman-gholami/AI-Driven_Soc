@@ -75,31 +75,16 @@ const CHART = {
 };
 
 const severityTag: Record<string, string> = {
-  critical: 'red',
-  high: 'volcano',
-  medium: 'gold',
-  low: 'blue',
-  info: 'cyan',
-  none: 'default',
-  unknown: 'default',
+  critical: 'red', high: 'volcano', medium: 'gold', low: 'blue', info: 'cyan', none: 'default', unknown: 'default',
 };
 
 const severityColor: Record<string, string> = {
-  critical: CHART.red,
-  high: CHART.orange,
-  medium: CHART.amber,
-  low: CHART.primary,
-  info: CHART.cyan,
-  unknown: CHART.slate,
-  none: CHART.slate,
+  critical: CHART.red, high: CHART.orange, medium: CHART.amber, low: CHART.primary,
+  info: CHART.cyan, unknown: CHART.slate, none: CHART.slate,
 };
 
 const reportTypeLabel: Record<string, string> = {
-  misconfiguration: 'Misconfiguration',
-  vulnerability: 'Vulnerability',
-  incident: 'Incident',
-  malware: 'Malware',
-  unknown: 'Unknown',
+  misconfiguration: 'Misconfiguration', vulnerability: 'Vulnerability', incident: 'Incident', malware: 'Malware', unknown: 'Unknown',
 };
 
 type ReportFilterState = Omit<ReportFilterParams, 'year'>;
@@ -120,6 +105,8 @@ const Reports: React.FC = () => {
   const [copilotInput, setCopilotInput] = useState('');
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [lastImport, setLastImport] = useState<ReportImportResult | null>(null);
+  const [organizationSearch, setOrganizationSearch] = useState('');
+  const [debouncedOrganizationSearch, setDebouncedOrganizationSearch] = useState('');
 
   const yearsQuery = useQuery({ queryKey: ['report-years'], queryFn: api.getReportYears });
 
@@ -128,6 +115,11 @@ const Reports: React.FC = () => {
       setYear(yearsQuery.data[0].year);
     }
   }, [yearsQuery.data, year]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedOrganizationSearch(organizationSearch.trim()), 220);
+    return () => window.clearTimeout(timer);
+  }, [organizationSearch]);
 
   const filterParams = useMemo<ReportFilterParams>(() => ({ year, ...filters }), [year, filters]);
 
@@ -142,6 +134,50 @@ const Reports: React.FC = () => {
     queryFn: () => api.getHistoricalReports({ ...filterParams, page, limit: 20 }),
     enabled: Boolean(year) && Boolean(yearsQuery.data?.some((item) => item.year === year)),
   });
+
+  const organizationSuggestionParams = useMemo(() => {
+    const { organization: _organization, ...rest } = filters;
+    return {
+      year,
+      ...rest,
+      organization: debouncedOrganizationSearch,
+      page: 1,
+      limit: 100,
+    };
+  }, [year, filters, debouncedOrganizationSearch]);
+
+  const organizationSuggestionsQuery = useQuery({
+    queryKey: ['report-organization-suggestions', organizationSuggestionParams],
+    queryFn: () => api.getHistoricalReports(organizationSuggestionParams),
+    enabled: Boolean(year)
+      && debouncedOrganizationSearch.length >= 2
+      && Boolean(yearsQuery.data?.some((item) => item.year === year)),
+    staleTime: 30_000,
+  });
+
+  const organizationOptions = useMemo(() => {
+    if (debouncedOrganizationSearch.length < 2) {
+      return (statsQuery.data?.topOrganizations || []).slice(0, 12).map((item) => ({
+        value: item.organization,
+        label: `${item.organization} · ${item.count} گزارش`,
+      }));
+    }
+
+    const counts = new Map<string, number>();
+    for (const report of organizationSuggestionsQuery.data?.reports || []) {
+      const organization = String(report.target?.organization || '').trim();
+      if (!organization) continue;
+      counts.set(organization, (counts.get(organization) || 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'fa'))
+      .slice(0, 20)
+      .map(([organization, count]) => ({
+        value: organization,
+        label: `${organization} · ${count} گزارش`,
+      }));
+  }, [debouncedOrganizationSearch, organizationSuggestionsQuery.data, statsQuery.data?.topOrganizations]);
 
   const scanQuery = useQuery({
     queryKey: ['report-import-scan', year],
@@ -163,9 +199,7 @@ const Reports: React.FC = () => {
 
   const copilotMutation = useMutation({
     mutationFn: api.queryReportCopilot,
-    onSuccess: (result) => {
-      setChat((current) => [...current, { role: 'assistant', content: result.answer, result }]);
-    },
+    onSuccess: (result) => setChat((current) => [...current, { role: 'assistant', content: result.answer, result }]),
     onError: (error: any) => {
       setChat((current) => [...current, {
         role: 'assistant',
@@ -192,19 +226,6 @@ const Reports: React.FC = () => {
     return `سال ${year}`;
   }, [filters.day, filters.month, year]);
 
-  const organizationOptions = useMemo(
-    () => (stats?.topOrganizations || []).map((item) => ({
-      value: item.organization,
-      label: (
-        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span>{item.organization}</span>
-          <Text type="secondary">{item.count} گزارش</Text>
-        </span>
-      ),
-    })),
-    [stats?.topOrganizations],
-  );
-
   const dashboard = useMemo(() => {
     if (!stats) return null;
     const activeMonths = stats.byMonth
@@ -230,13 +251,9 @@ const Reports: React.FC = () => {
     setPage(1);
   }
 
-  function selectMonth(month?: number) {
-    setFilters((current) => ({ ...current, month, day: undefined }));
-    setPage(1);
-  }
-
   function clearFilters() {
     setFilters({});
+    setOrganizationSearch('');
     setPage(1);
   }
 
@@ -248,6 +265,7 @@ const Reports: React.FC = () => {
 
   function openOrganization(organization?: string) {
     if (!organization) return;
+    setOrganizationSearch(organization);
     setFilter('organization', organization);
     setActiveTab('reports');
   }
@@ -265,6 +283,7 @@ const Reports: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['report-years'] }),
       queryClient.invalidateQueries({ queryKey: ['report-stats'] }),
       queryClient.invalidateQueries({ queryKey: ['historical-reports'] }),
+      queryClient.invalidateQueries({ queryKey: ['report-organization-suggestions'] }),
     ]);
   };
 
@@ -274,38 +293,22 @@ const Reports: React.FC = () => {
       title={<Space><SearchOutlined /><span>Analytics scope</span><Tag color={activeFilterCount ? 'blue' : 'default'}>{activeFilterCount ? `${activeFilterCount} filters` : 'Full year'}</Tag></Space>}
       extra={<Button size="small" disabled={!activeFilterCount} onClick={clearFilters}>Reset filters</Button>}
     >
-      <div style={{ marginBottom: 10 }}>
-        <Text type="secondary" style={{ display: 'block', marginBottom: 7, fontSize: 11 }}>Jalali month</Text>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          <Button
-            size="small"
-            type={!filters.month ? 'primary' : 'default'}
-            onClick={() => selectMonth(undefined)}
-          >
-            کل سال
-          </Button>
-          {JALALI_MONTHS.map((label, index) => {
-            const month = index + 1;
-            const selected = Number(filters.month) === month;
-            return (
-              <Button
-                key={label}
-                size="small"
-                type={selected ? 'primary' : 'default'}
-                onClick={() => selectMonth(month)}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-
       <Space wrap size={[8, 8]}>
         <Select
           allowClear
+          placeholder="همه ماه‌ها"
+          value={filters.month}
+          onChange={(value) => {
+            setFilters((current) => ({ ...current, month: value || undefined, day: undefined }));
+            setPage(1);
+          }}
+          options={JALALI_MONTHS.map((label, index) => ({ value: index + 1, label }))}
+          style={{ width: 155 }}
+        />
+        <Select
+          allowClear
           disabled={!filters.month}
-          placeholder="Day"
+          placeholder="روز"
           value={filters.day}
           onChange={(value) => setFilter('day', value)}
           options={Array.from({ length: 31 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))}
@@ -340,11 +343,19 @@ const Reports: React.FC = () => {
           value={String(filters.organization || '')}
           options={organizationOptions}
           placeholder="سازمان؛ مثلاً دانشگاه علوم"
-          onChange={(value) => setFilter('organization', value)}
-          onSelect={(value) => setFilter('organization', value)}
+          onSearch={setOrganizationSearch}
+          onChange={(value) => {
+            setOrganizationSearch(String(value || ''));
+            setFilter('organization', value);
+          }}
+          onSelect={(value) => {
+            setOrganizationSearch(String(value || ''));
+            setFilter('organization', value);
+          }}
           filterOption={false}
-          notFoundContent={filters.organization && !statsQuery.isFetching ? 'سازمانی پیدا نشد' : null}
-          style={{ width: 270 }}
+          defaultActiveFirstOption
+          status={organizationSuggestionsQuery.isError ? 'error' : undefined}
+          style={{ width: 280 }}
         />
         <Input allowClear placeholder="Finding type e.g. xss" value={String(filters.finding || '')} onChange={(event) => setFilter('finding', event.target.value)} style={{ width: 180 }} />
         <Input allowClear placeholder="IP" value={String(filters.ip || '')} onChange={(event) => setFilter('ip', event.target.value)} style={{ width: 150 }} />
@@ -501,10 +512,7 @@ const Reports: React.FC = () => {
 
   const reportsTable = (
     <div className="report-tab-stack">
-      <Card
-        title={`Reports · ${scopeLabel}`}
-        extra={<Text type="secondary">{reportsQuery.data?.pagination.total ?? 0} matching records</Text>}
-      >
+      <Card title={`Reports · ${scopeLabel}`} extra={<Text type="secondary">{reportsQuery.data?.pagination.total ?? 0} matching records</Text>}>
         <Table
           rowKey="_id"
           loading={reportsQuery.isLoading}

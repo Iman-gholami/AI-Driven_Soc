@@ -9,6 +9,10 @@ const {
   classifyVulnerability,
 } = require("../src/services/reportDocxParser");
 const { planReportQuestion } = require("../src/services/reportCopilotService");
+const {
+  UnifiedCopilotService,
+  looksLikeHistoricalReportQuestion,
+} = require("../src/services/unifiedCopilotService");
 
 function p(text) {
   return `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
@@ -102,4 +106,33 @@ test("plans deterministic report statistics questions", () => {
   assert.equal(planReportQuestion("چند درصد گزارش‌های ۱۴۰۴ نیازمند اقدام فوری بوده‌اند؟").operation, "immediate_percentage");
   assert.equal(planReportQuestion("روند ماهانه گزارش‌های ۱۴۰۴ را نشان بده").operation, "monthly_trend");
   assert.equal(planReportQuestion("برای IP 62.60.167.73 چه گزارش‌هایی داریم؟").operation, "ip_reports");
+});
+
+test("recognizes historical report questions without hijacking normal SOC questions", () => {
+  assert.equal(looksLikeHistoricalReportQuestion("در سال ۱۴۰۴ چند گزارش XSS داشتیم؟"), true);
+  assert.equal(looksLikeHistoricalReportQuestion("بیشترین گزارش High برای کدام سازمان بوده؟"), true);
+  assert.equal(looksLikeHistoricalReportQuestion("این alert چرا malicious شده؟"), false);
+});
+
+test("routes report questions through deterministic report data before the LLM planner", async () => {
+  const service = new UnifiedCopilotService({
+    reportCopilot: {
+      async query() {
+        return {
+          supported: true,
+          answer: "در سال 1404، 70 گزارش ثبت شده است.",
+          plan: { operation: "count", year: 1404 },
+          data: { count: 70 },
+        };
+      },
+    },
+    llm: {},
+    mcpClient: {},
+  });
+
+  const result = await service.query("در سال 1404 چند گزارش داشتیم؟");
+  assert.equal(result.tool, "query_historical_reports");
+  assert.equal(result.result.count, 70);
+  assert.equal(result.metadata.deterministic, true);
+  assert.equal(result.metadata.readOnly, true);
 });

@@ -43,7 +43,7 @@ function looksLikeHistoricalReportQuestion(value) {
     .toLowerCase();
 
   if (!/(گزارش|report)/.test(text)) return false;
-  return /(?:13\d{2}|14\d{2}|15\d{2}|چند|تعداد|بیشترین|رایج|روند|ماهانه|درصد|آسیب\s*پذیری|xss|sql|rce|شدت|فوریت|اقدام فوری|سازمان|(?:\d{1,3}\.){3}\d{1,3})/.test(text);
+  return /(?:13\d{2}|14\d{2}|15\d{2}|چند|تعداد|بیشترین|رایج|روند|ماهانه|درصد|finding|یافته|نوع گزارش|حادثه|رخداد|آسیب\s*پذیری|پیکربندی|xss|sql|rce|dependency|udp amplification|syn flood|tcp flood|ترافیک.*ناهنجار|routeros|mikrotik|cve-\d{4}-\d+|پورت\s*\d+|شدت|فوریت|جهت اطلاع|اقدام فوری|سازمان|(?:\d{1,3}\.){3}\d{1,3})/.test(text);
 }
 
 module.exports = {

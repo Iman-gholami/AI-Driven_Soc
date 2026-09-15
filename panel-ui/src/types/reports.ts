@@ -5,6 +5,20 @@ export interface HistoricalAffectedSystem {
   domain?: string | null;
   organization?: string | null;
   ip?: string | null;
+  port?: number | null;
+  service?: string | null;
+  packetCount?: number | null;
+  participantIpCount?: number | null;
+  trafficVolumeRaw?: string | null;
+  trafficVolumeBytes?: number | null;
+  eventDateRaw?: string | null;
+  eventYear?: number | null;
+  eventMonth?: number | null;
+  eventDay?: number | null;
+  timeRange?: string | null;
+  softwareVersion?: string | null;
+  reportedFinding?: string | null;
+  cves?: string[];
 }
 
 export interface HistoricalReport {
@@ -18,9 +32,12 @@ export interface HistoricalReport {
   title: string;
   reportType: string;
   provider?: string | null;
+  contact?: string | null;
+  effect?: string | null;
   target: {
     organization?: string | null;
     ip?: string | null;
+    rawIp?: string | null;
   };
   severity: {
     score?: number | null;
@@ -30,13 +47,21 @@ export interface HistoricalReport {
     raw?: string | null;
     normalized: string;
   };
+  finding: {
+    type: string;
+    name?: string | null;
+    category: string;
+    cwe?: string | null;
+  };
   vulnerability: {
     name?: string | null;
     normalizedName: string;
     category: string;
     cwe?: string | null;
   };
+  cves: string[];
   description: string;
+  conclusion?: string;
   recommendations: string[];
   affectedSystems: HistoricalAffectedSystem[];
   source: {
@@ -71,16 +96,21 @@ export interface ReportStats {
     uniqueIps: number;
     highCritical: number;
     immediate: number;
+    actionRequired: number;
+    informational: number;
     qualityWarnings: number;
     immediatePercent: number;
     highCriticalPercent: number;
   };
   byMonth: Array<{ month: number | null; count: number }>;
+  byFinding: Array<{ key: string; name: string; category?: string; count: number }>;
   byVulnerability: Array<{ key: string; name: string; count: number }>;
+  byReportType: Array<{ reportType: string; count: number }>;
   bySeverity: Array<{ severity: string; count: number }>;
   byUrgency: Array<{ urgency: string; count: number }>;
   topOrganizations: Array<{ organization: string; count: number }>;
   topIps: Array<{ ip: string; count: number }>;
+  topPorts: Array<{ port: number; count: number }>;
   repeated: {
     repeatedGroups: number;
     reportsInRepeatedGroups: number;
@@ -102,21 +132,6 @@ export interface ReportImportScan {
   }>;
 }
 
-export interface ReportImportPreview {
-  file: string;
-  reportNumber?: string | null;
-  date?: string | null;
-  organization?: string | null;
-  ip?: string | null;
-  severityScore?: number | null;
-  severityLevel: string;
-  urgency: string;
-  vulnerability: string;
-  affectedSystems: number;
-  recommendations: number;
-  warnings: string[];
-}
-
 export interface ReportImportResult {
   year: number;
   discovered: number;
@@ -126,7 +141,6 @@ export interface ReportImportResult {
   skipped: number;
   failed: number;
   dryRun: boolean;
-  previews: ReportImportPreview[];
   errors: Array<{ file: string; error: string }>;
 }
 

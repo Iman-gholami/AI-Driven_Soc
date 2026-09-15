@@ -379,7 +379,7 @@ const PreviewDetails: React.FC<{ report: ReportUploadPreviewItem }> = ({ report 
 
     {report.affectedSystemPreview?.length ? (
       <>
-        <Divider orientation="start">Affected system preview</Divider>
+        <Divider>Affected system preview</Divider>
         <Table
           rowKey={(_, index) => String(index)}
           size="small"
@@ -401,7 +401,7 @@ const PreviewDetails: React.FC<{ report: ReportUploadPreviewItem }> = ({ report 
 
     {report.phishingInfrastructure?.length ? (
       <>
-        <Divider orientation="start">Phishing infrastructure / IOC preview</Divider>
+        <Divider>Phishing infrastructure / IOC preview</Divider>
         <List
           size="small"
           dataSource={report.phishingInfrastructure}
@@ -421,7 +421,7 @@ const PreviewDetails: React.FC<{ report: ReportUploadPreviewItem }> = ({ report 
 
     {report.recommendationPreview?.length ? (
       <>
-        <Divider orientation="start">Recommendation preview</Divider>
+        <Divider>Recommendation preview</Divider>
         <List
           size="small"
           dataSource={report.recommendationPreview}

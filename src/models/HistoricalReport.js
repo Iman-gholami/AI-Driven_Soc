@@ -5,9 +5,11 @@ const affectedSystemSchema = new mongoose.Schema(
     method: { type: String, default: null },
     parameter: { type: String, default: null },
     url: { type: String, default: null },
+    additionalUrls: { type: [String], default: [] },
     domain: { type: String, default: null },
     organization: { type: String, default: null },
     ip: { type: String, default: null },
+    rawIp: { type: String, default: null },
     port: { type: Number, default: null },
     service: { type: String, default: null },
     packetCount: { type: Number, default: null },
@@ -48,6 +50,7 @@ const historicalReportSchema = new mongoose.Schema(
     },
 
     severity: {
+      raw: { type: String, default: null },
       score: { type: Number, default: null },
       level: { type: String, default: "unknown", index: true },
     },
@@ -74,6 +77,7 @@ const historicalReportSchema = new mongoose.Schema(
     },
 
     cves: { type: [String], default: [], index: true },
+    affectedCves: { type: [String], default: [], index: true },
     description: { type: String, default: "" },
     conclusion: { type: String, default: "" },
     recommendations: { type: [String], default: [] },
@@ -89,7 +93,7 @@ const historicalReportSchema = new mongoose.Schema(
     },
 
     extraction: {
-      parserVersion: { type: String, default: "docx-v2" },
+      parserVersion: { type: String, default: "docx-v3" },
       paragraphCount: { type: Number, default: 0 },
       tableCount: { type: Number, default: 0 },
       warnings: { type: [String], default: [] },

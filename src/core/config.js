@@ -23,6 +23,8 @@ const settings = {
   localLlmUseJsonMode: toBool(env.LOCAL_LLM_JSON_MODE, false),
   ipinfoMmdbPath: env.IPINFO_MMDB_PATH || "",
   threatIntelEvidenceLimit: Number(env.THREAT_INTEL_EVIDENCE_LIMIT || 12),
+  reportsRoot: env.REPORTS_ROOT || "reports",
+  reportImportMaxFileBytes: Number(env.REPORT_IMPORT_MAX_FILE_BYTES || 25 * 1024 * 1024),
   mongodbUri: env.MONGODB_URI || "",
   mongodbMaxRetries: Number(env.MONGODB_MAX_RETRIES || 3),
   mongodbRetryDelayMs: Number(env.MONGODB_RETRY_DELAY_MS || 500),

@@ -94,6 +94,7 @@ export interface Alert {
     correlation?: any;
     threatIntelligence?: any;
     networkIntelligence?: any;
+    historicalReports?: any;
     providerMetadata?: any;
   };
   processing?: Record<string, any>;
@@ -198,59 +199,37 @@ export interface MitreCoverageSnapshot {
       legacyOnly: number;
       unmapped: number;
       quarantined: number;
-      mappingCoveragePercent: number;
-      activeMappingCoveragePercent: number;
-      byTier: { native: number; imported: number; community: number };
     };
     techniques: {
       total: number;
       covered: number;
-      uncovered: number;
       coveragePercent: number;
     };
   };
   tactics: MitreTacticCoverage[];
-  techniqueStats: MitreTechniqueCoverage[];
-}
-
-export interface MitreTechniqueDetail {
-  techniqueId: string;
-  name: string;
-  description?: string;
-  tactics: { id: string; name: string; shortName: string }[];
-  platforms: string[];
-  isSubTechnique: boolean;
-  parentTechniqueId?: string | null;
-  attackVersion?: string;
-}
-
-export interface MitreRuleSummary {
-  ruleId: string;
-  revision: number;
-  title: string;
-  protocol?: string;
-  classtype?: string;
-  sourceFile?: string;
-  tier?: 'native' | 'imported' | 'community';
-  quarantined?: boolean;
-  mitre?: {
-    mapped?: boolean;
-    techniqueIds?: string[];
-    tacticIds?: string[];
-    mappings?: {
-      techniqueId?: string;
-      source?: string;
-      mappingRuleId?: string;
-      confidence?: number;
-      reviewed?: boolean;
-      evidence?: string[];
-    }[];
-  };
+  unmappedRules: Array<{
+    ruleId: string;
+    title: string;
+    classtype?: string;
+    sourceFile?: string;
+  }>;
 }
 
 export interface MitreTechniqueRulesResult {
-  technique: MitreTechniqueDetail;
-  rules: MitreRuleSummary[];
+  technique: {
+    techniqueId: string;
+    name: string;
+    description?: string;
+  };
+  rules: Array<{
+    ruleId: string;
+    revision?: number;
+    title: string;
+    classtype?: string;
+    sourceFile?: string;
+    tier?: string;
+    mitre?: Record<string, any>;
+  }>;
   pagination: {
     page: number;
     limit: number;
@@ -259,109 +238,13 @@ export interface MitreTechniqueRulesResult {
   };
 }
 
-export interface AIAlertResponse {
-  id: string;
-  alertId: string;
+export interface CopilotChatHistoryItem {
+  role: 'user' | 'assistant';
   content: string;
-  timestamp: string;
-  confidence: number;
-  summary: string;
-  insights: string[];
-  recommendations: string[];
-  severity: Alert['severity'];
-  source: string;
-  signature: string | null;
-  eventType: string | null;
-  host: string | null;
-  status: Alert['aiStatus'];
-  cached?: boolean;
-  analysisCount?: number;
-}
-
-export interface TableColumn {
-  title: string;
-  dataIndex: string;
-  key: string;
-  render?: (value: any, record: any) => React.ReactNode;
-  sorter?: boolean | ((a: any, b: any) => number);
-  filters?: { text: string; value: any }[];
-}
-
-export type ThemeMode = 'light' | 'dark';
-
-
-export interface CopilotQueryPlan {
-  dataset: string;
-  operation: 'count' | 'aggregate' | 'list' | 'distinct';
-  timeRange?: {
-    type: string;
-    value?: number;
-    from?: string;
-    to?: string;
-    field?: string;
-  };
-  filters?: Array<{ field: string; operator: string; value?: unknown }>;
-  groupBy?: string[];
-  metrics?: Array<{ type: string; field?: string; alias?: string }>;
-  select?: string[];
-  sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
-  limit?: number;
-}
-
-export interface CopilotQueryResult {
-  dataset: string;
-  operation: string;
-  timeRange?: {
-    field?: string | null;
-    from?: string | null;
-    to?: string | null;
-    timezone?: string;
-    label?: string;
-  };
-  data?: {
-    count?: number;
-    rows?: Array<Record<string, unknown>>;
-  };
-  metadata?: Record<string, unknown>;
-  queryPlan?: CopilotQueryPlan;
-}
-
-export interface CopilotBatchPlan {
-  queries: CopilotQueryPlan[];
-}
-
-export interface CopilotBatchResult {
-  count: number;
-  results: CopilotQueryResult[];
-  metadata?: Record<string, unknown>;
-}
-
-export interface CopilotEntityContextPlan {
-  entityType: 'alert' | 'ip' | 'organization' | 'rule' | 'mitre_technique';
-  id: string;
-}
-
-export interface CopilotEntityContextResult {
-  entity: {
-    type: 'alert' | 'ip' | 'organization' | 'rule' | 'mitre_technique';
-    id: string;
-  };
-  contextType?: string;
-  relatedEntities?: {
-    sourceIp?: string;
-    destinationIp?: string;
-    organization?: string;
-    ruleId?: string;
-    mitreTechniques?: string[];
-  };
-  [key: string]: unknown;
 }
 
 export interface CopilotConversationState {
-  focus?: {
-    entityType: 'alert' | 'ip' | 'organization' | 'rule' | 'mitre_technique';
-    id: string;
-  } | null;
+  focus?: { entityType: 'alert' | 'ip' | 'organization' | 'rule' | 'mitre_technique'; id: string } | null;
   relatedEntities?: {
     sourceIp?: string;
     destinationIp?: string;
@@ -370,85 +253,23 @@ export interface CopilotConversationState {
     mitreTechniques?: string[];
   };
   lastTool?: string | null;
-  lastQueryPlan?: unknown;
-}
-
-export interface CopilotMetricPlan {
-  operation: 'compare' | 'percentage' | 'trend';
-  [key: string]: unknown;
-}
-
-export interface CopilotCorrelationPlan {
-  relationship:
-    | 'alert_source_ip_to_threat_source'
-    | 'alert_destination_ip_to_asset'
-    | 'alert_rule_to_detection_rule'
-    | 'detection_rule_to_mitre_technique'
-    | 'alert_ip_to_organization';
-  timeRange?: CopilotQueryPlan['timeRange'];
-  limit?: number;
-}
-
-export type CopilotPlan =
-  | CopilotQueryPlan
-  | CopilotBatchPlan
-  | CopilotEntityContextPlan
-  | CopilotMetricPlan
-  | CopilotCorrelationPlan;
-
-export interface CopilotMetricResult {
-  operation: 'compare' | 'percentage' | 'trend';
-  left?: { label: string; count: number };
-  right?: { label: string; count: number };
-  numerator?: { label: string; count: number };
-  denominator?: { label: string; count: number };
-  difference?: number;
-  changePercent?: number | null;
-  percentage?: number | null;
-  dataset?: string;
-  bucket?: 'hour' | 'day';
-  points?: Array<{ from: string; to: string; count: number }>;
-  metadata?: Record<string, unknown>;
-}
-
-export interface CopilotCorrelationResult {
-  operation: 'correlate';
-  relationship: string;
-  relationshipDescription?: string;
-  timeRange?: {
-    from?: string | null;
-    to?: string | null;
-    timezone?: string;
-    label?: string;
-  };
-  rows: Array<Record<string, unknown>>;
-  count: number;
-  metadata?: Record<string, unknown>;
-}
-
-export interface CopilotChatHistoryItem {
-  role: 'user' | 'assistant';
-  content: string;
+  lastQueryPlan?: any;
 }
 
 export interface CopilotResponse {
   supported: boolean;
   answer: string;
-  tool: string | null;
-  queryPlan: CopilotPlan | null;
-  result:
-    | CopilotQueryResult
-    | CopilotBatchResult
-    | CopilotEntityContextResult
-    | CopilotMetricResult
-    | CopilotCorrelationResult
-    | null;
-  metadata: {
-    provider?: string;
-    model?: string;
-    readOnly?: boolean;
-    mcp?: boolean;
-    timezone?: string;
-  };
+  tool?: string | null;
+  queryPlan?: any;
+  result?: any;
+  metadata?: Record<string, any>;
   state?: CopilotConversationState;
+}
+
+export interface SidebarItem {
+  key: string;
+  label: string;
+  icon?: React.ReactNode;
+  path?: string;
+  children?: SidebarItem[];
 }

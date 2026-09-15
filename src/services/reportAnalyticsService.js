@@ -33,6 +33,12 @@ class ReportAnalyticsService {
                 immediate: {
                   $sum: { $cond: [{ $eq: ["$urgency.normalized", "immediate"] }, 1, 0] },
                 },
+                actionRequired: {
+                  $sum: { $cond: [{ $eq: ["$urgency.normalized", "action_required"] }, 1, 0] },
+                },
+                informational: {
+                  $sum: { $cond: [{ $eq: ["$urgency.normalized", "informational"] }, 1, 0] },
+                },
                 qualityWarnings: {
                   $sum: {
                     $cond: [
@@ -74,6 +80,8 @@ class ReportAnalyticsService {
                 },
                 highCritical: 1,
                 immediate: 1,
+                actionRequired: 1,
+                informational: 1,
                 qualityWarnings: 1,
               },
             },
@@ -83,11 +91,23 @@ class ReportAnalyticsService {
             { $sort: { _id: 1 } },
             { $project: { _id: 0, month: "$_id", count: 1 } },
           ],
+          byFinding: [
+            { $group: { _id: "$finding.type", count: { $sum: 1 }, name: { $first: "$finding.name" }, category: { $first: "$finding.category" } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $limit: 15 },
+            { $project: { _id: 0, key: "$_id", name: { $ifNull: ["$name", "$_id"] }, category: 1, count: 1 } },
+          ],
           byVulnerability: [
+            { $match: { "vulnerability.normalizedName": { $nin: [null, "", "unknown"] } } },
             { $group: { _id: "$vulnerability.normalizedName", count: { $sum: 1 }, name: { $first: "$vulnerability.name" } } },
             { $sort: { count: -1, _id: 1 } },
             { $limit: 12 },
             { $project: { _id: 0, key: "$_id", name: { $ifNull: ["$name", "$_id"] }, count: 1 } },
+          ],
+          byReportType: [
+            { $group: { _id: "$reportType", count: { $sum: 1 } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $project: { _id: 0, reportType: "$_id", count: 1 } },
           ],
           bySeverity: [
             { $group: { _id: "$severity.level", count: { $sum: 1 } } },
@@ -113,18 +133,26 @@ class ReportAnalyticsService {
             { $limit: 10 },
             { $project: { _id: 0, ip: "$_id", count: 1 } },
           ],
+          topPorts: [
+            { $unwind: "$affectedSystems" },
+            { $match: { "affectedSystems.port": { $ne: null } } },
+            { $group: { _id: "$affectedSystems.port", count: { $sum: 1 } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $limit: 10 },
+            { $project: { _id: 0, port: "$_id", count: 1 } },
+          ],
           repeated: [
             {
               $match: {
                 "target.organization": { $nin: [null, ""] },
-                "vulnerability.normalizedName": { $nin: [null, "", "unknown"] },
+                "finding.type": { $nin: [null, "", "unknown"] },
               },
             },
             {
               $group: {
                 _id: {
                   organization: "$target.organization",
-                  vulnerability: "$vulnerability.normalizedName",
+                  finding: "$finding.type",
                 },
                 count: { $sum: 1 },
               },
@@ -143,6 +171,8 @@ class ReportAnalyticsService {
       uniqueIps: 0,
       highCritical: 0,
       immediate: 0,
+      actionRequired: 0,
+      informational: 0,
       qualityWarnings: 0,
     };
 
@@ -154,11 +184,14 @@ class ReportAnalyticsService {
         highCriticalPercent: percent(summary.highCritical, summary.total),
       },
       byMonth: result.byMonth || [],
+      byFinding: result.byFinding || [],
       byVulnerability: result.byVulnerability || [],
+      byReportType: result.byReportType || [],
       bySeverity: result.bySeverity || [],
       byUrgency: result.byUrgency || [],
       topOrganizations: result.topOrganizations || [],
       topIps: result.topIps || [],
+      topPorts: result.topPorts || [],
       repeated: result.repeated?.[0] || { repeatedGroups: 0, reportsInRepeatedGroups: 0 },
     };
   }
@@ -205,8 +238,12 @@ function buildReportFilter(input = {}) {
   if (input.month) filter.month = clampInt(input.month, 1, 12, 1);
   if (input.severity) filter["severity.level"] = String(input.severity).toLowerCase();
   if (input.urgency) filter["urgency.normalized"] = String(input.urgency).toLowerCase();
+  if (input.reportType) filter.reportType = String(input.reportType).toLowerCase();
+  if (input.finding) filter["finding.type"] = String(input.finding).toLowerCase();
   if (input.vulnerability) filter["vulnerability.normalizedName"] = String(input.vulnerability).toLowerCase();
   if (input.organization) filter["target.organization"] = { $regex: escapeRegex(input.organization), $options: "i" };
+  if (input.cve) filter.cves = String(input.cve).toUpperCase();
+  if (input.port) filter["affectedSystems.port"] = clampInt(input.port, 0, 65535, 0);
   if (input.ip) {
     const ip = String(input.ip).trim();
     filter.$or = [{ "target.ip": ip }, { "affectedSystems.ip": ip }];
@@ -218,9 +255,13 @@ function buildReportFilter(input = {}) {
       { reportNumber: regex },
       { "target.organization": regex },
       { "target.ip": regex },
+      { "finding.name": regex },
       { "vulnerability.name": regex },
       { description: regex },
+      { conclusion: regex },
+      { cves: regex },
       { "affectedSystems.domain": regex },
+      { "affectedSystems.service": regex },
     ];
     if (filter.$or) filter.$and = [{ $or: filter.$or }, { $or: searchOr }], delete filter.$or;
     else filter.$or = searchOr;

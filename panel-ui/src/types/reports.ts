@@ -148,6 +148,94 @@ export interface ReportImportResult {
   errors: Array<{ file: string; error: string }>;
 }
 
+export interface ReportImportQuality {
+  unknownFindingCount: number;
+  unknownFindingFiles: string[];
+  findingCounts: Record<string, number>;
+  reportTypeCounts: Record<string, number>;
+  warningCounts: Record<string, number>;
+}
+
+export interface ReportUploadPreviewItem {
+  id: string;
+  action: 'new' | 'update' | 'unchanged';
+  file: string;
+  title?: string | null;
+  reportNumber?: string | null;
+  date?: string | null;
+  reportType: string;
+  provider?: string | null;
+  organization?: string | null;
+  ip?: string | null;
+  rawIp?: string | null;
+  severityScore?: number | null;
+  severityLevel: string;
+  urgency: string;
+  effect?: string | null;
+  finding: string;
+  findingName?: string | null;
+  vulnerability: string;
+  cves: string[];
+  affectedSystems: number;
+  affectedSystemPreview: Array<{
+    organization?: string | null;
+    ip?: string | null;
+    domain?: string | null;
+    url?: string | null;
+    service?: string | null;
+    port?: number | null;
+    packetCount?: number | null;
+    participantIpCount?: number | null;
+    trafficVolume?: string | null;
+    eventDate?: string | null;
+    timeRange?: string | null;
+    softwareVersion?: string | null;
+    cves?: string[];
+  }>;
+  phishingInfrastructure?: Array<{
+    url?: string | null;
+    domain?: string | null;
+    ip?: string | null;
+    rawIp?: string | null;
+    pageTitle?: string | null;
+  }>;
+  recommendations: number;
+  recommendationPreview?: string[];
+  descriptionPreview?: string | null;
+  conclusionPreview?: string | null;
+  warnings: string[];
+}
+
+export interface ReportUploadPreviewSession {
+  sessionToken: string;
+  year: number;
+  createdAt: string;
+  expiresAt: string;
+  discovered: number;
+  ready: number;
+  failed: number;
+  previews: ReportUploadPreviewItem[];
+  errors: Array<{ file: string; error: string }>;
+  quality: ReportImportQuality;
+  storagePolicy: {
+    databaseChanged: false;
+    stagedLocally: true;
+    stagedFilesExpireMinutes: number;
+  };
+}
+
+export interface ReportUploadCommitResult {
+  sessionToken: string;
+  year: number;
+  selected: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  sessionRetained?: boolean;
+  errors: Array<{ file: string; error: string }>;
+}
+
 export interface ReportCopilotResult {
   supported: boolean;
   answer: string;

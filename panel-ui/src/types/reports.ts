@@ -2,9 +2,11 @@ export interface HistoricalAffectedSystem {
   method?: string | null;
   parameter?: string | null;
   url?: string | null;
+  additionalUrls?: string[];
   domain?: string | null;
   organization?: string | null;
   ip?: string | null;
+  rawIp?: string | null;
   port?: number | null;
   service?: string | null;
   packetCount?: number | null;
@@ -40,6 +42,7 @@ export interface HistoricalReport {
     rawIp?: string | null;
   };
   severity: {
+    raw?: string | null;
     score?: number | null;
     level: string;
   };
@@ -60,6 +63,7 @@ export interface HistoricalReport {
     cwe?: string | null;
   };
   cves: string[];
+  affectedCves: string[];
   description: string;
   conclusion?: string;
   recommendations: string[];

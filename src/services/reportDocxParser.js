@@ -331,13 +331,13 @@ function normalizeHeader(value) {
   if (/نام.*سازمان|organization/.test(text)) return "organization";
   if (/آدرس.*سازمان|آدرس.*ip|آدرس.*آی|ip سازمانی|ip address|^ip$/.test(text)) return "ip";
   if (/^پورت$|port/.test(text)) return "port";
-  if (/سرویس( udp)?$|^service$/.test(text)) return "service";
+  if (/نسخه.*(routeros|نرم|سرویس|آسیب|تحت تاثیر|تحت تأثیر)|software.*version|^نسخه$/.test(text)) return "softwareVersion";
+  if (/^(سرویس(?: udp)?|service)$/.test(text)) return "service";
   if (/مجموع.*بسته|تعداد.*بسته|packet/.test(text)) return "packetCount";
   if (/تعداد.*ip.*(شرکت|مشارکت)|participant.*ip/.test(text)) return "participantIpCount";
   if (/حجم.*ترافیک|traffic.*volume/.test(text)) return "trafficVolumeRaw";
   if (/^تاریخ$|تاریخ.*رخداد|event.*date/.test(text)) return "eventDateRaw";
   if (/بازه.*زمان|time.*range/.test(text)) return "timeRange";
-  if (/نسخه.*(routeros|نرم|سرویس|آسیب|تحت تاثیر|تحت تأثیر)|software.*version|^نسخه$/.test(text)) return "softwareVersion";
   if (/نوع.*آسیب|نمونه.*آسیب|نمونه.*شناسه|شناسه.*آسیب|آسیب پذیری|finding/.test(text)) return "reportedFinding";
   return null;
 }
@@ -444,11 +444,14 @@ function classifyVulnerability(value) {
 }
 
 function classifyReportType(title) {
-  const text = normalizePersianCharacters(String(title || "")).toLowerCase();
+  const text = normalizePersianCharacters(String(title || ""))
+    .replace(/[‌\u200c]/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
   if (/پیکربندی.*نامناسب|misconfigur/.test(text)) return "misconfiguration";
   if (/بدافزار|malware|botnet|\bc2\b/.test(text)) return "malware";
   if (/حادثه|رخداد|حمله|attack|منع سرویس|flood|amplification|ترافیک.*ناهنجار/.test(text)) return "incident";
-  if (/آسیب پذیری|vulnerabil/.test(text)) return "vulnerability";
+  if (/آسیب[\s-]*پذیری|vulnerabil/.test(text)) return "vulnerability";
   return "other";
 }
 

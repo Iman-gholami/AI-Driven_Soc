@@ -6,7 +6,7 @@ const { promisify } = require("node:util");
 const { normalizeIpv4 } = require("./ipExtractor");
 
 const execFileAsync = promisify(execFile);
-const PARSER_VERSION = "docx-v1";
+const PARSER_VERSION = "docx-v2";
 
 async function parseDocxReport(filePath, { yearHint } = {}) {
   const absolutePath = path.resolve(filePath);
@@ -99,11 +99,13 @@ function extractReportRecord(parsed, { yearHint } = {}) {
   const reportDateRaw = firstField(fieldMap, flatText, ["تاریخ ارائه گزارش", "تاریخ گزارش"]);
   const reportNumber = firstField(fieldMap, flatText, ["شماره گزارش"]);
   const provider = firstField(fieldMap, flatText, ["ارائه کننده گزارش", "ارائه‌کننده گزارش"]);
-  const contact = firstField(fieldMap, flatText, ["اطلاعات تماس"]);
+  const contact = firstField(fieldMap, flatText, ["اطلاعات تماس", "شماره تماس"]);
   const targetOrganization = firstField(fieldMap, flatText, ["سازمان هدف", "نام سازمان هدف"]);
-  const targetIp = normalizeFirstIp(firstField(fieldMap, flatText, ["آدرس IP", "آدرس آی پی", "آدرس آی‌پی"]));
-  const severityScore = parseScore(firstField(fieldMap, flatText, ["شدت رخداد", "امتیاز شدت"]));
+  const targetIpRaw = firstField(fieldMap, flatText, ["آدرس IP", "آدرس آی پی", "آدرس آی‌پی"]);
+  let targetIp = normalizeFirstIp(targetIpRaw);
+  const severityScore = parseScore(firstField(fieldMap, flatText, ["شدت رخداد", "شدت حادثه", "امتیاز شدت"]));
   const urgencyRaw = firstField(fieldMap, flatText, ["فوریت اقدام"]);
+  const effect = firstField(fieldMap, flatText, ["اثر رخداد", "اثر حادثه"]);
 
   const date = parseJalaliDate(reportDateRaw, yearHint);
   if (!date.year && yearHint) date.year = Number(yearHint);
@@ -112,15 +114,33 @@ function extractReportRecord(parsed, { yearHint } = {}) {
   }
 
   const affectedSystems = extractAffectedSystems(tables);
-  const description = extractSection(paragraphs, "شرح رخداد", ["راهکار", "راه کار"]);
+  const affectedIps = [...new Set(affectedSystems.map((item) => item.ip).filter(Boolean))];
+  if (!targetIp && affectedIps.length === 1) {
+    targetIp = affectedIps[0];
+    warnings.push("target_ip_derived_from_affected_system");
+  } else if (targetIpRaw && !targetIp) {
+    warnings.push("invalid_or_masked_target_ip");
+  }
+
+  const description = extractSectionByHeadings(
+    paragraphs,
+    ["شرح رخداد", "شرح حادثه"],
+    [/^جمع\s*بندی$/, /^راهکار/, /^منابع$/],
+  );
+  const conclusion = extractSectionByHeadings(
+    paragraphs,
+    ["جمع‌بندی", "جمع بندی"],
+    [/^راهکار/, /^منابع$/],
+  );
   const recommendations = extractRecommendations(paragraphs);
   const vulnerability = classifyVulnerability(`${title}\n${description}`);
+  const finding = classifyFinding(`${title}\n${description}`);
   const severityLevel = scoreToSeverity(severityScore);
   const urgency = normalizeUrgency(urgencyRaw);
   const reportType = classifyReportType(title);
+  const cves = extractCves(flatText);
 
   const affectedOrganizations = [...new Set(affectedSystems.map((item) => item.organization).filter(Boolean))];
-  const affectedIps = [...new Set(affectedSystems.map((item) => item.ip).filter(Boolean))];
   const organizationMismatch = Boolean(
     targetOrganization
       && affectedOrganizations.length
@@ -138,6 +158,7 @@ function extractReportRecord(parsed, { yearHint } = {}) {
   if (!targetOrganization) warnings.push("missing_target_organization");
   if (!targetIp) warnings.push("missing_target_ip");
   if (!reportDateRaw) warnings.push("missing_report_date");
+  if (finding.type === "unknown") warnings.push("unknown_finding_type");
 
   const year = date.year || Number(yearHint);
   if (!Number.isInteger(year)) throw new Error("Unable to determine report year");
@@ -155,9 +176,11 @@ function extractReportRecord(parsed, { yearHint } = {}) {
     reportType,
     provider: provider || null,
     contact: contact || null,
+    effect: effect || null,
     target: {
       organization: targetOrganization || null,
       ip: targetIp || null,
+      rawIp: targetIpRaw || null,
     },
     severity: {
       score: severityScore,
@@ -167,8 +190,11 @@ function extractReportRecord(parsed, { yearHint } = {}) {
       raw: urgencyRaw || null,
       normalized: urgency,
     },
+    finding,
     vulnerability,
+    cves,
     description,
+    conclusion,
     recommendations,
     affectedSystems,
     fullText: flatText.slice(0, 120000),
@@ -219,7 +245,13 @@ function extractAffectedSystems(tables) {
     if (!Array.isArray(table) || table.length < 2) continue;
     const headers = table[0].map(normalizeHeader);
     const recognized = headers.filter(Boolean).length;
-    if (recognized < 3) continue;
+    const hasAssetIdentity = headers.some((key) => [
+      "ip",
+      "organization",
+      "domain",
+      "url",
+    ].includes(key));
+    if (recognized < 2 || !hasAssetIdentity) continue;
 
     for (const row of table.slice(1)) {
       const item = {};
@@ -227,18 +259,44 @@ function extractAffectedSystems(tables) {
         if (!key || row[index] === undefined) return;
         item[key] = normalizeWhitespace(row[index]) || null;
       });
+
       if (item.ip) item.ip = normalizeFirstIp(item.ip);
       if (item.url && !item.domain) item.domain = domainFromUrl(item.url);
       if (!item.ip) item.ip = normalizeFirstIp(row.join(" "));
-      if (Object.values(item).some(Boolean)) {
-        output.push({
-          method: item.method || null,
-          parameter: item.parameter || null,
-          url: item.url || null,
-          domain: item.domain || null,
-          organization: item.organization || null,
-          ip: item.ip || null,
-        });
+      if (item.port) item.port = parsePort(item.port);
+      if (!item.port && item.service) item.port = parsePort(item.service);
+      if (item.packetCount) item.packetCount = parseInteger(item.packetCount);
+      if (item.participantIpCount) item.participantIpCount = parseInteger(item.participantIpCount);
+      if (item.trafficVolumeRaw) item.trafficVolumeBytes = parseTrafficBytes(item.trafficVolumeRaw);
+
+      const eventDate = parseJalaliDate(item.eventDateRaw);
+      const rowCves = extractCves([item.reportedFinding, item.url, row.join(" ")].filter(Boolean).join("\n"));
+
+      const normalizedItem = {
+        method: item.method || null,
+        parameter: item.parameter || null,
+        url: item.url || null,
+        domain: item.domain || null,
+        organization: item.organization || null,
+        ip: item.ip || null,
+        port: item.port || null,
+        service: item.service || null,
+        packetCount: item.packetCount || null,
+        participantIpCount: item.participantIpCount || null,
+        trafficVolumeRaw: item.trafficVolumeRaw || null,
+        trafficVolumeBytes: item.trafficVolumeBytes || null,
+        eventDateRaw: item.eventDateRaw || null,
+        eventYear: eventDate.year || null,
+        eventMonth: eventDate.month || null,
+        eventDay: eventDate.day || null,
+        timeRange: item.timeRange || null,
+        softwareVersion: item.softwareVersion || null,
+        reportedFinding: item.reportedFinding || null,
+        cves: rowCves,
+      };
+
+      if (Object.values(normalizedItem).some((value) => Array.isArray(value) ? value.length : Boolean(value))) {
+        output.push(normalizedItem);
       }
     }
   }
@@ -250,68 +308,122 @@ function normalizeHeader(value) {
   if (!text) return null;
   if (/^(متد|method)$/.test(text)) return "method";
   if (/پارامتر|parameter/.test(text)) return "parameter";
-  if (/مسیر.*بهره|url|آدرس.*وب|نشانی.*وب/.test(text)) return "url";
+  if (/مسیر.*(بهره|دسترسی)|url|آدرس.*وب|نشانی.*وب/.test(text)) return "url";
   if (/دامنه|domain/.test(text)) return "domain";
   if (/نام.*سازمان|organization/.test(text)) return "organization";
-  if (/آدرس.*سازمان|آدرس.*ip|آدرس.*آی|ip address|^ip$/.test(text)) return "ip";
+  if (/آدرس.*سازمان|آدرس.*ip|آدرس.*آی|ip سازمانی|ip address|^ip$/.test(text)) return "ip";
+  if (/^پورت$|port/.test(text)) return "port";
+  if (/سرویس( udp)?$|^service$/.test(text)) return "service";
+  if (/مجموع.*بسته|تعداد.*بسته|packet/.test(text)) return "packetCount";
+  if (/تعداد.*ip.*(شرکت|مشارکت)|participant.*ip/.test(text)) return "participantIpCount";
+  if (/حجم.*ترافیک|traffic.*volume/.test(text)) return "trafficVolumeRaw";
+  if (/^تاریخ$|تاریخ.*رخداد|event.*date/.test(text)) return "eventDateRaw";
+  if (/بازه.*زمان|time.*range/.test(text)) return "timeRange";
+  if (/نسخه.*routeros|نسخه.*نرم|software.*version|^نسخه$/.test(text)) return "softwareVersion";
+  if (/نوع.*آسیب|آسیب پذیری|finding/.test(text)) return "reportedFinding";
   return null;
 }
 
-function extractSection(paragraphs, startHeading, endHeadings) {
-  const normalizedStart = normalizeLabel(startHeading);
-  const startIndex = paragraphs.findIndex((value) => normalizeLabel(value) === normalizedStart);
+function extractSectionByHeadings(paragraphs, startHeadings, endMatchers = []) {
+  const starts = startHeadings.map(normalizeLabel);
+  const startIndex = paragraphs.findIndex((value) => starts.includes(normalizeLabel(value)));
   if (startIndex < 0) return "";
-  const normalizedEnds = endHeadings.map(normalizeLabel);
   let endIndex = paragraphs.length;
   for (let index = startIndex + 1; index < paragraphs.length; index += 1) {
-    if (normalizedEnds.includes(normalizeLabel(paragraphs[index]))) {
+    const normalized = normalizeLabel(paragraphs[index]);
+    if (endMatchers.some((matcher) => matcher instanceof RegExp ? matcher.test(normalized) : normalizeLabel(matcher) === normalized)) {
       endIndex = index;
       break;
     }
   }
   return paragraphs
     .slice(startIndex + 1, endIndex)
-    .filter((value) => !/^(جدول|شکل)\s*[0-9۰-۹٠-٩]*\s*[-–—]/.test(value))
+    .filter((value) => !/^(جدول|شکل)\s*[0-9۰-۹٠-٩]*\s*[-–—:]?/.test(value))
     .join("\n")
     .trim();
 }
 
-function extractRecommendations(paragraphs) {
-  const startIndex = paragraphs.findIndex((value) => /^(راهکار|راه کار)$/.test(normalizeLabel(value)));
-  if (startIndex < 0) return [];
-  return paragraphs
-    .slice(startIndex + 1)
-    .map((value) => normalizeWhitespace(value.replace(/^[•▪◦\-–—]+\s*/, "")))
-    .filter((value) => value && !/^(جدول|شکل)\s/.test(value));
+function extractSection(paragraphs, startHeading, endHeadings) {
+  return extractSectionByHeadings(paragraphs, [startHeading], endHeadings);
 }
 
-function classifyVulnerability(value) {
+function extractRecommendations(paragraphs) {
+  const startIndex = paragraphs.findIndex((value) => /^راهکار/.test(normalizeLabel(value)));
+  if (startIndex < 0) return [];
+  const output = [];
+  for (const raw of paragraphs.slice(startIndex + 1)) {
+    const normalized = normalizeLabel(raw);
+    if (/^منابع$/.test(normalized)) break;
+    if (/^(جدول|شکل)\s/.test(normalized)) continue;
+    const cleaned = normalizeWhitespace(
+      raw
+        .replace(/^[•▪◦\-–—]+\s*/, "")
+        .replace(/^[vo]\s+/i, "")
+        .replace(/^\|+\s*/, ""),
+    );
+    if (cleaned) output.push(cleaned);
+  }
+  return output;
+}
+
+function classifyFinding(value) {
   const text = normalizePersianCharacters(String(value || "")).toLowerCase();
   const catalog = [
-    { pattern: /cross[-\s]?site scripting|\bxss\b/, normalizedName: "xss", name: "Cross-Site Scripting", category: "web", cwe: "CWE-79" },
-    { pattern: /sql injection|\bsqli\b|تزریق\s+sql/, normalizedName: "sql_injection", name: "SQL Injection", category: "web", cwe: "CWE-89" },
-    { pattern: /server[-\s]?side request forgery|\bssrf\b/, normalizedName: "ssrf", name: "Server-Side Request Forgery", category: "web", cwe: "CWE-918" },
-    { pattern: /cross[-\s]?site request forgery|\bcsrf\b/, normalizedName: "csrf", name: "Cross-Site Request Forgery", category: "web", cwe: "CWE-352" },
-    { pattern: /remote code execution|\brce\b|اجرای کد از راه دور/, normalizedName: "rce", name: "Remote Code Execution", category: "code_execution", cwe: null },
-    { pattern: /directory traversal|path traversal|پیمایش مسیر/, normalizedName: "path_traversal", name: "Path Traversal", category: "web", cwe: "CWE-22" },
-    { pattern: /xml external entity|\bxxe\b/, normalizedName: "xxe", name: "XML External Entity", category: "web", cwe: "CWE-611" },
-    { pattern: /open redirect|unvalidated redirect|تغییر مسیر/, normalizedName: "open_redirect", name: "Open Redirect", category: "web", cwe: "CWE-601" },
-    { pattern: /weak tls|tls\s*1\.0|tls\s*1\.1|ssl\s*v?3|پروتکل.*ضعیف/, normalizedName: "weak_tls", name: "Weak TLS/SSL", category: "crypto", cwe: null },
+    { pattern: /cross[-\s]?site scripting|\bxss\b/, type: "xss", name: "Cross-Site Scripting", category: "web", cwe: "CWE-79" },
+    { pattern: /dependency\s+confusion|dependency\s+hijack/, type: "dependency_confusion", name: "Dependency Confusion", category: "software_supply_chain", cwe: null },
+    { pattern: /udp\s+amplification/, type: "udp_amplification", name: "UDP Amplification", category: "denial_of_service", cwe: null },
+    { pattern: /(?:tcp\s+)?syn\s+flood|tcp\s+flood/, type: "tcp_syn_flood", name: "TCP SYN Flood", category: "denial_of_service", cwe: null },
+    { pattern: /ترافیک.*ناهنجار|traffic\s+anomal/, type: "traffic_anomaly", name: "Traffic Anomaly", category: "network_anomaly", cwe: null },
+    { pattern: /mikrotik\s+routeros|routeros/, type: "vulnerable_routeros", name: "Vulnerable MikroTik RouterOS", category: "vulnerable_software", cwe: null },
+    { pattern: /sql injection|\bsqli\b|تزریق\s+sql/, type: "sql_injection", name: "SQL Injection", category: "web", cwe: "CWE-89" },
+    { pattern: /server[-\s]?side request forgery|\bssrf\b/, type: "ssrf", name: "Server-Side Request Forgery", category: "web", cwe: "CWE-918" },
+    { pattern: /cross[-\s]?site request forgery|\bcsrf\b/, type: "csrf", name: "Cross-Site Request Forgery", category: "web", cwe: "CWE-352" },
+    { pattern: /remote code execution|\brce\b|اجرای کد از راه دور/, type: "rce", name: "Remote Code Execution", category: "code_execution", cwe: null },
+    { pattern: /directory traversal|path traversal|پیمایش مسیر/, type: "path_traversal", name: "Path Traversal", category: "web", cwe: "CWE-22" },
+    { pattern: /xml external entity|\bxxe\b/, type: "xxe", name: "XML External Entity", category: "web", cwe: "CWE-611" },
+    { pattern: /open redirect|unvalidated redirect|تغییر مسیر/, type: "open_redirect", name: "Open Redirect", category: "web", cwe: "CWE-601" },
+    { pattern: /weak tls|tls\s*1\.0|tls\s*1\.1|ssl\s*v?3|پروتکل.*ضعیف/, type: "weak_tls", name: "Weak TLS/SSL", category: "crypto", cwe: null },
   ];
-  const match = catalog.find((item) => item.pattern.test(text));
-  return match || {
+  return catalog.find((item) => item.pattern.test(text)) || {
+    type: "unknown",
     name: null,
-    normalizedName: "unknown",
     category: "unknown",
     cwe: null,
   };
 }
 
+function classifyVulnerability(value) {
+  const finding = classifyFinding(value);
+  const vulnerabilityTypes = new Set([
+    "xss",
+    "dependency_confusion",
+    "sql_injection",
+    "ssrf",
+    "csrf",
+    "rce",
+    "path_traversal",
+    "xxe",
+    "open_redirect",
+    "weak_tls",
+    "vulnerable_routeros",
+  ]);
+  if (!vulnerabilityTypes.has(finding.type)) {
+    return { name: null, normalizedName: "unknown", category: "unknown", cwe: null };
+  }
+  return {
+    name: finding.name,
+    normalizedName: finding.type,
+    category: finding.category,
+    cwe: finding.cwe,
+  };
+}
+
 function classifyReportType(title) {
   const text = normalizePersianCharacters(String(title || "")).toLowerCase();
+  if (/پیکربندی.*نامناسب|misconfigur/.test(text)) return "misconfiguration";
+  if (/بدافزار|malware|botnet|\bc2\b/.test(text)) return "malware";
+  if (/حادثه|رخداد|حمله|attack|منع سرویس|flood|amplification|ترافیک.*ناهنجار/.test(text)) return "incident";
   if (/آسیب پذیری|vulnerabil/.test(text)) return "vulnerability";
-  if (/بدافزار|malware|botnet|c2/.test(text)) return "malware";
-  if (/حمله|attack|رخداد/.test(text)) return "incident";
   return "other";
 }
 
@@ -345,7 +457,9 @@ function scoreToSeverity(score) {
 function normalizeUrgency(value) {
   const text = normalizePersianCharacters(String(value || "")).toLowerCase();
   if (!text) return "unknown";
+  if (/جهت\s*اطلاع|اطلاع رسان|informational|for information/.test(text)) return "informational";
   if (/فوری|immediate|urgent/.test(text)) return "immediate";
+  if (/نیازمند\s*اقدام|action required/.test(text)) return "action_required";
   if (/بالا|high/.test(text)) return "high";
   if (/عادی|normal|معمول/.test(text)) return "normal";
   if (/کم|low/.test(text)) return "low";
@@ -359,6 +473,37 @@ function normalizeFirstIp(value) {
     if (ip) return ip;
   }
   return null;
+}
+
+function parseInteger(value) {
+  const normalized = toAsciiDigits(String(value || "")).replace(/[,_\s]/g, "");
+  const match = normalized.match(/\d+/);
+  if (!match) return null;
+  const number = Number(match[0]);
+  return Number.isSafeInteger(number) ? number : null;
+}
+
+function parsePort(value) {
+  const normalized = toAsciiDigits(String(value || ""));
+  const portMatch = normalized.match(/(?:port\s*)?(\d{1,5})/i);
+  if (!portMatch) return null;
+  const port = Number(portMatch[1]);
+  return Number.isInteger(port) && port >= 0 && port <= 65535 ? port : null;
+}
+
+function parseTrafficBytes(value) {
+  const normalized = toAsciiDigits(String(value || "")).replace(/,/g, "").trim();
+  const match = normalized.match(/(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb)\b/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  const unit = match[2].toUpperCase();
+  const multipliers = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 };
+  return Math.round(amount * multipliers[unit]);
+}
+
+function extractCves(value) {
+  const matches = String(value || "").toUpperCase().match(/CVE-\d{4}-\d{4,7}/g) || [];
+  return [...new Set(matches)];
 }
 
 function domainFromUrl(value) {
@@ -417,7 +562,7 @@ function decodeXml(value) {
 }
 
 function looksLikeLabel(value) {
-  return /(گزارش|سازمان|آدرس|شدت|فوریت|تماس|ارائه)/.test(value);
+  return /(گزارش|سازمان|آدرس|شدت|فوریت|تماس|ارائه|اثر)/.test(value);
 }
 
 function sameLooseText(left, right) {
@@ -441,7 +586,9 @@ module.exports = {
   collectFieldMap,
   extractAffectedSystems,
   extractSection,
+  extractSectionByHeadings,
   extractRecommendations,
+  classifyFinding,
   classifyVulnerability,
   classifyReportType,
   parseJalaliDate,
@@ -449,6 +596,10 @@ module.exports = {
   scoreToSeverity,
   normalizeUrgency,
   normalizeFirstIp,
+  parseInteger,
+  parsePort,
+  parseTrafficBytes,
+  extractCves,
   normalizeLabel,
   normalizePersianCharacters,
   normalizeWhitespace,

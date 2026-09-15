@@ -2,7 +2,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { settings } = require("../core/config");
 const HistoricalReport = require("../models/HistoricalReport");
-const { parseDocxReport } = require("./reportDocxParser");
+const { parseDocxReport } = require("./reportDocxParserV4");
 
 class ReportImportService {
   constructor({
@@ -57,6 +57,13 @@ class ReportImportService {
       dryRun: Boolean(dryRun),
       previews: [],
       errors: [],
+      quality: {
+        unknownFindingCount: 0,
+        unknownFindingFiles: [],
+        findingCounts: {},
+        reportTypeCounts: {},
+        warningCounts: {},
+      },
     };
 
     for (const file of scan.files) {
@@ -71,6 +78,7 @@ class ReportImportService {
         const parsed = await this.parser(absolutePath, { yearHint: scan.year });
         parsed.source.relativePath = file.relativePath;
         parsed.documentKey = String(parsed.reportNumber || parsed.source.sha256);
+        updateQualitySummary(result.quality, parsed, file.relativePath);
 
         if (dryRun && result.previews.length < 20) {
           result.previews.push(toPreview(parsed, file.relativePath));
@@ -118,6 +126,22 @@ class ReportImportService {
   }
 }
 
+function updateQualitySummary(quality, parsed, relativePath) {
+  const finding = parsed.finding?.type || "unknown";
+  const reportType = parsed.reportType || "other";
+  quality.findingCounts[finding] = (quality.findingCounts[finding] || 0) + 1;
+  quality.reportTypeCounts[reportType] = (quality.reportTypeCounts[reportType] || 0) + 1;
+
+  if (finding === "unknown") {
+    quality.unknownFindingCount += 1;
+    quality.unknownFindingFiles.push(relativePath);
+  }
+
+  for (const warning of parsed.extraction?.warnings || []) {
+    quality.warningCounts[warning] = (quality.warningCounts[warning] || 0) + 1;
+  }
+}
+
 function toPreview(parsed, relativePath) {
   return {
     file: relativePath,
@@ -152,6 +176,9 @@ function toPreview(parsed, relativePath) {
         softwareVersion: item.softwareVersion || null,
         cves: Array.isArray(item.cves) ? item.cves : [],
       }))
+      : [],
+    phishingInfrastructure: Array.isArray(parsed.phishingInfrastructure)
+      ? parsed.phishingInfrastructure.slice(0, 3)
       : [],
     recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.length : 0,
     warnings: parsed.extraction?.warnings || [],
@@ -209,4 +236,5 @@ module.exports = {
   normalizeYear,
   toPortablePath,
   toPreview,
+  updateQualitySummary,
 };

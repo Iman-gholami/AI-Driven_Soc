@@ -51,7 +51,7 @@ function createReportRouter({
   router.get("/reports/stats", async (req, res) => {
     try {
       if (!req.query.year) return res.status(400).json({ detail: "year is required" });
-      return successResponse(res, await analytics.getStats(req.query.year));
+      return successResponse(res, await analytics.getStats(req.query || {}));
     } catch (error) {
       if (error instanceof ReportImportInputError) {
         return res.status(400).json({ detail: error.message });

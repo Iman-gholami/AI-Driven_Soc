@@ -28,6 +28,26 @@ const affectedSystemSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const phishingInfrastructureSchema = new mongoose.Schema(
+  {
+    url: { type: String, default: null },
+    domain: { type: String, default: null },
+    ip: { type: String, default: null },
+    rawIp: { type: String, default: null },
+    pageTitle: { type: String, default: null },
+  },
+  { _id: false },
+);
+
+const indicatorSchema = new mongoose.Schema(
+  {
+    type: { type: String, required: true },
+    role: { type: String, default: null },
+    value: { type: String, required: true },
+  },
+  { _id: false },
+);
+
 const historicalReportSchema = new mongoose.Schema(
   {
     documentKey: { type: String, required: true, unique: true, index: true },
@@ -82,6 +102,8 @@ const historicalReportSchema = new mongoose.Schema(
     conclusion: { type: String, default: "" },
     recommendations: { type: [String], default: [] },
     affectedSystems: { type: [affectedSystemSchema], default: [] },
+    phishingInfrastructure: { type: [phishingInfrastructureSchema], default: [] },
+    indicators: { type: [indicatorSchema], default: [] },
     fullText: { type: String, default: "" },
 
     source: {
@@ -93,7 +115,7 @@ const historicalReportSchema = new mongoose.Schema(
     },
 
     extraction: {
-      parserVersion: { type: String, default: "docx-v3" },
+      parserVersion: { type: String, default: "docx-v4" },
       paragraphCount: { type: Number, default: 0 },
       tableCount: { type: Number, default: 0 },
       warnings: { type: [String], default: [] },
@@ -114,6 +136,9 @@ historicalReportSchema.index({ "affectedSystems.ip": 1 });
 historicalReportSchema.index({ "affectedSystems.domain": 1 });
 historicalReportSchema.index({ "affectedSystems.port": 1 });
 historicalReportSchema.index({ "affectedSystems.eventYear": 1, "affectedSystems.eventMonth": 1 });
+historicalReportSchema.index({ "phishingInfrastructure.ip": 1 });
+historicalReportSchema.index({ "phishingInfrastructure.domain": 1 });
+historicalReportSchema.index({ "indicators.value": 1 });
 historicalReportSchema.index({
   title: "text",
   description: "text",

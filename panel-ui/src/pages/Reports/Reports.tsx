@@ -48,7 +48,12 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { api } from '../../api/client';
-import type { HistoricalReport, ReportCopilotResult, ReportImportResult } from '../../types/reports';
+import type {
+  HistoricalReport,
+  ReportCopilotResult,
+  ReportFilterParams,
+  ReportImportResult,
+} from '../../types/reports';
 import ReportUploadReview from './ReportUploadReview';
 import './Reports.css';
 
@@ -59,7 +64,6 @@ const JALALI_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تی
 const CHART = {
   primary: '#3b82f6',
   cyan: '#06b6d4',
-  green: '#22c55e',
   amber: '#f59e0b',
   orange: '#f97316',
   red: '#ef4444',
@@ -97,6 +101,8 @@ const reportTypeLabel: Record<string, string> = {
   unknown: 'Unknown',
 };
 
+type ReportFilterState = Omit<ReportFilterParams, 'year'>;
+
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -108,9 +114,7 @@ const Reports: React.FC = () => {
   const [year, setYear] = useState<number>(1404);
   const [activeTab, setActiveTab] = useState('overview');
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [severity, setSeverity] = useState<string | undefined>();
-  const [urgency, setUrgency] = useState<string | undefined>();
+  const [filters, setFilters] = useState<ReportFilterState>({});
   const [selectedReport, setSelectedReport] = useState<HistoricalReport | null>(null);
   const [copilotInput, setCopilotInput] = useState('');
   const [chat, setChat] = useState<ChatMessage[]>([]);
@@ -124,15 +128,17 @@ const Reports: React.FC = () => {
     }
   }, [yearsQuery.data, year]);
 
+  const filterParams = useMemo<ReportFilterParams>(() => ({ year, ...filters }), [year, filters]);
+
   const statsQuery = useQuery({
-    queryKey: ['report-stats', year],
-    queryFn: () => api.getReportStats(year),
+    queryKey: ['report-stats', filterParams],
+    queryFn: () => api.getReportStats(filterParams),
     enabled: Boolean(year) && Boolean(yearsQuery.data?.some((item) => item.year === year)),
   });
 
   const reportsQuery = useQuery({
-    queryKey: ['historical-reports', year, page, search, severity, urgency],
-    queryFn: () => api.getHistoricalReports({ year, page, limit: 20, search, severity, urgency }),
+    queryKey: ['historical-reports', filterParams, page],
+    queryFn: () => api.getHistoricalReports({ ...filterParams, page, limit: 20 }),
     enabled: Boolean(year) && Boolean(yearsQuery.data?.some((item) => item.year === year)),
   });
 
@@ -147,11 +153,7 @@ const Reports: React.FC = () => {
     onSuccess: async (result) => {
       setLastImport(result);
       if (!result.dryRun) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['report-years'] }),
-          queryClient.invalidateQueries({ queryKey: ['report-stats'] }),
-          queryClient.invalidateQueries({ queryKey: ['historical-reports'] }),
-        ]);
+        await refreshReportData();
         antMessage.success(`Import complete: ${result.imported} new, ${result.updated} updated`);
       }
     },
@@ -177,31 +179,59 @@ const Reports: React.FC = () => {
     return [...new Set([1404, ...fromData])].sort((a, b) => b - a);
   }, [yearsQuery.data]);
 
+  const activeFilterCount = useMemo(
+    () => Object.values(filters).filter((value) => value !== undefined && value !== null && value !== '').length,
+    [filters],
+  );
+
+  const scopeLabel = useMemo(() => {
+    const month = filters.month ? JALALI_MONTHS[Number(filters.month) - 1] : null;
+    if (month && filters.day) return `${filters.day} ${month} ${year}`;
+    if (month) return `${month} ${year}`;
+    return `سال ${year}`;
+  }, [filters.day, filters.month, year]);
+
   const dashboard = useMemo(() => {
     if (!stats) return null;
-
     const activeMonths = stats.byMonth
       .filter((item) => item.month && item.count > 0)
       .sort((a, b) => Number(a.month) - Number(b.month));
     const severityOrder = ['critical', 'high', 'medium', 'low', 'info', 'unknown'];
     const severityRows = severityOrder
-      .map((key) => ({
-        key,
-        count: stats.bySeverity.find((item) => item.severity === key)?.count || 0,
-      }))
+      .map((key) => ({ key, count: stats.bySeverity.find((item) => item.severity === key)?.count || 0 }))
       .filter((item) => item.count > 0);
 
     return {
       activeMonths,
       severityRows,
       topFinding: stats.byFinding[0] || null,
-      topOrganization: stats.topOrganizations[0] || null,
       dominantType: stats.byReportType[0] || null,
-      maxFindingCount: Math.max(1, ...stats.byFinding.map((item) => item.count)),
       maxOrganizationCount: Math.max(1, ...stats.topOrganizations.map((item) => item.count)),
       maxPortCount: Math.max(1, ...stats.topPorts.map((item) => item.count)),
     };
   }, [stats]);
+
+  function setFilter<K extends keyof ReportFilterState>(key: K, value: ReportFilterState[K]) {
+    setFilters((current) => ({ ...current, [key]: value === '' || value === null ? undefined : value }));
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setFilters({});
+    setPage(1);
+  }
+
+  function openFinding(finding?: string) {
+    if (!finding) return;
+    setFilter('finding', finding);
+    setActiveTab('reports');
+  }
+
+  function openOrganization(organization?: string) {
+    if (!organization) return;
+    setFilter('organization', organization);
+    setActiveTab('reports');
+  }
 
   const askCopilot = (value?: string) => {
     const text = String(value ?? copilotInput).trim();
@@ -209,15 +239,6 @@ const Reports: React.FC = () => {
     setChat((current) => [...current, { role: 'user', content: text }]);
     setCopilotInput('');
     copilotMutation.mutate(text);
-  };
-
-  const openReportSearch = (value?: string) => {
-    if (!value) return;
-    setSearch(value);
-    setSeverity(undefined);
-    setUrgency(undefined);
-    setPage(1);
-    setActiveTab('reports');
   };
 
   const refreshReportData = async () => {
@@ -228,45 +249,116 @@ const Reports: React.FC = () => {
     ]);
   };
 
+  const filterPanel = (
+    <Card
+      size="small"
+      title={<Space><SearchOutlined /><span>Analytics scope</span><Tag color={activeFilterCount ? 'blue' : 'default'}>{activeFilterCount ? `${activeFilterCount} filters` : 'Full year'}</Tag></Space>}
+      extra={<Button size="small" disabled={!activeFilterCount} onClick={clearFilters}>Reset filters</Button>}
+    >
+      <Space wrap size={[8, 8]}>
+        <Select
+          allowClear
+          placeholder="All months"
+          value={filters.month}
+          onChange={(value) => { setFilter('month', value); if (!value) setFilter('day', undefined); }}
+          options={JALALI_MONTHS.map((label, index) => ({ value: index + 1, label }))}
+          style={{ width: 135 }}
+        />
+        <Select
+          allowClear
+          disabled={!filters.month}
+          placeholder="Day"
+          value={filters.day}
+          onChange={(value) => setFilter('day', value)}
+          options={Array.from({ length: 31 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))}
+          style={{ width: 90 }}
+        />
+        <Select
+          allowClear
+          placeholder="Report type"
+          value={filters.reportType}
+          onChange={(value) => setFilter('reportType', value)}
+          options={['misconfiguration', 'vulnerability', 'incident', 'malware', 'unknown'].map((value) => ({ value, label: reportTypeLabel[value] || value }))}
+          style={{ width: 155 }}
+        />
+        <Select
+          allowClear
+          placeholder="Severity"
+          value={filters.severity}
+          onChange={(value) => setFilter('severity', value)}
+          options={['critical', 'high', 'medium', 'low', 'info', 'unknown'].map((value) => ({ value, label: value }))}
+          style={{ width: 125 }}
+        />
+        <Select
+          allowClear
+          placeholder="Urgency"
+          value={filters.urgency}
+          onChange={(value) => setFilter('urgency', value)}
+          options={['immediate', 'action_required', 'informational', 'unknown'].map((value) => ({ value, label: value }))}
+          style={{ width: 150 }}
+        />
+        <Input allowClear placeholder="Organization" value={String(filters.organization || '')} onChange={(event) => setFilter('organization', event.target.value)} style={{ width: 210 }} />
+        <Input allowClear placeholder="Finding type e.g. xss" value={String(filters.finding || '')} onChange={(event) => setFilter('finding', event.target.value)} style={{ width: 180 }} />
+        <Input allowClear placeholder="IP" value={String(filters.ip || '')} onChange={(event) => setFilter('ip', event.target.value)} style={{ width: 150 }} />
+        <Input allowClear placeholder="Port" value={String(filters.port || '')} onChange={(event) => setFilter('port', event.target.value)} style={{ width: 90 }} />
+        <Input allowClear placeholder="CVE" value={String(filters.cve || '')} onChange={(event) => setFilter('cve', event.target.value)} style={{ width: 150 }} />
+        <Input allowClear placeholder="Service" value={String(filters.service || '')} onChange={(event) => setFilter('service', event.target.value)} style={{ width: 140 }} />
+        <Input allowClear placeholder="Domain" value={String(filters.domain || '')} onChange={(event) => setFilter('domain', event.target.value)} style={{ width: 165 }} />
+        <Input allowClear placeholder="Provider" value={String(filters.provider || '')} onChange={(event) => setFilter('provider', event.target.value)} style={{ width: 160 }} />
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="Free-text search across report content"
+          value={String(filters.search || '')}
+          onChange={(event) => setFilter('search', event.target.value)}
+          style={{ width: 310 }}
+        />
+      </Space>
+      <div style={{ marginTop: 10 }}>
+        <Text type="secondary">
+          Scope: <Text strong>{scopeLabel}</Text>. The KPIs, charts and Reports table below all use this exact same filter set.
+        </Text>
+      </div>
+    </Card>
+  );
+
   const overview = (
     <div className="report-tab-stack">
-      {!stats && !statsQuery.isLoading ? (
-        <Empty description={`No imported report data for ${year}. Use Import & Review to load DOCX files.`} />
-      ) : null}
-
+      {!stats && !statsQuery.isLoading ? <Empty description={`No report data for ${scopeLabel}.`} /> : null}
       {stats && dashboard ? (
         <>
+          {stats.summary.total === 0 ? <Alert showIcon type="info" message="No reports match the current filter scope" description="Change or reset filters to widen the result set." /> : null}
           <div className="report-kpi-grid">
-            <MetricCard title="Total reports" value={stats.summary.total} note={`${stats.summary.uniqueOrganizations} organizations in the local dataset`} icon={<DatabaseOutlined />} tone="primary" />
-            <MetricCard title="High / Critical" value={stats.summary.highCritical} suffix={`${stats.summary.highCriticalPercent}%`} note="Reports with elevated security severity" icon={<FireOutlined />} tone="danger" />
-            <MetricCard title="Immediate action" value={stats.summary.immediate} suffix={`${stats.summary.immediatePercent}%`} note="Reports explicitly requiring immediate response" icon={<ThunderboltOutlined />} tone="warning" />
+            <MetricCard title="Reports in scope" value={stats.summary.total} note={`${stats.summary.uniqueOrganizations} organizations · ${scopeLabel}`} icon={<DatabaseOutlined />} tone="primary" />
+            <MetricCard title="High / Critical" value={stats.summary.highCritical} suffix={`${stats.summary.highCriticalPercent}%`} note="Elevated-severity reports in the current scope" icon={<FireOutlined />} tone="danger" />
+            <MetricCard title="Immediate action" value={stats.summary.immediate} suffix={`${stats.summary.immediatePercent}%`} note="Immediate-response reports in the current scope" icon={<ThunderboltOutlined />} tone="warning" />
             <MetricCard title="Observed target IPs" value={stats.summary.uniqueIps} note={`${stats.summary.qualityWarnings} reports retain review flags`} icon={<SafetyCertificateOutlined />} tone="cyan" />
           </div>
 
           <div className="report-section-heading">
-            <div><span className="report-section-kicker">PRIORITY SIGNALS</span><Title level={4}>What deserves analyst attention</Title></div>
-            <Text type="secondary">Derived deterministically from the imported report dataset.</Text>
+            <div><span className="report-section-kicker">FILTERED INTELLIGENCE</span><Title level={4}>What stands out in {scopeLabel}</Title></div>
+            <Text type="secondary">Every visualization is recalculated from the same filtered MongoDB result set.</Text>
           </div>
 
           <div className="report-insight-grid">
-            <InsightCard icon={<TrophyOutlined />} eyebrow="Dominant finding" title={dashboard.topFinding?.name || dashboard.topFinding?.key || 'No finding data'} value={dashboard.topFinding ? `${dashboard.topFinding.count} reports` : '—'} detail={dashboard.topFinding?.category || 'No category available'} tone="primary" onClick={dashboard.topFinding ? () => openReportSearch(dashboard.topFinding?.name || dashboard.topFinding?.key) : undefined} />
-            <InsightCard icon={<BarChartOutlined />} eyebrow="Dominant report type" title={dashboard.dominantType ? reportTypeLabel[dashboard.dominantType.reportType] || dashboard.dominantType.reportType : 'No type data'} value={dashboard.dominantType ? `${dashboard.dominantType.count} reports` : '—'} detail={dashboard.dominantType && stats.summary.total ? `${Math.round((dashboard.dominantType.count / stats.summary.total) * 100)}% of imported reports` : 'No distribution available'} tone="purple" />
-            <InsightCard icon={<AlertOutlined />} eyebrow="Repeated exposure" title={`${stats.repeated.repeatedGroups} repeated patterns`} value={`${stats.repeated.reportsInRepeatedGroups} reports`} detail="Organization + finding combinations seen more than once" tone="warning" />
-            <InsightCard icon={<WarningOutlined />} eyebrow="Data quality" title={stats.summary.qualityWarnings ? `${stats.summary.qualityWarnings} need review` : 'No review flags'} value={stats.summary.qualityWarnings ? 'Review retained' : 'Clean'} detail="Quality flags remain visible instead of being silently normalized" tone={stats.summary.qualityWarnings ? 'danger' : 'success'} />
+            <InsightCard icon={<TrophyOutlined />} eyebrow="Dominant finding" title={dashboard.topFinding?.name || dashboard.topFinding?.key || 'No finding data'} value={dashboard.topFinding ? `${dashboard.topFinding.count} reports` : '—'} detail={dashboard.topFinding?.category || 'No category available'} tone="primary" onClick={dashboard.topFinding ? () => openFinding(dashboard.topFinding?.key) : undefined} />
+            <InsightCard icon={<BarChartOutlined />} eyebrow="Dominant report type" title={dashboard.dominantType ? reportTypeLabel[dashboard.dominantType.reportType] || dashboard.dominantType.reportType : 'No type data'} value={dashboard.dominantType ? `${dashboard.dominantType.count} reports` : '—'} detail={dashboard.dominantType && stats.summary.total ? `${Math.round((dashboard.dominantType.count / stats.summary.total) * 100)}% of filtered reports` : 'No distribution available'} tone="purple" />
+            <InsightCard icon={<AlertOutlined />} eyebrow="Repeated exposure" title={`${stats.repeated.repeatedGroups} repeated patterns`} value={`${stats.repeated.reportsInRepeatedGroups} reports`} detail="Organization + finding combinations repeated inside this scope" tone="warning" />
+            <InsightCard icon={<WarningOutlined />} eyebrow="Data quality" title={stats.summary.qualityWarnings ? `${stats.summary.qualityWarnings} need review` : 'No review flags'} value={stats.summary.qualityWarnings ? 'Review retained' : 'Clean'} detail="Extraction review flags in the current scope" tone={stats.summary.qualityWarnings ? 'danger' : 'success'} />
           </div>
 
           <Row gutter={[14, 14]}>
             <Col xs={24} xl={14}>
-              {dashboard.activeMonths.length <= 1 ? (
-                <Card className="report-panel-card report-coverage-card" title="Coverage snapshot">
+              {filters.month || dashboard.activeMonths.length <= 1 ? (
+                <Card className="report-panel-card report-coverage-card" title="Time-scope snapshot">
                   <div className="report-coverage-spotlight">
                     <div className="report-coverage-main">
-                      <span className="report-section-kicker">ACTIVE PERIOD</span>
-                      <strong>{dashboard.activeMonths[0]?.month ? JALALI_MONTHS[Number(dashboard.activeMonths[0].month) - 1] : 'No dated month'} {year}</strong>
-                      <p>{dashboard.activeMonths[0]?.count || stats.summary.total} reports are concentrated in the currently imported period, so a 12-month chart would add visual noise rather than signal.</p>
+                      <span className="report-section-kicker">CURRENT SCOPE</span>
+                      <strong>{scopeLabel}</strong>
+                      <p>{stats.summary.total} report(s) match the current filter scope. Clear the month filter to return to the annual trend.</p>
                     </div>
                     <div className="report-coverage-stats">
-                      <MiniStat label="Reports" value={dashboard.activeMonths[0]?.count || stats.summary.total} />
+                      <MiniStat label="Reports" value={stats.summary.total} />
                       <MiniStat label="High / Critical" value={`${stats.summary.highCriticalPercent}%`} />
                       <MiniStat label="Immediate" value={`${stats.summary.immediatePercent}%`} />
                       <MiniStat label="Organizations" value={stats.summary.uniqueOrganizations} />
@@ -274,7 +366,7 @@ const Reports: React.FC = () => {
                   </div>
                 </Card>
               ) : (
-                <Card className="report-panel-card report-chart-card" title="Reports by active month">
+                <Card className="report-panel-card report-chart-card" title={`Monthly trend · ${year}`}>
                   <Bar
                     data={{ labels: dashboard.activeMonths.map((item) => item.month ? JALALI_MONTHS[Number(item.month) - 1] : 'Unknown'), datasets: [{ label: 'Reports', data: dashboard.activeMonths.map((item) => item.count), backgroundColor: CHART.primary, borderRadius: 7, maxBarThickness: 46 }] }}
                     options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: CHART.tick } }, y: { beginAtZero: true, grid: { color: CHART.grid }, ticks: { color: CHART.tick, precision: 0 } } } }}
@@ -284,10 +376,12 @@ const Reports: React.FC = () => {
             </Col>
             <Col xs={24} xl={10}>
               <Card className="report-panel-card report-chart-card" title="Severity posture">
-                <Bar
-                  data={{ labels: dashboard.severityRows.map((item) => item.key), datasets: [{ label: 'Reports', data: dashboard.severityRows.map((item) => item.count), backgroundColor: dashboard.severityRows.map((item) => severityColor[item.key] || CHART.slate), borderRadius: 7, maxBarThickness: 30 }] }}
-                  options={{ indexAxis: 'y' as const, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: CHART.grid }, ticks: { color: CHART.tick, precision: 0 } }, y: { grid: { display: false }, ticks: { color: CHART.tick } } } }}
-                />
+                {dashboard.severityRows.length ? (
+                  <Bar
+                    data={{ labels: dashboard.severityRows.map((item) => item.key), datasets: [{ label: 'Reports', data: dashboard.severityRows.map((item) => item.count), backgroundColor: dashboard.severityRows.map((item) => severityColor[item.key] || CHART.slate), borderRadius: 7, maxBarThickness: 30 }] }}
+                    options={{ indexAxis: 'y' as const, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: CHART.grid }, ticks: { color: CHART.tick, precision: 0 } }, y: { grid: { display: false }, ticks: { color: CHART.tick } } } }}
+                  />
+                ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No severity data in scope" />}
               </Card>
             </Col>
           </Row>
@@ -296,13 +390,15 @@ const Reports: React.FC = () => {
             <Col xs={24} xl={14}>
               <Card className="report-panel-card report-findings-card" title="Top findings">
                 <div className="report-chart-tall">
-                  <Bar
-                    data={{ labels: stats.byFinding.slice(0, 8).map((item) => item.name || item.key), datasets: [{ label: 'Reports', data: stats.byFinding.slice(0, 8).map((item) => item.count), backgroundColor: stats.byFinding.slice(0, 8).map((_, index) => index === 0 ? CHART.primary : 'rgba(59, 130, 246, 0.45)'), borderRadius: 7, maxBarThickness: 26 }] }}
-                    options={{ indexAxis: 'y' as const, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: CHART.grid }, ticks: { color: CHART.tick, precision: 0 } }, y: { grid: { display: false }, ticks: { color: CHART.tick, autoSkip: false } } } }}
-                  />
+                  {stats.byFinding.length ? (
+                    <Bar
+                      data={{ labels: stats.byFinding.slice(0, 8).map((item) => item.name || item.key), datasets: [{ label: 'Reports', data: stats.byFinding.slice(0, 8).map((item) => item.count), backgroundColor: stats.byFinding.slice(0, 8).map((_, index) => index === 0 ? CHART.primary : 'rgba(59, 130, 246, 0.45)'), borderRadius: 7, maxBarThickness: 26 }] }}
+                      options={{ indexAxis: 'y' as const, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: CHART.grid }, ticks: { color: CHART.tick, precision: 0 } }, y: { grid: { display: false }, ticks: { color: CHART.tick, autoSkip: false } } } }}
+                    />
+                  ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No findings in scope" />}
                 </div>
                 <div className="report-findings-tags">
-                  {stats.byFinding.slice(0, 6).map((item) => <button key={item.key} type="button" onClick={() => openReportSearch(item.name || item.key)}><span>{item.category || 'uncategorized'}</span><strong>{item.count}</strong></button>)}
+                  {stats.byFinding.slice(0, 6).map((item) => <button key={item.key} type="button" onClick={() => openFinding(item.key)}><span>{item.category || 'uncategorized'}</span><strong>{item.count}</strong></button>)}
                 </div>
               </Card>
             </Col>
@@ -315,7 +411,7 @@ const Reports: React.FC = () => {
                       <div className="report-type-row" key={item.reportType}>
                         <div className="report-type-label"><span className={`report-type-dot tone-${index % 4}`} /><strong>{reportTypeLabel[item.reportType] || item.reportType}</strong><span>{item.count}</span></div>
                         <div className="report-progress-track"><span className={`report-progress-fill tone-${index % 4}`} style={{ width: `${percent}%` }} /></div>
-                        <small>{percent}% of reports</small>
+                        <small>{percent}% of filtered reports</small>
                       </div>
                     );
                   })}
@@ -331,7 +427,7 @@ const Reports: React.FC = () => {
               <Card className="report-panel-card" title="Organizations with most report history">
                 <div className="report-rank-list">
                   {stats.topOrganizations.slice(0, 8).map((item, index) => (
-                    <button className="report-rank-row" type="button" key={item.organization} onClick={() => openReportSearch(item.organization)}>
+                    <button className="report-rank-row" type="button" key={item.organization} onClick={() => openOrganization(item.organization)}>
                       <span className="report-rank-number">{String(index + 1).padStart(2, '0')}</span>
                       <span className="report-rank-content"><strong>{item.organization}</strong><span className="report-rank-track"><i style={{ width: `${(item.count / dashboard.maxOrganizationCount) * 100}%` }} /></span></span>
                       <span className="report-rank-value">{item.count}<small>reports</small></span>
@@ -344,7 +440,7 @@ const Reports: React.FC = () => {
               <Card className="report-panel-card" title="Observed service ports">
                 <div className="report-port-grid">
                   {stats.topPorts.length ? stats.topPorts.slice(0, 10).map((item) => (
-                    <div className="report-port-chip" key={item.port}><div><Text code>{item.port}</Text><span>observed port</span></div><strong>{item.count}</strong><span className="report-port-meter"><i style={{ width: `${(item.count / dashboard.maxPortCount) * 100}%` }} /></span></div>
+                    <button type="button" className="report-port-chip" key={item.port} onClick={() => { setFilter('port', item.port); setActiveTab('reports'); }}><div><Text code>{item.port}</Text><span>observed port</span></div><strong>{item.count}</strong><span className="report-port-meter"><i style={{ width: `${(item.count / dashboard.maxPortCount) * 100}%` }} /></span></button>
                   )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No port data extracted" />}
                 </div>
               </Card>
@@ -357,15 +453,10 @@ const Reports: React.FC = () => {
 
   const reportsTable = (
     <div className="report-tab-stack">
-      <Card>
-        <div className="report-filter-bar">
-          <Input allowClear prefix={<SearchOutlined />} placeholder="Search title, organization, IP, report number, finding, CVE, domain..." value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
-          <Select allowClear placeholder="Severity" value={severity} onChange={(value) => { setSeverity(value); setPage(1); }} options={['critical', 'high', 'medium', 'low', 'unknown'].map((value) => ({ value, label: value }))} />
-          <Select allowClear placeholder="Urgency" value={urgency} onChange={(value) => { setUrgency(value); setPage(1); }} options={['immediate', 'action_required', 'informational', 'high', 'normal', 'low', 'unknown'].map((value) => ({ value, label: value }))} />
-        </div>
-      </Card>
-
-      <Card>
+      <Card
+        title={`Reports · ${scopeLabel}`}
+        extra={<Text type="secondary">{reportsQuery.data?.pagination.total ?? 0} matching records</Text>}
+      >
         <Table
           rowKey="_id"
           loading={reportsQuery.isLoading}
@@ -392,10 +483,10 @@ const Reports: React.FC = () => {
     <Row gutter={[14, 14]}>
       <Col xs={24} xl={8}>
         <Card title={<><MessageOutlined /> Report Copilot</>}>
-          <Paragraph type="secondary">Statistical questions are answered directly from MongoDB. No RAG and no LLM arithmetic are used in this version.</Paragraph>
+          <Paragraph type="secondary">Statistical questions are answered directly from MongoDB. You can ask about a year, month, organization, finding, IP, port, severity or report type.</Paragraph>
           <Text strong>Examples</Text>
           <div className="report-question-chips">
-            {[`در سال ${year} چند گزارش حادثه داشتیم؟`, `بیشترین Finding سال ${year} چه بوده؟`, `کدام سازمان بیشترین گزارش UDP Amplification داشته؟`, `چند درصد گزارش‌های ${year} نیازمند اقدام فوری بوده‌اند؟`, `روند ماهانه گزارش‌های ${year} را نشان بده`, 'روی پورت 443 چند گزارش ثبت شده؟', 'برای IP 62.60.167.73 چه گزارش‌هایی داریم؟'].map((question) => <button key={question} type="button" onClick={() => askCopilot(question)}>{question}</button>)}
+            {[`در اردیبهشت ${year} چند گزارش داشتیم؟`, `در سال ${year} چند گزارش حادثه داشتیم؟`, `بیشترین Finding سال ${year} چه بوده؟`, `کدام سازمان بیشترین گزارش آسیب پذیری داشته؟`, `چند درصد گزارش‌های ${year} نیازمند اقدام فوری بوده‌اند؟`, `روند ماهانه گزارش‌های ${year} را نشان بده`, 'روی پورت 443 چند گزارش ثبت شده؟'].map((question) => <button key={question} type="button" onClick={() => askCopilot(question)}>{question}</button>)}
           </div>
         </Card>
       </Col>
@@ -407,7 +498,7 @@ const Reports: React.FC = () => {
           </div>
           <Divider />
           <Space.Compact block>
-            <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} value={copilotInput} placeholder="مثلاً: در سال ۱۴۰۴ چند گزارش UDP Amplification داشتیم؟" onChange={(event) => setCopilotInput(event.target.value)} onPressEnter={(event) => { if (!event.shiftKey) { event.preventDefault(); askCopilot(); } }} />
+            <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} value={copilotInput} placeholder={`مثلاً: در اردیبهشت ${year} چند گزارش آسیب‌پذیری داشتیم؟`} onChange={(event) => setCopilotInput(event.target.value)} onPressEnter={(event) => { if (!event.shiftKey) { event.preventDefault(); askCopilot(); } }} />
             <Button type="primary" loading={copilotMutation.isPending} onClick={() => askCopilot()}>Ask</Button>
           </Space.Compact>
         </Card>
@@ -418,19 +509,15 @@ const Reports: React.FC = () => {
   const importPanel = (
     <div className="report-tab-stack">
       <ReportUploadReview year={year} onCommitted={refreshReportData} />
-
       <Divider>Advanced: server folder workflow</Divider>
       <Row gutter={[14, 14]}>
         <Col xs={24} xl={10}>
           <Card title={<><FolderOpenOutlined /> Existing local DOCX folder</>}>
-            <Paragraph>
-              For bulk/admin workflows, files already present under <Text code>REPORTS_ROOT/{year}/</Text> can still be scanned and dry-run locally. The upload workflow above is the recommended path when an analyst wants to inspect every extraction before saving.
-            </Paragraph>
+            <Paragraph>For bulk/admin workflows, files already present under <Text code>REPORTS_ROOT/{year}/</Text> can still be scanned and dry-run locally.</Paragraph>
             <Space wrap>
               <Button icon={<SearchOutlined />} loading={scanQuery.isFetching} onClick={() => scanQuery.refetch()}>Scan {year}</Button>
               <Button icon={<CheckCircleOutlined />} loading={importMutation.isPending} onClick={() => importMutation.mutate({ dryRun: true })}>Dry Run folder</Button>
             </Space>
-
             {scanQuery.data ? (
               <Descriptions className="report-import-descriptions" column={1} size="small" bordered>
                 <Descriptions.Item label="Local root"><Text code>{scanQuery.data.root}</Text></Descriptions.Item>
@@ -468,7 +555,7 @@ const Reports: React.FC = () => {
         <div>
           <span className="report-eyebrow">HISTORICAL REPORT INTELLIGENCE</span>
           <Title level={2}>Security Reports</Title>
-          <Paragraph type="secondary">Local security reports transformed into prior-exposure intelligence for analysts, alert triage, and SOC Copilot.</Paragraph>
+          <Paragraph type="secondary">Monthly, annual and multidimensional report intelligence from the local historical dataset.</Paragraph>
         </div>
         <Space>
           <Text type="secondary">Jalali year</Text>
@@ -476,6 +563,8 @@ const Reports: React.FC = () => {
           <Button icon={<ReloadOutlined />} onClick={refreshReportData} />
         </Space>
       </div>
+
+      {filterPanel}
 
       <Tabs
         activeKey={activeTab}
@@ -524,7 +613,6 @@ const ReportDetail: React.FC<{ report: HistoricalReport }> = ({ report }) => (
     </Descriptions>
 
     {report.extraction.warnings?.length ? <Alert className="report-detail-alert" type="warning" showIcon icon={<WarningOutlined />} message="Extraction review recommended" description={report.extraction.warnings.join(' · ')} /> : null}
-
     <Title level={5}>Description</Title>
     <Paragraph className="report-preserve-lines">{report.description || 'No description extracted.'}</Paragraph>
     {report.conclusion ? <><Title level={5}>Conclusion</Title><Paragraph className="report-preserve-lines">{report.conclusion}</Paragraph></> : null}

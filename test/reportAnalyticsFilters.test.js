@@ -40,7 +40,21 @@ test("report filters support Jalali month/day and multidimensional analytics sco
   assert.equal(filter.cves, "CVE-2025-1234");
   assert.deepEqual(filter["severity.score"], { $gte: 7, $lte: 10 });
   assert.equal(Array.isArray(filter.$and), true);
-  assert.equal(filter.$and.length, 2);
+  assert.equal(filter.$and.length, 3);
+
+  const disjunctions = filter.$and.map((item) => item.$or || []);
+  assert.equal(
+    disjunctions.some((rows) => rows.some((row) => Object.prototype.hasOwnProperty.call(row, "affectedSystems.organization"))),
+    true,
+  );
+  assert.equal(
+    disjunctions.some((rows) => rows.some((row) => Object.prototype.hasOwnProperty.call(row, "target.scopeName"))),
+    true,
+  );
+  assert.equal(
+    disjunctions.some((rows) => rows.some((row) => Object.prototype.hasOwnProperty.call(row, "affectedSystems.ip"))),
+    true,
+  );
 });
 
 test("filtered stats use the same Mongo match scope as the report list", async () => {
@@ -65,6 +79,11 @@ test("filtered stats use the same Mongo match scope as the report list", async (
   assert.equal(pipeline[0].$match.month, 2);
   assert.equal(pipeline[0].$match.reportType, "incident");
   assert.equal(pipeline[0].$match["severity.level"], "critical");
+  assert.equal(Array.isArray(pipeline[0].$match.$or), true);
+  assert.equal(
+    pipeline[0].$match.$or.some((row) => Object.prototype.hasOwnProperty.call(row, "affectedSystems.organization")),
+    true,
+  );
   assert.deepEqual(result.scope, {
     month: 2,
     reportType: "incident",

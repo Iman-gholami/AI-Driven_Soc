@@ -61,6 +61,33 @@ function createReportRouter({
     }
   });
 
+  router.get("/reports/facets", async (req, res) => {
+    try {
+      if (!req.query.year) return res.status(400).json({ detail: "year is required" });
+      return successResponse(res, await analytics.getFacets(req.query || {}));
+    } catch (error) {
+      if (error instanceof ReportImportInputError) {
+        return res.status(400).json({ detail: error.message });
+      }
+      req.log.error({ err: error }, "report_facets_failed");
+      return res.status(500).json({ detail: "Unable to load report facets" });
+    }
+  });
+
+  router.get("/reports/entities/:type", async (req, res) => {
+    try {
+      if (!req.query.year) return res.status(400).json({ detail: "year is required" });
+      if (!req.query.value) return res.status(400).json({ detail: "value is required" });
+      return successResponse(res, await analytics.getEntitySummary(req.params.type, req.query.value, req.query || {}));
+    } catch (error) {
+      if (/unsupported entity type|entity value is required/i.test(String(error?.message || ""))) {
+        return res.status(400).json({ detail: error.message });
+      }
+      req.log.error({ err: error, entityType: req.params.type }, "report_entity_failed");
+      return res.status(500).json({ detail: "Unable to load report entity intelligence" });
+    }
+  });
+
   router.get("/reports", async (req, res) => {
     try {
       return successResponse(res, await analytics.list(req.query || {}));

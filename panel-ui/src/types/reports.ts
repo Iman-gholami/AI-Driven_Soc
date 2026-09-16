@@ -37,6 +37,17 @@ export interface HistoricalIndicator {
   value: string;
 }
 
+export interface HistoricalTarget {
+  mode?: 'single' | 'scope' | 'multi_target' | 'unknown' | string;
+  scopeType?: 'sector' | 'organization_group' | 'geographic' | string | null;
+  scopeName?: string | null;
+  organization?: string | null;
+  ip?: string | null;
+  rawOrganization?: string | null;
+  rawIp?: string | null;
+  tableReference?: string | null;
+}
+
 export interface HistoricalReport {
   _id: string;
   documentKey: string;
@@ -50,11 +61,7 @@ export interface HistoricalReport {
   provider?: string | null;
   contact?: string | null;
   effect?: string | null;
-  target: {
-    organization?: string | null;
-    ip?: string | null;
-    rawIp?: string | null;
-  };
+  target: HistoricalTarget;
   severity: {
     raw?: string | null;
     score?: number | null;
@@ -208,11 +215,7 @@ export interface ReportUploadNormalizedRecord {
   provider?: string | null;
   contact?: string | null;
   effect?: string | null;
-  target: {
-    organization?: string | null;
-    ip?: string | null;
-    rawIp?: string | null;
-  };
+  target: HistoricalTarget;
   severity: {
     raw?: string | null;
     score?: number | null;

@@ -31,8 +31,6 @@ class ReportAnalyticsService {
               $group: {
                 _id: null,
                 total: { $sum: 1 },
-                organizations: { $addToSet: "$target.organization" },
-                targetIps: { $addToSet: "$target.ip" },
                 highCritical: {
                   $sum: { $cond: [{ $in: ["$severity.level", ["high", "critical"]] }, 1, 0] },
                 },
@@ -66,24 +64,6 @@ class ReportAnalyticsService {
               $project: {
                 _id: 0,
                 total: 1,
-                uniqueOrganizations: {
-                  $size: {
-                    $filter: {
-                      input: "$organizations",
-                      as: "item",
-                      cond: { $and: [{ $ne: ["$$item", null] }, { $ne: ["$$item", ""] }] },
-                    },
-                  },
-                },
-                uniqueIps: {
-                  $size: {
-                    $filter: {
-                      input: "$targetIps",
-                      as: "item",
-                      cond: { $and: [{ $ne: ["$$item", null] }, { $ne: ["$$item", ""] }] },
-                    },
-                  },
-                },
                 highCritical: 1,
                 immediate: 1,
                 actionRequired: 1,
@@ -91,6 +71,20 @@ class ReportAnalyticsService {
                 qualityWarnings: 1,
               },
             },
+          ],
+          organizationUniverse: [
+            { $project: { values: organizationValuesExpression() } },
+            { $unwind: "$values" },
+            { $match: { values: { $nin: [null, ""] } } },
+            { $group: { _id: "$values" } },
+            { $count: "count" },
+          ],
+          ipUniverse: [
+            { $project: { values: ipValuesExpression() } },
+            { $unwind: "$values" },
+            { $match: { values: { $nin: [null, ""] } } },
+            { $group: { _id: "$values" } },
+            { $count: "count" },
           ],
           byMonth: [
             { $group: { _id: "$month", count: { $sum: 1 } } },
@@ -126,15 +120,19 @@ class ReportAnalyticsService {
             { $project: { _id: 0, urgency: "$_id", count: 1 } },
           ],
           topOrganizations: [
-            { $match: { "target.organization": { $nin: [null, ""] } } },
-            { $group: { _id: "$target.organization", count: { $sum: 1 } } },
+            { $project: { organizations: organizationValuesExpression() } },
+            { $unwind: "$organizations" },
+            { $match: { organizations: { $nin: [null, ""] } } },
+            { $group: { _id: "$organizations", count: { $sum: 1 } } },
             { $sort: { count: -1, _id: 1 } },
             { $limit: 25 },
             { $project: { _id: 0, organization: "$_id", count: 1 } },
           ],
           topIps: [
-            { $match: { "target.ip": { $nin: [null, ""] } } },
-            { $group: { _id: "$target.ip", count: { $sum: 1 } } },
+            { $project: { ips: ipValuesExpression() } },
+            { $unwind: "$ips" },
+            { $match: { ips: { $nin: [null, ""] } } },
+            { $group: { _id: "$ips", count: { $sum: 1 } } },
             { $sort: { count: -1, _id: 1 } },
             { $limit: 25 },
             { $project: { _id: 0, ip: "$_id", count: 1 } },
@@ -148,17 +146,15 @@ class ReportAnalyticsService {
             { $project: { _id: 0, port: "$_id", count: 1 } },
           ],
           repeated: [
-            {
-              $match: {
-                "target.organization": { $nin: [null, ""] },
-                "finding.type": { $nin: [null, "", "unknown"] },
-              },
-            },
+            { $match: { "finding.type": { $nin: [null, "", "unknown"] } } },
+            { $project: { finding: "$finding.type", organizations: organizationValuesExpression() } },
+            { $unwind: "$organizations" },
+            { $match: { organizations: { $nin: [null, ""] } } },
             {
               $group: {
                 _id: {
-                  organization: "$target.organization",
-                  finding: "$finding.type",
+                  organization: "$organizations",
+                  finding: "$finding",
                 },
                 count: { $sum: 1 },
               },
@@ -171,7 +167,7 @@ class ReportAnalyticsService {
       },
     ]).exec();
 
-    const summary = result.summary?.[0] || {
+    const summary = {
       total: 0,
       uniqueOrganizations: 0,
       uniqueIps: 0,
@@ -180,6 +176,9 @@ class ReportAnalyticsService {
       actionRequired: 0,
       informational: 0,
       qualityWarnings: 0,
+      ...(result.summary?.[0] || {}),
+      uniqueOrganizations: Number(result.organizationUniverse?.[0]?.count || 0),
+      uniqueIps: Number(result.ipUniverse?.[0]?.count || 0),
     };
 
     return {
@@ -241,6 +240,8 @@ class ReportAnalyticsService {
 
 function buildReportFilter(input = {}) {
   const filter = {};
+  const disjunctions = [];
+
   if (input.year !== undefined && input.year !== null && input.year !== "") filter.year = normalizeYear(input.year);
   if (input.month !== undefined && input.month !== null && input.month !== "") filter.month = clampInt(input.month, 1, 12, 1);
   if (input.day !== undefined && input.day !== null && input.day !== "") filter.day = clampInt(input.day, 1, 31, 1);
@@ -251,28 +252,40 @@ function buildReportFilter(input = {}) {
   if (input.findingCategory) filter["finding.category"] = String(input.findingCategory).toLowerCase();
   if (input.vulnerability) filter["vulnerability.normalizedName"] = String(input.vulnerability).toLowerCase();
   if (input.provider) filter.provider = { $regex: escapeRegex(input.provider), $options: "i" };
-  if (input.organization) filter["target.organization"] = { $regex: escapeRegex(input.organization), $options: "i" };
+  if (input.organization) {
+    const organization = { $regex: escapeRegex(input.organization), $options: "i" };
+    disjunctions.push([
+      { "target.organization": organization },
+      { "target.scopeName": organization },
+      { "affectedSystems.organization": organization },
+    ]);
+  }
   if (input.cve) filter.cves = String(input.cve).toUpperCase();
   if (input.port !== undefined && input.port !== null && input.port !== "") filter["affectedSystems.port"] = clampInt(input.port, 0, 65535, 0);
   if (input.service) filter["affectedSystems.service"] = { $regex: escapeRegex(input.service), $options: "i" };
   if (input.domain) filter["affectedSystems.domain"] = { $regex: escapeRegex(input.domain), $options: "i" };
   if (input.ip) {
     const ip = String(input.ip).trim();
-    filter.$or = [{ "target.ip": ip }, { "affectedSystems.ip": ip }];
+    disjunctions.push([{ "target.ip": ip }, { "affectedSystems.ip": ip }]);
   }
+
   const severityScore = {};
   if (input.minScore !== undefined && input.minScore !== null && input.minScore !== "") severityScore.$gte = Number(input.minScore);
   if (input.maxScore !== undefined && input.maxScore !== null && input.maxScore !== "") severityScore.$lte = Number(input.maxScore);
   if (Object.keys(severityScore).length) filter["severity.score"] = severityScore;
+
   if (input.search) {
     const regex = { $regex: escapeRegex(String(input.search).trim()), $options: "i" };
-    const searchOr = [
+    disjunctions.push([
       { title: regex },
       { reportNumber: regex },
       { provider: regex },
       { effect: regex },
       { "target.organization": regex },
+      { "target.scopeName": regex },
+      { "target.rawOrganization": regex },
       { "target.ip": regex },
+      { "target.rawIp": regex },
       { "finding.name": regex },
       { "finding.type": regex },
       { "finding.category": regex },
@@ -281,14 +294,72 @@ function buildReportFilter(input = {}) {
       { conclusion: regex },
       { recommendations: regex },
       { cves: regex },
+      { "affectedSystems.organization": regex },
+      { "affectedSystems.ip": regex },
       { "affectedSystems.domain": regex },
       { "affectedSystems.service": regex },
       { "affectedSystems.url": regex },
-    ];
-    if (filter.$or) filter.$and = [{ $or: filter.$or }, { $or: searchOr }], delete filter.$or;
-    else filter.$or = searchOr;
+    ]);
   }
+
+  if (disjunctions.length === 1) filter.$or = disjunctions[0];
+  else if (disjunctions.length > 1) filter.$and = disjunctions.map((items) => ({ $or: items }));
+
   return filter;
+}
+
+function organizationValuesExpression() {
+  return {
+    $setUnion: [
+      {
+        $cond: [
+          { $and: [{ $ne: ["$target.organization", null] }, { $ne: ["$target.organization", ""] }] },
+          ["$target.organization"],
+          [],
+        ],
+      },
+      {
+        $filter: {
+          input: {
+            $map: {
+              input: { $ifNull: ["$affectedSystems", []] },
+              as: "asset",
+              in: "$$asset.organization",
+            },
+          },
+          as: "organization",
+          cond: { $and: [{ $ne: ["$$organization", null] }, { $ne: ["$$organization", ""] }] },
+        },
+      },
+    ],
+  };
+}
+
+function ipValuesExpression() {
+  return {
+    $setUnion: [
+      {
+        $cond: [
+          { $and: [{ $ne: ["$target.ip", null] }, { $ne: ["$target.ip", ""] }] },
+          ["$target.ip"],
+          [],
+        ],
+      },
+      {
+        $filter: {
+          input: {
+            $map: {
+              input: { $ifNull: ["$affectedSystems", []] },
+              as: "asset",
+              in: "$$asset.ip",
+            },
+          },
+          as: "ip",
+          cond: { $and: [{ $ne: ["$$ip", null] }, { $ne: ["$$ip", ""] }] },
+        },
+      },
+    ],
+  };
 }
 
 function summarizeScope(input = {}) {

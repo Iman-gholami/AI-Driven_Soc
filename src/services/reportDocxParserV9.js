@@ -13,7 +13,7 @@ function enhanceReportRecordV9(report) {
   const target = report.target || {};
   const rawOrganization = clean(target.rawOrganization || target.organization);
   const rawIp = clean(target.rawIp);
-  const tableReference = extractTableReference(rawIp);
+  const tableReference = extractTableReference(rawIp) || extractTableReference(rawOrganization);
   const scope = classifyScope(rawOrganization);
   const assets = normalizedAssets(report.affectedSystems);
   const assetOrganizations = unique(assets.map((item) => item.organization));

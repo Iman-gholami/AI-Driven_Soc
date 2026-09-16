@@ -248,6 +248,9 @@ function buildReportFilter(input = {}) {
   if (input.severity) filter["severity.level"] = String(input.severity).toLowerCase();
   if (input.urgency) filter["urgency.normalized"] = String(input.urgency).toLowerCase();
   if (input.reportType) filter.reportType = String(input.reportType).toLowerCase();
+  if (input.targetMode) filter["target.mode"] = String(input.targetMode).toLowerCase();
+  if (input.scopeType) filter["target.scopeType"] = String(input.scopeType).toLowerCase();
+  if (input.scopeName) filter["target.scopeName"] = { $regex: escapeRegex(input.scopeName), $options: "i" };
   if (input.finding) filter["finding.type"] = String(input.finding).toLowerCase();
   if (input.findingCategory) filter["finding.category"] = String(input.findingCategory).toLowerCase();
   if (input.vulnerability) filter["vulnerability.normalizedName"] = String(input.vulnerability).toLowerCase();
@@ -364,7 +367,7 @@ function ipValuesExpression() {
 
 function summarizeScope(input = {}) {
   const keys = [
-    "month", "day", "reportType", "severity", "urgency", "finding", "findingCategory",
+    "month", "day", "reportType", "targetMode", "scopeType", "scopeName", "severity", "urgency", "finding", "findingCategory",
     "vulnerability", "provider", "organization", "ip", "port", "service", "domain", "cve",
     "minScore", "maxScore", "search",
   ];

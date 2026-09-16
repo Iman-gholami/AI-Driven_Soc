@@ -24,7 +24,6 @@ import {
   message as antMessage,
 } from 'antd';
 import {
-  AlertOutlined,
   ApartmentOutlined,
   BarChartOutlined,
   CheckCircleOutlined,
@@ -41,7 +40,6 @@ import {
   SaveOutlined,
   SearchOutlined,
   ThunderboltOutlined,
-  TrophyOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -76,8 +74,7 @@ const TARGET_COLOR: Record<string, string> = { single: 'blue', multi_target: 'or
 const REPORT_TYPE_LABEL: Record<string, string> = { misconfiguration: 'Misconfiguration', vulnerability: 'Vulnerability', incident: 'Incident', malware: 'Malware', unknown: 'Unknown' };
 const SEVERITY_COLOR: Record<string, string> = { critical: 'red', high: 'volcano', medium: 'gold', low: 'blue', info: 'cyan', unknown: 'default', none: 'default' };
 const FILTER_LABELS: Record<string, string> = {
-  month: 'ماه', day: 'روز', reportType: 'نوع گزارش', targetMode: 'نوع هدف', scopeName: 'حوزه', severity: 'شدت', urgency: 'فوریت',
-  finding: 'Finding', organization: 'سازمان', ip: 'IP', port: 'Port', service: 'Service', domain: 'Domain', cve: 'CVE', provider: 'Provider', search: 'جستجو',
+  month: 'ماه', day: 'روز', reportType: 'نوع گزارش', targetMode: 'نوع هدف', scopeName: 'حوزه', severity: 'شدت', urgency: 'فوریت', finding: 'Finding', organization: 'سازمان', ip: 'IP', port: 'Port', service: 'Service', domain: 'Domain', cve: 'CVE', provider: 'Provider', search: 'جستجو',
 };
 const SAVED_VIEW_KEY = 'report-intelligence-saved-views-v2';
 
@@ -86,6 +83,7 @@ type EntitySelection = { type: 'organization' | 'scope' | 'ip' | 'finding'; valu
 type SavedView = { id: string; name: string; year: number; filters: ReportFilterState };
 type Density = 'compact' | 'comfortable';
 type ChatMessage = { role: 'user' | 'assistant'; content: string; result?: ReportCopilotResult };
+type ChangeItem = { label: string; value: string; direction: 'up' | 'down' | 'flat'; detail: string };
 
 const ReportsV2: React.FC = () => {
   const queryClient = useQueryClient();
@@ -550,7 +548,7 @@ const CommandMetric: React.FC<{ label: string; value: React.ReactNode; sub: stri
   <div className={`report-v2-command-metric tone-${tone}`}><span className="report-v2-command-icon">{icon}</span><div><small>{label}</small><strong>{value}</strong><span>{sub}</span></div></div>
 );
 
-const ChangeChip: React.FC<{ label: string; value: string; direction: 'up' | 'down' | 'flat'; detail: string }> = ({ label, value, direction, detail }) => (
+const ChangeChip: React.FC<ChangeItem> = ({ label, value, direction, detail }) => (
   <div className={`report-v2-change-chip is-${direction}`}><small>{label}</small><strong>{value}</strong><span>{detail}</span></div>
 );
 
@@ -644,17 +642,17 @@ function previousPeriodParams(params: ReportFilterParams): ReportFilterParams {
 
 function buildComparison(current?: ReportStats, previous?: ReportStats, params?: ReportFilterParams, previousParams?: ReportFilterParams) {
   const label = params?.month ? `مقایسه با ${JALALI_MONTHS[Number(previousParams?.month || 1) - 1]} ${previousParams?.year}` : `مقایسه با سال ${previousParams?.year}`;
-  if (!current || !previous) return { label, items: [] as Array<{ label: string; value: string; direction: 'up' | 'down' | 'flat'; detail: string }> };
-  const metrics = [
+  if (!current || !previous) return { label, items: [] as ChangeItem[] };
+  const metrics: Array<[string, number, number]> = [
     ['Reports', current.summary.total, previous.summary.total],
     ['Organizations', current.summary.uniqueOrganizations, previous.summary.uniqueOrganizations],
     ['High / Critical', current.summary.highCritical, previous.summary.highCritical],
     ['Scope-wide', current.byTargetMode.find((item) => item.mode === 'scope')?.count || 0, previous.byTargetMode.find((item) => item.mode === 'scope')?.count || 0],
-  ] as const;
-  const items = metrics.map(([name, now, before]) => {
+  ];
+  const items: ChangeItem[] = metrics.map(([name, now, before]) => {
     const delta = now - before;
     const pct = before ? Math.round((delta / before) * 100) : (now ? 100 : 0);
-    return { label: name, value: `${delta > 0 ? '+' : ''}${delta}`, direction: delta > 0 ? 'up' as const : delta < 0 ? 'down' as const : 'flat' as const, detail: `${pct > 0 ? '+' : ''}${pct}%` };
+    return { label: name, value: `${delta > 0 ? '+' : ''}${delta}`, direction: delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat', detail: `${pct > 0 ? '+' : ''}${pct}%` };
   });
   const currentTop = current.byFinding[0];
   const previousTop = previous.byFinding[0];

@@ -305,3 +305,25 @@
   .report-v2-ip-cloud { grid-template-columns: 1fr; }
   .report-v2-entity-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+
+/* Interactive controls must stay above decorative hero artwork. */
+.report-v2-hero::before,
+.report-v2-hero::after {
+  pointer-events: none !important;
+}
+
+.report-v2-hero-copy,
+.report-v2-hero-actions {
+  position: relative;
+  z-index: 3;
+}
+
+.report-v2-hero-actions {
+  pointer-events: auto;
+}
+
+.report-v2-hero-actions .ant-select,
+.report-v2-hero-actions .ant-btn {
+  pointer-events: auto;
+}

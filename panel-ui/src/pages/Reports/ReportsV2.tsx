@@ -144,6 +144,44 @@ const ReportsV2: React.FC = () => {
   const activeFilters = useMemo(() => Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== ''), [filters]);
   const comparison = useMemo(() => buildComparison(stats, previousStats, params, previousParams), [stats, previousStats, params, previousParams]);
 
+  const organizationOptions = useMemo(() => {
+    const values = new Map<string, number>();
+
+    const add = (value: unknown, count = 0) => {
+      const key = String(value ?? '').trim();
+      if (!key) return;
+      values.set(key, Math.max(values.get(key) || 0, Number(count) || 0));
+    };
+
+    for (const item of facets?.organizations || []) {
+      add(item.value, item.count);
+    }
+
+    for (const item of stats?.topOrganizations || []) {
+      add(item.organization, item.count);
+    }
+
+    for (const report of reportsQuery.data?.reports || []) {
+      add(report.target?.organization);
+
+      for (const asset of report.affectedSystems || []) {
+        add(asset.organization);
+      }
+    }
+
+    return [...values.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'fa'))
+      .slice(0, 100)
+      .map(([value, count]) => ({
+        value,
+        label: count ? `${value} · ${count}` : value,
+      }));
+  }, [
+    facets?.organizations,
+    stats?.topOrganizations,
+    reportsQuery.data?.reports,
+  ]);
+
   function setFilter(key: keyof ReportFilterState, value: any) {
     setFilters((current) => ({ ...current, [key]: value === '' || value === null ? undefined : value }));
     setPage(1);
@@ -262,9 +300,12 @@ const ReportsV2: React.FC = () => {
           allowClear
           value={filters.organization}
           placeholder="نام سازمان"
-          options={(facets?.organizations || []).map((item) => ({ value: String(item.value), label: `${item.value} · ${item.count}` }))}
+          options={organizationOptions}
+          getPopupContainer={() => document.body}
           filterOption={(input, option) => normalizeFa(String(option?.value || '')).includes(normalizeFa(input))}
           onChange={(value) => setFilter('organization', value || undefined)}
+          onSelect={(value) => setFilter('organization', value)}
+          onClear={() => setFilter('organization', undefined)}
         />
       </div>
 
@@ -489,12 +530,11 @@ const ReportsV2: React.FC = () => {
         <div className="report-v2-hero-copy">
           <span className="report-v2-eyebrow">HISTORICAL THREAT INTELLIGENCE</span>
           <Title level={2}>Report Intelligence Workspace</Title>
-          <Paragraph>از گزارش‌محوری به تحلیل entity، scope، target و الگوهای تکرارشونده؛ تمام نمودارها و KPIها روی یک scope فیلترشده واحد محاسبه می‌شوند.</Paragraph>
         </div>
         <div className="report-v2-hero-actions">
-          <Select value={year} style={{ width: 110 }} options={years.map((value) => ({ value, label: String(value) }))} onChange={(value) => { setYear(value); setPage(1); }} />
-          <Select value={filters.month} allowClear placeholder="همه ماه‌ها" style={{ width: 145 }} options={JALALI_MONTHS.map((label, index) => ({ value: index + 1, label }))} onChange={(value) => { setFilters((current) => ({ ...current, month: value, day: undefined })); setPage(1); }} />
-          <Select value={filters.day} allowClear disabled={!filters.month} placeholder="روز" style={{ width: 82 }} options={Array.from({ length: 31 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))} onChange={(value) => setFilter('day', value)} />
+          <Select value={year} getPopupContainer={() => document.body} style={{ width: 110 }} options={years.map((value) => ({ value, label: String(value) }))} onChange={(value) => { setYear(value); setPage(1); }} />
+          <Select value={filters.month} allowClear getPopupContainer={() => document.body} placeholder="همه ماه‌ها" style={{ width: 145 }} options={JALALI_MONTHS.map((label, index) => ({ value: index + 1, label }))} onChange={(value) => { setFilters((current) => ({ ...current, month: value, day: undefined })); setPage(1); }} />
+          <Select value={filters.day} allowClear disabled={!filters.month} getPopupContainer={() => document.body} placeholder="روز" style={{ width: 82 }} options={Array.from({ length: 31 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))} onChange={(value) => setFilter('day', value)} />
           <Tooltip title="Refresh intelligence"><Button icon={<ReloadOutlined />} onClick={refresh} /></Tooltip>
         </div>
       </header>

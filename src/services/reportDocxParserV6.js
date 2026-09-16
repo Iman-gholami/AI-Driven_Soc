@@ -1,9 +1,9 @@
-const v5 = require("./reportDocxParserV5");
+const v4 = require("./reportDocxParserV4");
 
 const PARSER_VERSION = "docx-v6";
 
 async function parseDocxReport(filePath, { yearHint } = {}) {
-  const report = await v5.parseDocxReport(filePath, { yearHint });
+  const report = await v4.parseDocxReport(filePath, { yearHint });
   return enhanceReportRecordV6(report);
 }
 
@@ -12,13 +12,13 @@ function enhanceReportRecordV6(report) {
 
   if (!report.finding || report.finding.type === "unknown") {
     const titleFinding = classifyFindingV6(report.title);
-    const combinedFinding = titleFinding.type !== "unknown"
+    const finding = titleFinding.type !== "unknown"
       ? titleFinding
       : classifyFindingV6([report.title, report.description, report.fullText].filter(Boolean).join("\n"));
 
-    if (combinedFinding.type !== "unknown") {
-      report.finding = combinedFinding;
-      report.vulnerability = vulnerabilityFromFindingV6(combinedFinding);
+    if (finding.type !== "unknown") {
+      report.finding = finding;
+      report.vulnerability = vulnerabilityFromFindingV6(finding);
     }
   }
 
@@ -37,6 +37,7 @@ function enhanceReportRecordV6(report) {
 function classifyFindingV6(value) {
   const text = normalize(value);
   const catalog = [
+    // Profiled 1404 families. Keep more specific threat/network patterns before broad ones.
     {
       pattern: /آلودگی\s+به\s+بدافزار.*(?:ip\s*\/\s*domain|آدرس).*آلوده.*(?:tunnel|تونل)/,
       type: "malware_tunnel_communication",
@@ -198,6 +199,64 @@ function classifyFindingV6(value) {
       category: "web_vulnerability",
       cwe: null,
     },
+
+    // Families introduced in v5.
+    {
+      pattern: /(?:دسترسی\s+بدون\s+احراز\s+هویت|unauthenticated).*redis|redis.*(?:بدون\s+احراز\s+هویت|پیکربندی\s+نامناسب|6379|6380)/,
+      type: "unauthenticated_redis",
+      name: "Unauthenticated Redis",
+      category: "exposed_service",
+      cwe: null,
+    },
+    {
+      pattern: /(?:سرویس\s+پرخطر|سرویس\s+آسیب\s*پذیر|عدم\s+مدیریت).*rpc|\brpc\b.*(?:در\s+معرض\s+اینترنت|exposed|پرخطر)/,
+      type: "exposed_rpc",
+      name: "Exposed RPC Service",
+      category: "exposed_service",
+      cwe: null,
+    },
+    {
+      pattern: /دسترسی\s+(?:نامجاز\s+و\s+)?بدون\s+احراز\s+هویت|unauthenticated\s+(?:file\s+)?access/,
+      type: "unauthenticated_file_access",
+      name: "Unauthenticated File Access",
+      category: "access_control",
+      cwe: null,
+    },
+    {
+      pattern: /slow\s*http\s*(?:dos|denial\s+of\s+service)|آسیب\s*پذیری\s+slow\s*http/,
+      type: "slow_http_dos",
+      name: "Slow HTTP DoS",
+      category: "denial_of_service",
+      cwe: null,
+    },
+    {
+      pattern: /udp\s*flood(?:ing)?|منع\s+سرویس\s*udp\s*flood/,
+      type: "udp_flood",
+      name: "UDP Flood",
+      category: "denial_of_service",
+      cwe: null,
+    },
+    {
+      pattern: /\bdefacement\b|دیفیس/,
+      type: "defacement",
+      name: "Website Defacement",
+      category: "web_intrusion",
+      cwe: null,
+    },
+    {
+      pattern: /(?:سرویس|پروتکل).*ntlm|ntlm.*(?:آسیب\s*پذیر|vulnerable|احراز\s+هویت)/,
+      type: "vulnerable_ntlm",
+      name: "Vulnerable NTLM",
+      category: "authentication_protocol",
+      cwe: null,
+    },
+    {
+      pattern: /apache\s+log4j2?|log4shell|cve-2021-44228|cve-2021-45046/,
+      type: "vulnerable_log4j2",
+      name: "Vulnerable Apache Log4j2 / Log4Shell",
+      category: "vulnerable_software",
+      cwe: null,
+    },
   ];
 
   return catalog.find((item) => item.pattern.test(text)) || {
@@ -228,6 +287,12 @@ function vulnerabilityFromFindingV6(finding) {
     "dns_zone_transfer_exposure",
     "insecure_tftp_service",
     "host_header_injection",
+    "unauthenticated_file_access",
+    "slow_http_dos",
+    "vulnerable_ntlm",
+    "unauthenticated_redis",
+    "exposed_rpc",
+    "vulnerable_log4j2",
   ]);
 
   if (!finding || !vulnerabilityLike.has(finding.type)) {

@@ -23,6 +23,7 @@
     "import:reports": "node scripts/import-reports.js",
     "reconcile:reports": "node scripts/reconcile-reports.js",
     "profile:report-unknowns": "node scripts/profile-report-unknowns.js",
+    "profile:report-targets": "node scripts/profile-report-target-scopes.js",
     "demo:historical-alert": "node scripts/create-historical-context-demo-alert.js",
     "mcp:serve": "node src/mcp/stdio.js",
     "copilot:smoke": "node scripts/copilot-smoke.js",

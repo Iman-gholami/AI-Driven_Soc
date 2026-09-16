@@ -22,6 +22,7 @@
     "import:threat-intel": "node scripts/import-threat-intel.js",
     "import:reports": "node scripts/import-reports.js",
     "reconcile:reports": "node scripts/reconcile-reports.js",
+    "migrate:report-text-index": "node scripts/migrate-report-text-index.js",
     "profile:report-unknowns": "node scripts/profile-report-unknowns.js",
     "profile:report-targets": "node scripts/profile-report-target-scopes.js",
     "profile:report-table-layouts": "node scripts/profile-report-table-layouts.js",

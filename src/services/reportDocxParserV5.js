@@ -1,12 +1,12 @@
 const v6 = require("./reportDocxParserV6");
-const v8 = require("./reportDocxParserV8");
+const v9 = require("./reportDocxParserV9");
 
 // Compatibility shim: existing callers still import V5, while the active
 // parse path advances to the latest parser. Legacy classifier exports remain
 // mapped to V6 so older regression tests keep their original contract.
 module.exports = {
-  PARSER_VERSION: v8.PARSER_VERSION,
-  parseDocxReport: v8.parseDocxReport,
+  PARSER_VERSION: v9.PARSER_VERSION,
+  parseDocxReport: v9.parseDocxReport,
   enhanceReportRecordV5: v6.enhanceReportRecordV6,
   classifyFindingV5: v6.classifyFindingV6,
   vulnerabilityFromFindingV5: v6.vulnerabilityFromFindingV6,

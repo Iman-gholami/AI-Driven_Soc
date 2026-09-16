@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
@@ -33,6 +33,7 @@ import {
   FolderOpenOutlined,
   ImportOutlined,
   LineChartOutlined,
+  LinkOutlined,
   MessageOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
@@ -86,8 +87,9 @@ type ChangeItem = { label: string; value: string; direction: 'up' | 'down' | 'fl
 
 const ReportsV2: React.FC = () => {
   const queryClient = useQueryClient();
-  const [year, setYear] = useState(1404);
-  const [filters, setFilters] = useState<ReportFilterState>({});
+  const initialUrlState = useMemo(() => readReportUrlState(), []);
+  const [year, setYear] = useState(initialUrlState.year);
+  const [filters, setFilters] = useState<ReportFilterState>(initialUrlState.filters);
   const [activeTab, setActiveTab] = useState('intelligence');
   const [page, setPage] = useState(1);
   const [density, setDensity] = useState<Density>('comfortable');
@@ -99,6 +101,7 @@ const ReportsV2: React.FC = () => {
   const [lastImport, setLastImport] = useState<ReportImportResult | null>(null);
   const [exporting, setExporting] = useState(false);
   const [organizationPickerOpen, setOrganizationPickerOpen] = useState(false);
+  const [organizationActiveIndex, setOrganizationActiveIndex] = useState(-1);
 
   const yearsQuery = useQuery({ queryKey: ['report-years'], queryFn: api.getReportYears });
   const params = useMemo<ReportFilterParams>(() => ({ year, ...filters }), [year, filters]);
@@ -146,6 +149,16 @@ const ReportsV2: React.FC = () => {
   const scopeLabel = useMemo(() => formatScopeLabel(year, filters), [year, filters]);
   const activeFilters = useMemo(() => Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== ''), [filters]);
   const comparison = useMemo(() => buildComparison(stats, previousStats, params, previousParams), [stats, previousStats, params, previousParams]);
+
+  const scopeLoading =
+    statsQuery.isFetching ||
+    facetsQuery.isFetching ||
+    reportsQuery.isFetching;
+
+  useEffect(() => {
+    syncReportUrl(year, filters);
+  }, [year, filters]);
+
 
   const organizationOptions = useMemo(() => {
     const values = new Map<string, number>();
@@ -195,6 +208,17 @@ const ReportsV2: React.FC = () => {
     return options.slice(0, 12);
   }, [organizationOptions, filters.organization]);
 
+  useEffect(() => {
+    setOrganizationActiveIndex(-1);
+  }, [filters.organization, organizationPickerOpen]);
+
+
+  function selectOrganization(value: string) {
+    setFilter('organization', value);
+    setOrganizationPickerOpen(false);
+    setOrganizationActiveIndex(-1);
+  }
+
   function setFilter(key: keyof ReportFilterState, value: any) {
     setFilters((current) => ({ ...current, [key]: value === '' || value === null ? undefined : value }));
     setPage(1);
@@ -232,6 +256,16 @@ const ReportsV2: React.FC = () => {
     const next = savedViews.filter((item) => item.id !== id);
     setSavedViews(next);
     localStorage.setItem(SAVED_VIEW_KEY, JSON.stringify(next));
+  }
+
+  async function copyShareUrl() {
+    try {
+      const url = buildReportUrl(year, filters);
+      await navigator.clipboard.writeText(url);
+      antMessage.success('لینک فیلترهای فعلی کپی شد');
+    } catch {
+      antMessage.error('کپی لینک انجام نشد');
+    }
   }
 
   async function refresh() {
@@ -319,6 +353,39 @@ const ReportsV2: React.FC = () => {
             onChange={(event) => {
               setFilter('organization', event.target.value || undefined);
               setOrganizationPickerOpen(true);
+              setOrganizationActiveIndex(-1);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setOrganizationPickerOpen(true);
+                setOrganizationActiveIndex((current) =>
+                  Math.min(current + 1, filteredOrganizationOptions.length - 1),
+                );
+                return;
+              }
+
+              if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setOrganizationActiveIndex((current) => Math.max(current - 1, 0));
+                return;
+              }
+
+              if (
+                event.key === 'Enter' &&
+                organizationPickerOpen &&
+                organizationActiveIndex >= 0
+              ) {
+                event.preventDefault();
+                const selected = filteredOrganizationOptions[organizationActiveIndex];
+                if (selected) selectOrganization(selected.value);
+                return;
+              }
+
+              if (event.key === 'Escape') {
+                setOrganizationPickerOpen(false);
+                setOrganizationActiveIndex(-1);
+              }
             }}
           />
 
@@ -328,11 +395,18 @@ const ReportsV2: React.FC = () => {
                 <button
                   key={option.value}
                   type="button"
+                  className={
+                    filteredOrganizationOptions[organizationActiveIndex]?.value === option.value
+                      ? 'is-active'
+                      : ''
+                  }
+                  onMouseEnter={() =>
+                    setOrganizationActiveIndex(
+                      filteredOrganizationOptions.findIndex((item) => item.value === option.value),
+                    )
+                  }
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    setFilter('organization', option.value);
-                    setOrganizationPickerOpen(false);
-                  }}
+                  onClick={() => selectOrganization(option.value)}
                 >
                   <span>{option.value}</span>
                   {option.label !== option.value ? <small>{option.label}</small> : null}
@@ -616,8 +690,33 @@ const ReportsV2: React.FC = () => {
             ))}
           </select>
 
+          <div
+            className={`report-v2-filter-status ${scopeLoading ? 'is-loading' : ''}`}
+            aria-live="polite"
+          >
+            {scopeLoading ? (
+              <>
+                <i />
+                <span>در حال به‌روزرسانی</span>
+              </>
+            ) : (
+              <>
+                <strong>{stats?.summary.total ?? reportsQuery.data?.pagination.total ?? 0}</strong>
+                <span>گزارش</span>
+              </>
+            )}
+          </div>
+
+          <Tooltip title="کپی لینک همین فیلترها">
+            <Button icon={<LinkOutlined />} onClick={copyShareUrl} />
+          </Tooltip>
+
           <Tooltip title="Refresh intelligence">
-            <Button icon={<ReloadOutlined />} onClick={refresh} />
+            <Button
+              icon={<ReloadOutlined />}
+              loading={scopeLoading}
+              onClick={refresh}
+            />
           </Tooltip>
         </div>
       </header>
@@ -751,6 +850,79 @@ const ReportDetail: React.FC<{ report: HistoricalReport; onEntity: (value: Entit
     <Title level={5}>Recommendations</Title><List size="small" dataSource={report.recommendations || []} locale={{ emptyText: 'No recommendations extracted.' }} renderItem={(item) => <List.Item>{item}</List.Item>} />
   </div>;
 };
+
+
+const URL_FILTER_KEYS: Array<keyof ReportFilterState> = [
+  'month',
+  'day',
+  'reportType',
+  'targetMode',
+  'scopeType',
+  'scopeName',
+  'severity',
+  'urgency',
+  'finding',
+  'organization',
+  'ip',
+  'port',
+  'service',
+  'domain',
+  'cve',
+  'provider',
+  'search',
+];
+
+function readReportUrlState(): { year: number; filters: ReportFilterState } {
+  if (typeof window === 'undefined') return { year: 1404, filters: {} };
+
+  const search = new URLSearchParams(window.location.search);
+  const parsedYear = Number(search.get('year'));
+  const year = Number.isInteger(parsedYear) && parsedYear > 0 ? parsedYear : 1404;
+
+  const filters: ReportFilterState = {};
+
+  for (const key of URL_FILTER_KEYS) {
+    const raw = search.get(key);
+    if (raw === null || raw === '') continue;
+
+    if (key === 'month' || key === 'day' || key === 'port') {
+      const numeric = Number(raw);
+      if (Number.isFinite(numeric)) {
+        (filters as Record<string, unknown>)[key] = numeric;
+      }
+      continue;
+    }
+
+    (filters as Record<string, unknown>)[key] = raw;
+  }
+
+  return { year, filters };
+}
+
+function buildReportUrl(year: number, filters: ReportFilterState) {
+  const url = new URL(window.location.href);
+  const next = new URLSearchParams();
+
+  next.set('year', String(year));
+
+  for (const key of URL_FILTER_KEYS) {
+    const value = filters[key];
+    if (value === undefined || value === null || value === '') continue;
+    next.set(key, String(value));
+  }
+
+  url.search = next.toString();
+  return url.toString();
+}
+
+function syncReportUrl(year: number, filters: ReportFilterState) {
+  if (typeof window === 'undefined') return;
+
+  const next = buildReportUrl(year, filters);
+  if (next !== window.location.href) {
+    window.history.replaceState(null, '', next);
+  }
+}
 
 function previousPeriodParams(params: ReportFilterParams): ReportFilterParams {
   const next: ReportFilterParams = { ...params, day: undefined };

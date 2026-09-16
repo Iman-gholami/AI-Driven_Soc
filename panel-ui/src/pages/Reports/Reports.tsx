@@ -85,6 +85,20 @@ const reportTypeLabel: Record<string, string> = {
   misconfiguration: 'Misconfiguration', vulnerability: 'Vulnerability', incident: 'Incident', malware: 'Malware', unknown: 'Unknown',
 };
 
+const targetModeLabel: Record<string, string> = {
+  single: 'تک‌هدف',
+  multi_target: 'چندهدف',
+  scope: 'حوزه‌ای',
+  unknown: 'نامشخص',
+};
+
+const targetModeColor: Record<string, string> = {
+  single: 'blue',
+  multi_target: 'orange',
+  scope: 'purple',
+  unknown: 'default',
+};
+
 type ReportFilterState = Omit<ReportFilterParams, 'year'>;
 
 interface ChatMessage {
@@ -151,9 +165,16 @@ const Reports: React.FC = () => {
   const organizationOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const report of organizationCatalogQuery.data || []) {
+      const values = new Set<string>();
       const organization = String(report.target?.organization || '').trim();
-      if (!organization) continue;
-      counts.set(organization, (counts.get(organization) || 0) + 1);
+      const scopeName = String(report.target?.scopeName || '').trim();
+      if (organization) values.add(organization);
+      if (scopeName) values.add(scopeName);
+      for (const system of report.affectedSystems || []) {
+        const affectedOrganization = String(system.organization || '').trim();
+        if (affectedOrganization) values.add(affectedOrganization);
+      }
+      values.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
     }
 
     const needle = normalizePersianSearch(organizationSearch);
@@ -314,6 +335,24 @@ const Reports: React.FC = () => {
           onChange={(value) => setFilter('reportType', value || undefined)}
         />
         <NativeFilterSelect
+          value={filters.targetMode}
+          placeholder="نوع هدف"
+          options={[
+            { value: 'single', label: 'تک‌هدف' },
+            { value: 'multi_target', label: 'چندهدف' },
+            { value: 'scope', label: 'حوزه‌ای' },
+          ]}
+          width={130}
+          onChange={(value) => {
+            setFilters((current) => ({
+              ...current,
+              targetMode: value || undefined,
+              scopeName: value === 'scope' ? current.scopeName : undefined,
+            }));
+            setPage(1);
+          }}
+        />
+        <NativeFilterSelect
           value={filters.severity}
           placeholder="Severity"
           options={['critical', 'high', 'medium', 'low', 'info', 'unknown'].map((value) => ({ value, label: value }))}
@@ -326,6 +365,13 @@ const Reports: React.FC = () => {
           options={['immediate', 'action_required', 'informational', 'unknown'].map((value) => ({ value, label: value }))}
           width={150}
           onChange={(value) => setFilter('urgency', value || undefined)}
+        />
+        <Input
+          allowClear
+          placeholder="نام حوزه؛ مثلاً حوزه اقتصادی"
+          value={String(filters.scopeName || '')}
+          onChange={(event) => setFilter('scopeName', event.target.value)}
+          style={{ width: 230 }}
         />
 
         <div style={{ position: 'relative', width: 290, zIndex: organizationSuggestionsOpen ? 2000 : 1 }}>
@@ -559,12 +605,29 @@ const Reports: React.FC = () => {
           dataSource={reportsQuery.data?.reports || []}
           onRow={(record) => ({ onClick: () => setSelectedReport(record), className: 'report-clickable-row' })}
           pagination={{ current: page, pageSize: 20, total: reportsQuery.data?.pagination.total || 0, showSizeChanger: false, onChange: setPage }}
-          scroll={{ x: 1180 }}
+          scroll={{ x: 1340 }}
           columns={[
             { title: 'Date', dataIndex: 'reportDateRaw', width: 110 },
             { title: 'Report No', dataIndex: 'reportNumber', width: 165, render: (value) => value || '—' },
             { title: 'Type', dataIndex: 'reportType', width: 130 },
-            { title: 'Organization', dataIndex: ['target', 'organization'], width: 250, ellipsis: true },
+            {
+              title: 'Target',
+              dataIndex: ['target', 'mode'],
+              width: 150,
+              render: (value, row) => (
+                <Space size={2} direction="vertical">
+                  <Tag color={targetModeColor[value] || 'default'}>{targetModeLabel[value] || value || 'نامشخص'}</Tag>
+                  {value === 'scope' && row.target?.scopeName ? <Text type="secondary" ellipsis style={{ maxWidth: 130 }}>{row.target.scopeName}</Text> : null}
+                </Space>
+              ),
+            },
+            {
+              title: 'Target / Organization',
+              dataIndex: ['target', 'organization'],
+              width: 250,
+              ellipsis: true,
+              render: (value, row) => row.target?.mode === 'scope' ? (row.target.scopeName || 'حوزه‌ای') : (value || '—'),
+            },
             { title: 'IP', dataIndex: ['target', 'ip'], width: 135, render: (value) => <Text code>{value || '—'}</Text> },
             { title: 'Finding', dataIndex: ['finding', 'name'], width: 210, render: (value, row) => value || row.finding?.type || 'unknown' },
             { title: 'Severity', dataIndex: ['severity', 'level'], width: 100, render: (value, row) => <Tag color={severityTag[value] || 'default'}>{value} {row.severity.score ?? ''}</Tag> },
@@ -731,52 +794,64 @@ const InsightCard: React.FC<{ icon: React.ReactNode; eyebrow: string; title: str
 
 const MiniStat: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => <div className="report-mini-stat"><span>{label}</span><strong>{value}</strong></div>;
 
-const ReportDetail: React.FC<{ report: HistoricalReport }> = ({ report }) => (
-  <div className="report-detail">
-    <Descriptions bordered column={1} size="small">
-      <Descriptions.Item label="Title">{report.title}</Descriptions.Item>
-      <Descriptions.Item label="Date">{report.reportDateRaw || '—'}</Descriptions.Item>
-      <Descriptions.Item label="Report type"><Tag>{report.reportType}</Tag></Descriptions.Item>
-      <Descriptions.Item label="Organization">{report.target.organization || '—'}</Descriptions.Item>
-      <Descriptions.Item label="IP"><Text code>{report.target.ip || report.target.rawIp || '—'}</Text></Descriptions.Item>
-      <Descriptions.Item label="Finding">{report.finding?.name || report.finding?.type || 'unknown'}</Descriptions.Item>
-      <Descriptions.Item label="Category">{report.finding?.category || '—'}</Descriptions.Item>
-      <Descriptions.Item label="CWE">{report.finding?.cwe || report.vulnerability?.cwe || '—'}</Descriptions.Item>
-      <Descriptions.Item label="CVEs">{report.cves?.length ? report.cves.map((cve) => <Tag key={cve}>{cve}</Tag>) : '—'}</Descriptions.Item>
-      <Descriptions.Item label="Severity"><Tag color={severityTag[report.severity.level] || 'default'}>{report.severity.level} {report.severity.score ?? ''}</Tag></Descriptions.Item>
-      <Descriptions.Item label="Urgency">{report.urgency.raw || report.urgency.normalized}</Descriptions.Item>
-      <Descriptions.Item label="Effect">{report.effect || '—'}</Descriptions.Item>
-      <Descriptions.Item label="Source"><Text code>{report.source.relativePath}</Text></Descriptions.Item>
-    </Descriptions>
+const ReportDetail: React.FC<{ report: HistoricalReport }> = ({ report }) => {
+  const targetMode = report.target?.mode || 'unknown';
+  const affectedOrganizations = new Set(
+    (report.affectedSystems || []).map((item) => String(item.organization || '').trim()).filter(Boolean),
+  );
 
-    {report.extraction.warnings?.length ? <Alert className="report-detail-alert" type="warning" showIcon icon={<WarningOutlined />} message="Extraction review recommended" description={report.extraction.warnings.join(' · ')} /> : null}
-    <Title level={5}>Description</Title>
-    <Paragraph className="report-preserve-lines">{report.description || 'No description extracted.'}</Paragraph>
-    {report.conclusion ? <><Title level={5}>Conclusion</Title><Paragraph className="report-preserve-lines">{report.conclusion}</Paragraph></> : null}
+  return (
+    <div className="report-detail">
+      <Descriptions bordered column={1} size="small">
+        <Descriptions.Item label="Title">{report.title}</Descriptions.Item>
+        <Descriptions.Item label="Date">{report.reportDateRaw || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Report type"><Tag>{report.reportType}</Tag></Descriptions.Item>
+        <Descriptions.Item label="Target type"><Tag color={targetModeColor[targetMode] || 'default'}>{targetModeLabel[targetMode] || targetMode}</Tag></Descriptions.Item>
+        {targetMode === 'scope' ? <Descriptions.Item label="Scope / حوزه">{report.target.scopeName || report.target.rawOrganization || '—'}</Descriptions.Item> : null}
+        {report.target.tableReference ? <Descriptions.Item label="Target table">{report.target.tableReference}</Descriptions.Item> : null}
+        <Descriptions.Item label="Organization">{report.target.organization || (targetMode === 'scope' ? report.target.scopeName : null) || '—'}</Descriptions.Item>
+        <Descriptions.Item label="IP"><Text code>{report.target.ip || report.target.rawIp || '—'}</Text></Descriptions.Item>
+        <Descriptions.Item label="Affected assets">{report.affectedSystems?.length || 0}</Descriptions.Item>
+        <Descriptions.Item label="Affected organizations">{affectedOrganizations.size}</Descriptions.Item>
+        <Descriptions.Item label="Finding">{report.finding?.name || report.finding?.type || 'unknown'}</Descriptions.Item>
+        <Descriptions.Item label="Category">{report.finding?.category || '—'}</Descriptions.Item>
+        <Descriptions.Item label="CWE">{report.finding?.cwe || report.vulnerability?.cwe || '—'}</Descriptions.Item>
+        <Descriptions.Item label="CVEs">{report.cves?.length ? report.cves.map((cve) => <Tag key={cve}>{cve}</Tag>) : '—'}</Descriptions.Item>
+        <Descriptions.Item label="Severity"><Tag color={severityTag[report.severity.level] || 'default'}>{report.severity.level} {report.severity.score ?? ''}</Tag></Descriptions.Item>
+        <Descriptions.Item label="Urgency">{report.urgency.raw || report.urgency.normalized}</Descriptions.Item>
+        <Descriptions.Item label="Effect">{report.effect || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Source"><Text code>{report.source.relativePath}</Text></Descriptions.Item>
+      </Descriptions>
 
-    <Title level={5}>Affected Systems / Event Details</Title>
-    <Table size="small" pagination={false} rowKey={(_, index) => String(index)} dataSource={report.affectedSystems || []} scroll={{ x: 1250 }} columns={[
-      { title: 'Organization', dataIndex: 'organization', width: 220, ellipsis: true },
-      { title: 'IP', dataIndex: 'ip', width: 130 },
-      { title: 'Domain', dataIndex: 'domain', width: 160 },
-      { title: 'Service', dataIndex: 'service', width: 170, ellipsis: true },
-      { title: 'Port', dataIndex: 'port', width: 80 },
-      { title: 'Method', dataIndex: 'method', width: 80 },
-      { title: 'Parameter', dataIndex: 'parameter', width: 120 },
-      { title: 'URL / Path', dataIndex: 'url', width: 250, ellipsis: true },
-      { title: 'Packets', dataIndex: 'packetCount', width: 120 },
-      { title: 'Participant IPs', dataIndex: 'participantIpCount', width: 120 },
-      { title: 'Traffic', dataIndex: 'trafficVolumeRaw', width: 110 },
-      { title: 'Event date', dataIndex: 'eventDateRaw', width: 110 },
-      { title: 'Time', dataIndex: 'timeRange', width: 130 },
-      { title: 'Version', dataIndex: 'softwareVersion', width: 100 },
-      { title: 'Reported finding', dataIndex: 'reportedFinding', width: 220, ellipsis: true },
-    ]} />
+      {report.extraction.warnings?.length ? <Alert className="report-detail-alert" type="warning" showIcon icon={<WarningOutlined />} message="Extraction review recommended" description={report.extraction.warnings.join(' · ')} /> : null}
+      <Title level={5}>Description</Title>
+      <Paragraph className="report-preserve-lines">{report.description || 'No description extracted.'}</Paragraph>
+      {report.conclusion ? <><Title level={5}>Conclusion</Title><Paragraph className="report-preserve-lines">{report.conclusion}</Paragraph></> : null}
 
-    <Title level={5}>Recommendations</Title>
-    <List size="small" dataSource={report.recommendations || []} locale={{ emptyText: 'No recommendations extracted.' }} renderItem={(item) => <List.Item>{item}</List.Item>} />
-  </div>
-);
+      <Title level={5}>Affected Systems / Event Details</Title>
+      <Table size="small" pagination={false} rowKey={(_, index) => String(index)} dataSource={report.affectedSystems || []} scroll={{ x: 1250 }} columns={[
+        { title: 'Organization', dataIndex: 'organization', width: 220, ellipsis: true },
+        { title: 'IP', dataIndex: 'ip', width: 130 },
+        { title: 'Domain', dataIndex: 'domain', width: 160 },
+        { title: 'Service', dataIndex: 'service', width: 170, ellipsis: true },
+        { title: 'Port', dataIndex: 'port', width: 80 },
+        { title: 'Method', dataIndex: 'method', width: 80 },
+        { title: 'Parameter', dataIndex: 'parameter', width: 120 },
+        { title: 'URL / Path', dataIndex: 'url', width: 250, ellipsis: true },
+        { title: 'Packets', dataIndex: 'packetCount', width: 120 },
+        { title: 'Participant IPs', dataIndex: 'participantIpCount', width: 120 },
+        { title: 'Traffic', dataIndex: 'trafficVolumeRaw', width: 110 },
+        { title: 'Event date', dataIndex: 'eventDateRaw', width: 110 },
+        { title: 'Time', dataIndex: 'timeRange', width: 130 },
+        { title: 'Version', dataIndex: 'softwareVersion', width: 100 },
+        { title: 'Reported finding', dataIndex: 'reportedFinding', width: 220, ellipsis: true },
+      ]} />
+
+      <Title level={5}>Recommendations</Title>
+      <List size="small" dataSource={report.recommendations || []} locale={{ emptyText: 'No recommendations extracted.' }} renderItem={(item) => <List.Item>{item}</List.Item>} />
+    </div>
+  );
+};
 
 function normalizePersianSearch(value: string) {
   return String(value || '')

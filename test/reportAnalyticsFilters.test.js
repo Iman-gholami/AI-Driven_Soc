@@ -63,6 +63,21 @@ test("report filters support Jalali month/day and multidimensional analytics sco
   );
 });
 
+test("report enum filters support comma separated faceted selections", () => {
+  const filter = buildReportFilter({
+    year: 1404,
+    reportType: "incident,vulnerability",
+    targetMode: "scope,multi_target",
+    severity: "critical,high",
+    finding: "xss,phishing",
+  });
+
+  assert.deepEqual(filter.reportType, { $in: ["incident", "vulnerability"] });
+  assert.deepEqual(filter["target.mode"], { $in: ["scope", "multi_target"] });
+  assert.deepEqual(filter["severity.level"], { $in: ["critical", "high"] });
+  assert.deepEqual(filter["finding.type"], { $in: ["xss", "phishing"] });
+});
+
 test("filtered stats use the same Mongo match scope as the report list", async () => {
   let pipeline;
   const model = {
@@ -103,4 +118,28 @@ test("filtered stats use the same Mongo match scope as the report list", async (
     organization: "تامین اجتماعی",
   });
   assert.equal(result.summary.total, 0);
+  assert.deepEqual(result.byTargetMode, []);
+  assert.deepEqual(result.topScopes, []);
+  assert.deepEqual(result.findingMonthHeatmap, []);
+  assert.deepEqual(result.repeatedPatterns, []);
+});
+
+test("facets reuse the same Mongo filter scope", async () => {
+  let pipeline;
+  const model = {
+    aggregate(value) {
+      pipeline = value;
+      return { exec: async () => [{}] };
+    },
+  };
+
+  const service = new ReportAnalyticsService({ model });
+  const result = await service.getFacets({ year: 1404, month: 3 });
+
+  assert.equal(pipeline[0].$match.year, 1404);
+  assert.equal(pipeline[0].$match.month, 3);
+  assert.ok(pipeline[1].$facet.targetModes);
+  assert.ok(pipeline[1].$facet.organizations);
+  assert.deepEqual(result.reportTypes, []);
+  assert.deepEqual(result.organizations, []);
 });

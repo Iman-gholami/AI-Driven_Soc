@@ -16,6 +16,8 @@ import type {
   HistoricalReport,
   HistoricalReportListResult,
   ReportCopilotResult,
+  ReportEntitySummary,
+  ReportFacets,
   ReportFilterParams,
   ReportImportResult,
   ReportImportScan,
@@ -149,6 +151,25 @@ export const api = {
     const response = await apiClient.get<ApiResponse<ReportStats>>('/reports/stats', {
       params: cleanParams(params),
     });
+    return response.data.data;
+  },
+
+  getReportFacets: async (params: ReportFilterParams): Promise<ReportFacets> => {
+    const response = await apiClient.get<ApiResponse<ReportFacets>>('/reports/facets', {
+      params: cleanParams(params),
+    });
+    return response.data.data;
+  },
+
+  getReportEntitySummary: async (
+    type: 'organization' | 'scope' | 'ip' | 'finding',
+    value: string,
+    params: Pick<ReportFilterParams, 'year' | 'month' | 'day'>,
+  ): Promise<ReportEntitySummary> => {
+    const response = await apiClient.get<ApiResponse<ReportEntitySummary>>(
+      `/reports/entities/${encodeURIComponent(type)}`,
+      { params: cleanParams({ ...params, value }) },
+    );
     return response.data.data;
   },
 

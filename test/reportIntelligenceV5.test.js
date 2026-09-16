@@ -41,7 +41,7 @@ test("recognizes Log4Shell by CVE evidence even when title wording varies", () =
   assert.equal(finding.category, "vulnerable_software");
 });
 
-test("removes unknown finding warning after v5 classification", () => {
+test("removes unknown finding warning after compatibility classification", () => {
   const report = {
     title: "گزارش حادثه سایبری - حمله Defacement",
     description: "",
@@ -56,12 +56,12 @@ test("removes unknown finding warning after v5 classification", () => {
 
   const enhanced = enhanceReportRecordV5(report);
   assert.equal(enhanced.finding.type, "defacement");
-  assert.equal(enhanced.extraction.parserVersion, "docx-v5");
+  assert.equal(enhanced.extraction.parserVersion, "docx-v6");
   assert.ok(!enhanced.extraction.warnings.includes("unknown_finding_type"));
   assert.ok(enhanced.extraction.warnings.includes("missing_target_ip"));
 });
 
-test("maps vulnerability-like v5 findings while keeping incidents out of vulnerability stats", () => {
+test("maps vulnerability-like compatibility findings while keeping incidents out of vulnerability stats", () => {
   const ntlm = vulnerabilityFromFindingV5(classifyFindingV5("استفاده از سرویس آسیب‌پذیر NTLM"));
   assert.equal(ntlm.normalizedName, "vulnerable_ntlm");
 

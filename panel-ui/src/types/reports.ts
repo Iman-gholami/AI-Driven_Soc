@@ -163,13 +163,52 @@ export interface ReportStats {
   byReportType: Array<{ reportType: string; count: number }>;
   bySeverity: Array<{ severity: string; count: number }>;
   byUrgency: Array<{ urgency: string; count: number }>;
+  byTargetMode: Array<{ mode: string; count: number }>;
+  topScopes: Array<{ scope: string; scopeType?: string | null; count: number }>;
   topOrganizations: Array<{ organization: string; count: number }>;
   topIps: Array<{ ip: string; count: number }>;
   topPorts: Array<{ port: number; count: number }>;
+  findingMonthHeatmap: Array<{ month: number; finding: string; name: string; count: number }>;
+  largestTargets: Array<{
+    _id?: string;
+    reportNumber?: string | null;
+    title?: string | null;
+    mode: string;
+    scopeName?: string | null;
+    organization?: string | null;
+    assetCount: number;
+  }>;
   repeated: {
     repeatedGroups: number;
     reportsInRepeatedGroups: number;
   };
+  repeatedPatterns: Array<{ organization: string; finding: string; count: number }>;
+}
+
+export interface ReportFacetItem {
+  value: string | number;
+  label?: string | null;
+  count: number;
+}
+
+export interface ReportFacets {
+  scope?: Partial<Omit<ReportFilterParams, 'year'>>;
+  reportTypes: ReportFacetItem[];
+  targetModes: ReportFacetItem[];
+  severities: ReportFacetItem[];
+  urgencies: ReportFacetItem[];
+  findings: ReportFacetItem[];
+  scopes: ReportFacetItem[];
+  organizations: ReportFacetItem[];
+  ports: ReportFacetItem[];
+}
+
+export interface ReportEntitySummary {
+  type: 'organization' | 'scope' | 'ip' | 'finding' | string;
+  value: string;
+  stats: ReportStats;
+  recentReports: HistoricalReport[];
+  totalReports: number;
 }
 
 export interface ReportImportScan {

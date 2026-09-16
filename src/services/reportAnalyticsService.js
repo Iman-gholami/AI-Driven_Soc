@@ -119,6 +119,18 @@ class ReportAnalyticsService {
             { $sort: { count: -1 } },
             { $project: { _id: 0, urgency: "$_id", count: 1 } },
           ],
+          byTargetMode: [
+            { $group: { _id: { $ifNull: ["$target.mode", "unknown"] }, count: { $sum: 1 } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $project: { _id: 0, mode: "$_id", count: 1 } },
+          ],
+          topScopes: [
+            { $match: { "target.scopeName": { $nin: [null, ""] } } },
+            { $group: { _id: "$target.scopeName", count: { $sum: 1 }, scopeType: { $first: "$target.scopeType" } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $limit: 20 },
+            { $project: { _id: 0, scope: "$_id", scopeType: 1, count: 1 } },
+          ],
           topOrganizations: [
             { $project: { organizations: organizationValuesExpression() } },
             { $unwind: "$organizations" },
@@ -145,23 +157,46 @@ class ReportAnalyticsService {
             { $limit: 25 },
             { $project: { _id: 0, port: "$_id", count: 1 } },
           ],
+          findingMonthHeatmap: [
+            { $match: { month: { $gte: 1, $lte: 12 }, "finding.type": { $nin: [null, "", "unknown"] } } },
+            { $group: { _id: { month: "$month", finding: "$finding.type" }, count: { $sum: 1 }, name: { $first: "$finding.name" } } },
+            { $sort: { "_id.month": 1, count: -1 } },
+            { $project: { _id: 0, month: "$_id.month", finding: "$_id.finding", name: { $ifNull: ["$name", "$_id.finding"] }, count: 1 } },
+          ],
+          largestTargets: [
+            {
+              $project: {
+                reportNumber: 1,
+                title: 1,
+                mode: { $ifNull: ["$target.mode", "unknown"] },
+                scopeName: "$target.scopeName",
+                organization: "$target.organization",
+                assetCount: { $size: { $ifNull: ["$affectedSystems", []] } },
+              },
+            },
+            { $sort: { assetCount: -1, reportNumber: 1 } },
+            { $limit: 10 },
+          ],
           repeated: [
             { $match: { "finding.type": { $nin: [null, "", "unknown"] } } },
             { $project: { finding: "$finding.type", organizations: organizationValuesExpression() } },
             { $unwind: "$organizations" },
             { $match: { organizations: { $nin: [null, ""] } } },
-            {
-              $group: {
-                _id: {
-                  organization: "$organizations",
-                  finding: "$finding",
-                },
-                count: { $sum: 1 },
-              },
-            },
+            { $group: { _id: { organization: "$organizations", finding: "$finding" }, count: { $sum: 1 } } },
             { $match: { count: { $gt: 1 } } },
             { $group: { _id: null, repeatedGroups: { $sum: 1 }, reportsInRepeatedGroups: { $sum: "$count" } } },
             { $project: { _id: 0, repeatedGroups: 1, reportsInRepeatedGroups: 1 } },
+          ],
+          repeatedPatterns: [
+            { $match: { "finding.type": { $nin: [null, "", "unknown"] } } },
+            { $project: { finding: "$finding.type", organizations: organizationValuesExpression() } },
+            { $unwind: "$organizations" },
+            { $match: { organizations: { $nin: [null, ""] } } },
+            { $group: { _id: { organization: "$organizations", finding: "$finding" }, count: { $sum: 1 } } },
+            { $match: { count: { $gt: 1 } } },
+            { $sort: { count: -1, "_id.organization": 1 } },
+            { $limit: 12 },
+            { $project: { _id: 0, organization: "$_id.organization", finding: "$_id.finding", count: 1 } },
           ],
         },
       },
@@ -195,10 +230,103 @@ class ReportAnalyticsService {
       byReportType: result.byReportType || [],
       bySeverity: result.bySeverity || [],
       byUrgency: result.byUrgency || [],
+      byTargetMode: result.byTargetMode || [],
+      topScopes: result.topScopes || [],
       topOrganizations: result.topOrganizations || [],
       topIps: result.topIps || [],
       topPorts: result.topPorts || [],
+      findingMonthHeatmap: result.findingMonthHeatmap || [],
+      largestTargets: result.largestTargets || [],
       repeated: result.repeated?.[0] || { repeatedGroups: 0, reportsInRepeatedGroups: 0 },
+      repeatedPatterns: result.repeatedPatterns || [],
+    };
+  }
+
+  async getFacets(input = {}) {
+    const filter = buildReportFilter(input);
+    if (!Object.prototype.hasOwnProperty.call(filter, "year") && input.year) filter.year = normalizeYear(input.year);
+
+    const [result = {}] = await this.model.aggregate([
+      { $match: filter },
+      {
+        $facet: {
+          reportTypes: facetPipeline("$reportType", "value", 20),
+          targetModes: facetPipeline({ $ifNull: ["$target.mode", "unknown"] }, "value", 10),
+          severities: facetPipeline("$severity.level", "value", 10),
+          urgencies: facetPipeline("$urgency.normalized", "value", 10),
+          findings: [
+            { $group: { _id: "$finding.type", count: { $sum: 1 }, label: { $first: "$finding.name" } } },
+            { $match: { _id: { $nin: [null, ""] } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $limit: 40 },
+            { $project: { _id: 0, value: "$_id", label: { $ifNull: ["$label", "$_id"] }, count: 1 } },
+          ],
+          scopes: [
+            { $match: { "target.scopeName": { $nin: [null, ""] } } },
+            { $group: { _id: "$target.scopeName", count: { $sum: 1 } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $limit: 40 },
+            { $project: { _id: 0, value: "$_id", count: 1 } },
+          ],
+          organizations: [
+            { $project: { values: organizationValuesExpression() } },
+            { $unwind: "$values" },
+            { $match: { values: { $nin: [null, ""] } } },
+            { $group: { _id: "$values", count: { $sum: 1 } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $limit: 100 },
+            { $project: { _id: 0, value: "$_id", count: 1 } },
+          ],
+          ports: [
+            { $unwind: "$affectedSystems" },
+            { $match: { "affectedSystems.port": { $ne: null } } },
+            { $group: { _id: "$affectedSystems.port", count: { $sum: 1 } } },
+            { $sort: { count: -1, _id: 1 } },
+            { $limit: 30 },
+            { $project: { _id: 0, value: "$_id", count: 1 } },
+          ],
+        },
+      },
+    ]).exec();
+
+    return {
+      scope: summarizeScope(input),
+      reportTypes: result.reportTypes || [],
+      targetModes: result.targetModes || [],
+      severities: result.severities || [],
+      urgencies: result.urgencies || [],
+      findings: result.findings || [],
+      scopes: result.scopes || [],
+      organizations: result.organizations || [],
+      ports: result.ports || [],
+    };
+  }
+
+  async getEntitySummary(type, value, input = {}) {
+    const normalizedType = String(type || "").trim().toLowerCase();
+    const normalizedValue = String(value || "").trim();
+    if (!normalizedValue) throw new Error("entity value is required");
+
+    const params = { ...input };
+    if (normalizedType === "organization") params.organization = normalizedValue;
+    else if (normalizedType === "scope") {
+      params.targetMode = "scope";
+      params.scopeName = normalizedValue;
+    } else if (normalizedType === "ip") params.ip = normalizedValue;
+    else if (normalizedType === "finding") params.finding = normalizedValue;
+    else throw new Error(`unsupported entity type: ${normalizedType}`);
+
+    const [stats, recent] = await Promise.all([
+      this.getStats(params),
+      this.list({ ...params, page: 1, limit: 20 }),
+    ]);
+
+    return {
+      type: normalizedType,
+      value: normalizedValue,
+      stats,
+      recentReports: recent.reports,
+      totalReports: recent.pagination.total,
     };
   }
 
@@ -231,9 +359,7 @@ class ReportAnalyticsService {
 
   async getById(id) {
     if (!id) return null;
-    const query = /^[a-f\d]{24}$/i.test(String(id))
-      ? { _id: id }
-      : { documentKey: String(id) };
+    const query = /^[a-f\d]{24}$/i.test(String(id)) ? { _id: id } : { documentKey: String(id) };
     return this.model.findOne(query).lean().exec();
   }
 }
@@ -245,15 +371,16 @@ function buildReportFilter(input = {}) {
   if (input.year !== undefined && input.year !== null && input.year !== "") filter.year = normalizeYear(input.year);
   if (input.month !== undefined && input.month !== null && input.month !== "") filter.month = clampInt(input.month, 1, 12, 1);
   if (input.day !== undefined && input.day !== null && input.day !== "") filter.day = clampInt(input.day, 1, 31, 1);
-  if (input.severity) filter["severity.level"] = String(input.severity).toLowerCase();
-  if (input.urgency) filter["urgency.normalized"] = String(input.urgency).toLowerCase();
-  if (input.reportType) filter.reportType = String(input.reportType).toLowerCase();
-  if (input.targetMode) filter["target.mode"] = String(input.targetMode).toLowerCase();
-  if (input.scopeType) filter["target.scopeType"] = String(input.scopeType).toLowerCase();
+  applyEnumFilter(filter, "severity.level", input.severity);
+  applyEnumFilter(filter, "urgency.normalized", input.urgency);
+  applyEnumFilter(filter, "reportType", input.reportType);
+  applyEnumFilter(filter, "target.mode", input.targetMode);
+  applyEnumFilter(filter, "target.scopeType", input.scopeType);
+  applyEnumFilter(filter, "finding.type", input.finding);
+  applyEnumFilter(filter, "finding.category", input.findingCategory);
+  applyEnumFilter(filter, "vulnerability.normalizedName", input.vulnerability);
+
   if (input.scopeName) filter["target.scopeName"] = { $regex: escapeRegex(input.scopeName), $options: "i" };
-  if (input.finding) filter["finding.type"] = String(input.finding).toLowerCase();
-  if (input.findingCategory) filter["finding.category"] = String(input.findingCategory).toLowerCase();
-  if (input.vulnerability) filter["vulnerability.normalizedName"] = String(input.vulnerability).toLowerCase();
   if (input.provider) filter.provider = { $regex: escapeRegex(input.provider), $options: "i" };
   if (input.organization) {
     const organization = { $regex: escapeRegex(input.organization), $options: "i" };
@@ -309,6 +436,27 @@ function buildReportFilter(input = {}) {
   else if (disjunctions.length > 1) filter.$and = disjunctions.map((items) => ({ $or: items }));
 
   return filter;
+}
+
+function applyEnumFilter(filter, key, value) {
+  const values = csvValues(value).map((item) => item.toLowerCase());
+  if (!values.length) return;
+  filter[key] = values.length === 1 ? values[0] : { $in: values };
+}
+
+function csvValues(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  return String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function facetPipeline(expression, valueKey = "value", limit = 20) {
+  return [
+    { $group: { _id: expression, count: { $sum: 1 } } },
+    { $match: { _id: { $nin: [null, ""] } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: limit },
+    { $project: { _id: 0, [valueKey]: "$_id", count: 1 } },
+  ];
 }
 
 function organizationValuesExpression() {
@@ -398,4 +546,5 @@ module.exports = {
   buildReportFilter,
   percent,
   clampInt,
+  csvValues,
 };

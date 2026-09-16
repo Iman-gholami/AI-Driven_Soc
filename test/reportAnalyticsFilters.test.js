@@ -12,6 +12,9 @@ test("report filters support Jalali month/day and multidimensional analytics sco
     month: "2",
     day: "7",
     reportType: "VULNERABILITY",
+    targetMode: "SCOPE",
+    scopeType: "SECTOR",
+    scopeName: "حوزه اقتصادی",
     severity: "HIGH",
     urgency: "IMMEDIATE",
     finding: "XSS",
@@ -32,6 +35,9 @@ test("report filters support Jalali month/day and multidimensional analytics sco
   assert.equal(filter.month, 2);
   assert.equal(filter.day, 7);
   assert.equal(filter.reportType, "vulnerability");
+  assert.equal(filter["target.mode"], "scope");
+  assert.equal(filter["target.scopeType"], "sector");
+  assert.deepEqual(filter["target.scopeName"], { $regex: "حوزه اقتصادی", $options: "i" });
   assert.equal(filter["severity.level"], "high");
   assert.equal(filter["urgency.normalized"], "immediate");
   assert.equal(filter["finding.type"], "xss");
@@ -71,6 +77,8 @@ test("filtered stats use the same Mongo match scope as the report list", async (
     year: 1404,
     month: 2,
     reportType: "incident",
+    targetMode: "scope",
+    scopeType: "sector",
     organization: "تامین اجتماعی",
     severity: "critical",
   });
@@ -78,6 +86,8 @@ test("filtered stats use the same Mongo match scope as the report list", async (
   assert.equal(pipeline[0].$match.year, 1404);
   assert.equal(pipeline[0].$match.month, 2);
   assert.equal(pipeline[0].$match.reportType, "incident");
+  assert.equal(pipeline[0].$match["target.mode"], "scope");
+  assert.equal(pipeline[0].$match["target.scopeType"], "sector");
   assert.equal(pipeline[0].$match["severity.level"], "critical");
   assert.equal(Array.isArray(pipeline[0].$match.$or), true);
   assert.equal(
@@ -87,6 +97,8 @@ test("filtered stats use the same Mongo match scope as the report list", async (
   assert.deepEqual(result.scope, {
     month: 2,
     reportType: "incident",
+    targetMode: "scope",
+    scopeType: "sector",
     severity: "critical",
     organization: "تامین اجتماعی",
   });

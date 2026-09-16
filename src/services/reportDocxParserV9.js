@@ -102,7 +102,7 @@ function extractTableReference(value) {
 function classifyScope(value) {
   const text = normalize(value);
   if (!text) return { type: null };
-  if (/\bحوزه\b/.test(text)) return { type: "sector" };
+  if (/(?:^|\s)حوزه(?:\s|$)/.test(text)) return { type: "sector" };
   if (/(?:دستگاه(?:‌|\s)*(?:های|ها)|سازمان(?:‌|\s)*(?:های|ها)|مجموعه(?:‌|\s)*(?:های|ها)|شرکت(?:‌|\s)*(?:های|ها)).*(?:اجرایی|تابعه|مرتبط|هدف)?/.test(text)) {
     return { type: "organization_group" };
   }

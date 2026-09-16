@@ -115,7 +115,7 @@ const historicalReportSchema = new mongoose.Schema(
     },
 
     extraction: {
-      parserVersion: { type: String, default: "docx-v4" },
+      parserVersion: { type: String, default: "docx-v5" },
       paragraphCount: { type: Number, default: 0 },
       tableCount: { type: Number, default: 0 },
       warnings: { type: [String], default: [] },

@@ -106,6 +106,28 @@ test("v9 derives a single target when a referenced table contains one organizati
   assert.equal(report.extraction.warnings.includes("target_ip_referenced_in_table"), false);
 });
 
+test("v9 resolves a table reference supplied in the organization field", () => {
+  const report = enhanceReportRecordV9(baseReport({
+    target: {
+      organization: "مطابق جدول 4",
+      ip: null,
+      rawIp: null,
+    },
+    affectedSystems: [
+      { organization: "سازمان الف", ip: "10.0.0.1" },
+      { organization: "سازمان ب", ip: "10.0.0.2" },
+    ],
+  }));
+
+  assert.equal(report.target.mode, "multi_target");
+  assert.equal(report.target.organization, null);
+  assert.equal(report.target.ip, null);
+  assert.equal(report.target.rawOrganization, "مطابق جدول 4");
+  assert.equal(report.target.tableReference, "جدول 4");
+  assert.equal(report.extraction.warnings.includes("multi_target_report"), true);
+  assert.equal(report.extraction.warnings.includes("target_assets_resolved_from_table"), true);
+});
+
 test("v9 leaves ordinary single-target reports semantically unchanged", () => {
   const report = enhanceReportRecordV9(baseReport({
     target: {

@@ -7,7 +7,7 @@ import { ThemeProvider, useTheme } from './hooks/useTheme';
 import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Alerts from './pages/Alerts/Alerts';
-import Reports from './pages/Reports/Reports';
+import Reports from './pages/Reports/ReportsV2';
 import MitreCoverage from './pages/MitreCoverage/MitreCoverage';
 
 const queryClient = new QueryClient({

@@ -64,9 +64,14 @@ const historicalReportSchema = new mongoose.Schema(
     effect: { type: String, default: null },
 
     target: {
+      mode: { type: String, default: "unknown", index: true },
+      scopeType: { type: String, default: null, index: true },
+      scopeName: { type: String, default: null, index: true },
       organization: { type: String, default: null, index: true },
       ip: { type: String, default: null, index: true },
+      rawOrganization: { type: String, default: null },
       rawIp: { type: String, default: null },
+      tableReference: { type: String, default: null },
     },
 
     severity: {
@@ -132,6 +137,9 @@ historicalReportSchema.index({ year: 1, "severity.level": 1 });
 historicalReportSchema.index({ year: 1, "finding.type": 1 });
 historicalReportSchema.index({ year: 1, "vulnerability.normalizedName": 1 });
 historicalReportSchema.index({ year: 1, "target.organization": 1 });
+historicalReportSchema.index({ year: 1, "target.mode": 1 });
+historicalReportSchema.index({ year: 1, "target.scopeName": 1 });
+historicalReportSchema.index({ "affectedSystems.organization": 1 });
 historicalReportSchema.index({ "affectedSystems.ip": 1 });
 historicalReportSchema.index({ "affectedSystems.domain": 1 });
 historicalReportSchema.index({ "affectedSystems.port": 1 });
@@ -145,6 +153,8 @@ historicalReportSchema.index({
   conclusion: "text",
   recommendations: "text",
   "target.organization": "text",
+  "target.scopeName": "text",
+  "affectedSystems.organization": "text",
   "finding.name": "text",
   "vulnerability.name": "text",
 });

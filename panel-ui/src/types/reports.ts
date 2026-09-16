@@ -122,6 +122,9 @@ export interface ReportFilterParams {
   month?: number;
   day?: number;
   reportType?: string;
+  targetMode?: 'single' | 'scope' | 'multi_target' | 'unknown' | string;
+  scopeType?: 'sector' | 'organization_group' | 'geographic' | string;
+  scopeName?: string;
   severity?: string;
   urgency?: string;
   finding?: string;

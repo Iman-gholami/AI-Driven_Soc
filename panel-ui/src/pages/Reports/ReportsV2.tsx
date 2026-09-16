@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
-  AutoComplete,
   Button,
   Card,
   Col,
@@ -99,6 +98,7 @@ const ReportsV2: React.FC = () => {
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [lastImport, setLastImport] = useState<ReportImportResult | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [organizationPickerOpen, setOrganizationPickerOpen] = useState(false);
 
   const yearsQuery = useQuery({ queryKey: ['report-years'], queryFn: api.getReportYears });
   const params = useMemo<ReportFilterParams>(() => ({ year, ...filters }), [year, filters]);
@@ -139,7 +139,10 @@ const ReportsV2: React.FC = () => {
   const stats = statsQuery.data;
   const facets = facetsQuery.data;
   const previousStats = previousStatsQuery.data;
-  const years = useMemo(() => [...new Set([1404, ...(yearsQuery.data || []).map((item) => item.year)])].sort((a, b) => b - a), [yearsQuery.data]);
+  const years = useMemo(
+    () => [...new Set([1404, 1403, ...(yearsQuery.data || []).map((item) => item.year)])].sort((a, b) => b - a),
+    [yearsQuery.data],
+  );
   const scopeLabel = useMemo(() => formatScopeLabel(year, filters), [year, filters]);
   const activeFilters = useMemo(() => Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== ''), [filters]);
   const comparison = useMemo(() => buildComparison(stats, previousStats, params, previousParams), [stats, previousStats, params, previousParams]);
@@ -181,6 +184,16 @@ const ReportsV2: React.FC = () => {
     stats?.topOrganizations,
     reportsQuery.data?.reports,
   ]);
+
+
+  const filteredOrganizationOptions = useMemo(() => {
+    const query = normalizeFa(String(filters.organization || ''));
+    const options = query
+      ? organizationOptions.filter((item) => normalizeFa(item.value).includes(query))
+      : organizationOptions;
+
+    return options.slice(0, 12);
+  }, [organizationOptions, filters.organization]);
 
   function setFilter(key: keyof ReportFilterState, value: any) {
     setFilters((current) => ({ ...current, [key]: value === '' || value === null ? undefined : value }));
@@ -296,17 +309,38 @@ const ReportsV2: React.FC = () => {
 
       <div className="report-v2-filter-group">
         <div className="report-v2-filter-title"><span>Organization</span></div>
-        <AutoComplete
-          allowClear
-          value={filters.organization}
-          placeholder="نام سازمان"
-          options={organizationOptions}
-          getPopupContainer={() => document.body}
-          filterOption={(input, option) => normalizeFa(String(option?.value || '')).includes(normalizeFa(input))}
-          onChange={(value) => setFilter('organization', value || undefined)}
-          onSelect={(value) => setFilter('organization', value)}
-          onClear={() => setFilter('organization', undefined)}
-        />
+        <div className="report-v2-org-picker">
+          <Input
+            allowClear
+            value={filters.organization}
+            placeholder="نام سازمان"
+            onFocus={() => setOrganizationPickerOpen(true)}
+            onBlur={() => setOrganizationPickerOpen(false)}
+            onChange={(event) => {
+              setFilter('organization', event.target.value || undefined);
+              setOrganizationPickerOpen(true);
+            }}
+          />
+
+          {organizationPickerOpen && filteredOrganizationOptions.length ? (
+            <div className="report-v2-org-suggestions">
+              {filteredOrganizationOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setFilter('organization', option.value);
+                    setOrganizationPickerOpen(false);
+                  }}
+                >
+                  <span>{option.value}</span>
+                  {option.label !== option.value ? <small>{option.label}</small> : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="report-v2-filter-group report-v2-advanced-filters">
@@ -532,10 +566,59 @@ const ReportsV2: React.FC = () => {
           <Title level={2}>Report Intelligence Workspace</Title>
         </div>
         <div className="report-v2-hero-actions">
-          <Select value={year} getPopupContainer={() => document.body} style={{ width: 110 }} options={years.map((value) => ({ value, label: String(value) }))} onChange={(value) => { setYear(value); setPage(1); }} />
-          <Select value={filters.month} allowClear getPopupContainer={() => document.body} placeholder="همه ماه‌ها" style={{ width: 145 }} options={JALALI_MONTHS.map((label, index) => ({ value: index + 1, label }))} onChange={(value) => { setFilters((current) => ({ ...current, month: value, day: undefined })); setPage(1); }} />
-          <Select value={filters.day} allowClear disabled={!filters.month} getPopupContainer={() => document.body} placeholder="روز" style={{ width: 82 }} options={Array.from({ length: 31 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))} onChange={(value) => setFilter('day', value)} />
-          <Tooltip title="Refresh intelligence"><Button icon={<ReloadOutlined />} onClick={refresh} /></Tooltip>
+          <select
+            className="report-v2-native-select report-v2-year-select"
+            value={year}
+            aria-label="سال گزارش"
+            onChange={(event) => {
+              setYear(Number(event.target.value));
+              setFilters({});
+              setPage(1);
+            }}
+          >
+            {years.map((value) => (
+              <option key={value} value={value}>{value}</option>
+            ))}
+          </select>
+
+          <select
+            className="report-v2-native-select report-v2-month-select"
+            value={filters.month ?? ''}
+            aria-label="ماه گزارش"
+            onChange={(event) => {
+              const value = event.target.value ? Number(event.target.value) : undefined;
+              setFilters((current) => ({
+                ...current,
+                month: value,
+                day: undefined,
+              }));
+              setPage(1);
+            }}
+          >
+            <option value="">همه ماه‌ها</option>
+            {JALALI_MONTHS.map((label, index) => (
+              <option key={label} value={index + 1}>{label}</option>
+            ))}
+          </select>
+
+          <select
+            className="report-v2-native-select report-v2-day-select"
+            value={filters.day ?? ''}
+            disabled={!filters.month}
+            aria-label="روز گزارش"
+            onChange={(event) => {
+              setFilter('day', event.target.value ? Number(event.target.value) : undefined);
+            }}
+          >
+            <option value="">روز</option>
+            {Array.from({ length: 31 }, (_, index) => (
+              <option key={index + 1} value={index + 1}>{index + 1}</option>
+            ))}
+          </select>
+
+          <Tooltip title="Refresh intelligence">
+            <Button icon={<ReloadOutlined />} onClick={refresh} />
+          </Tooltip>
         </div>
       </header>
 

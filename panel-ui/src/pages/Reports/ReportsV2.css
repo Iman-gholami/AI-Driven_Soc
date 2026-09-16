@@ -327,3 +327,88 @@
 .report-v2-hero-actions .ant-btn {
   pointer-events: auto;
 }
+
+/* Reliable report date controls — no Ant Design popup/portal dependency. */
+.report-v2-native-select {
+  height: 36px;
+  padding: 0 34px 0 12px;
+  border: 1px solid #253b52;
+  border-radius: 10px;
+  background: #0d1824;
+  color: #e5edf6;
+  outline: none;
+  cursor: pointer;
+  font: inherit;
+  color-scheme: dark;
+}
+
+.report-v2-native-select:hover {
+  border-color: #3b82f6;
+}
+
+.report-v2-native-select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgb(59 130 246 / 15%);
+}
+
+.report-v2-native-select:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.report-v2-year-select {
+  min-width: 108px;
+}
+
+.report-v2-month-select {
+  min-width: 145px;
+}
+
+.report-v2-day-select {
+  min-width: 82px;
+}
+
+
+/* Organization autocomplete rendered inline, not through an Ant portal. */
+.report-v2-org-picker {
+  position: relative;
+  width: 100%;
+}
+
+.report-v2-org-suggestions {
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #263b50;
+  border-radius: 10px;
+  background: #0d1824;
+  box-shadow: 0 14px 32px rgb(0 0 0 / 35%);
+}
+
+.report-v2-org-suggestions button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #dbe7f3;
+  text-align: right;
+  cursor: pointer;
+}
+
+.report-v2-org-suggestions button:hover {
+  background: rgb(59 130 246 / 12%);
+}
+
+.report-v2-org-suggestions small {
+  color: #71869b;
+  font-size: 11px;
+}

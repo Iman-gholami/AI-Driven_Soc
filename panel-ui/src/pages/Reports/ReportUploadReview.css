@@ -1,0 +1,158 @@
+.report-upload-workflow {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.report-upload-hero {
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--panel-primary) 28%, var(--panel-border));
+  background:
+    radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--panel-primary) 12%, transparent), transparent 34%),
+    linear-gradient(135deg, var(--panel-surface-raised), var(--panel-surface));
+}
+
+.report-upload-hero .ant-card-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.report-upload-hero-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.report-upload-hero-copy h4 {
+  margin: 2px 0 6px !important;
+}
+
+.report-upload-hero-copy p {
+  max-width: 850px;
+  margin-bottom: 0 !important;
+}
+
+.report-upload-icon {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--panel-primary) 34%, var(--panel-border));
+  border-radius: 12px;
+  background: var(--panel-primary-soft);
+  color: var(--panel-primary);
+  font-size: 20px;
+}
+
+.report-upload-eyebrow {
+  color: var(--panel-primary);
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .12em;
+}
+
+.report-upload-dragger.ant-upload-wrapper .ant-upload-drag {
+  border-style: dashed;
+  border-width: 1px;
+  background: var(--panel-surface-soft);
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.report-upload-dragger.ant-upload-wrapper .ant-upload-drag:hover {
+  border-color: var(--panel-primary);
+  background: var(--panel-primary-soft);
+}
+
+.report-upload-dragger .ant-upload-drag-icon {
+  margin-bottom: 8px !important;
+}
+
+.report-upload-dragger .ant-upload-drag-icon .anticon {
+  color: var(--panel-primary) !important;
+  font-size: 36px !important;
+}
+
+.report-upload-actions,
+.report-upload-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.report-upload-preview-card .ant-card-body {
+  padding: 0;
+}
+
+.report-upload-preview-card .ant-table-wrapper {
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+}
+
+.report-upload-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 18px 18px;
+  background: color-mix(in srgb, var(--panel-surface-soft) 76%, transparent);
+}
+
+.report-upload-text-block {
+  padding: 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-surface);
+}
+
+.report-upload-text-block p {
+  margin: 7px 0 0 !important;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.report-upload-warning {
+  margin-top: 4px;
+}
+
+.report-upload-ok {
+  color: #22c55e;
+  font-size: 16px;
+}
+
+.report-upload-confirm-bar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  margin-top: 0;
+  padding: 13px 15px;
+  border: 1px solid color-mix(in srgb, var(--panel-primary) 24%, var(--panel-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-surface-raised) 94%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .14);
+  backdrop-filter: blur(12px);
+}
+
+.report-upload-confirm-bar > div:first-child {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .report-upload-hero .ant-card-body,
+  .report-upload-actions,
+  .report-upload-confirm-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-upload-confirm-bar .ant-space {
+    width: 100%;
+  }
+
+  .report-upload-confirm-bar .ant-btn {
+    flex: 1;
+  }
+}

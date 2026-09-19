@@ -6,11 +6,14 @@ const pinoHttp = require("pino-http");
 var cors = require('cors');
 const { settings } = require("./core/config");
 const { createLogger } = require("./core/logging");
-const { router } = require("./api/routes");
+const { createReportRouter } = require("./api/reportRoutes");
+const { createRouter } = require("./api/routes");
+const { UnifiedCopilotService } = require("./services/unifiedCopilotService");
 const { connectMongo, disconnectMongo } = require("./database/mongo");
 
 const logger = createLogger(settings.logLevel);
 const app = express();
+const router = createRouter({ copilot: new UnifiedCopilotService() });
 
 app.use(cors());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -29,6 +32,7 @@ app.get("/panel/*", (req, res, next) => {
   return res.sendFile(path.join(__dirname, "../panel-ui/dist/index.html"));
 });
 app.get("/", (_req, res) => res.redirect("/panel/"));
+app.use(createReportRouter());
 app.use(router);
 
 connectMongo(logger).catch((error) => {

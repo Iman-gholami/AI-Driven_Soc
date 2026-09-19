@@ -7,6 +7,7 @@ import { ThemeProvider, useTheme } from './hooks/useTheme';
 import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Alerts from './pages/Alerts/Alerts';
+import Reports from './pages/Reports/ReportsV2';
 import MitreCoverage from './pages/MitreCoverage/MitreCoverage';
 
 const queryClient = new QueryClient({
@@ -67,6 +68,7 @@ function AppContent() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="alerts" element={<Alerts />} />
+            <Route path="reports" element={<Reports />} />
             <Route path="mitre-coverage" element={<MitreCoverage />} />
             <Route path="analytics" element={<PlaceholderPage eyebrow="ANALYTICS" title="Security Analytics" description="Advanced trend analysis and reporting will live here. The current dashboard continues to show production-backed operational metrics." />} />
             <Route path="settings" element={<PlaceholderPage eyebrow="SYSTEM" title="Settings" description="Panel and integration settings are not exposed in V1 yet. Existing runtime configuration remains server-managed." />} />

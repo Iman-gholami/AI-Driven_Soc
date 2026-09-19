@@ -94,6 +94,7 @@ export interface Alert {
     correlation?: any;
     threatIntelligence?: any;
     networkIntelligence?: any;
+    historicalReports?: any;
     providerMetadata?: any;
   };
   processing?: Record<string, any>;

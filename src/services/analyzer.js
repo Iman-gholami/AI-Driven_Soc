@@ -3,6 +3,7 @@ const { buildContext } = require("./contextBuilder");
 const { createEventHash } = require("./eventHash");
 const { LLMService } = require("./llmService");
 const { NetworkIntelligenceService } = require("./networkIntelligenceService");
+const { HistoricalReportContextService } = require("./historicalReportContextService");
 const { RuleResolver } = require("./ruleResolver");
 const { createLogger } = require("../core/logging");
 const { settings } = require("../core/config");
@@ -18,6 +19,7 @@ class IncidentAnalyzer {
     alertRepository = new AlertRepository(),
     ruleResolver = new RuleResolver(),
     networkIntelligence,
+    historicalReportContext,
     logger = createLogger(settings.logLevel),
   } = {}) {
     this.llm = llm;
@@ -26,6 +28,7 @@ class IncidentAnalyzer {
     this.logger = logger;
     this.networkIntelligence =
       networkIntelligence || new NetworkIntelligenceService({ logger });
+    this.historicalReportContext = historicalReportContext || new HistoricalReportContextService();
   }
 
   async analyzeIncident(payload) {
@@ -37,6 +40,7 @@ class IncidentAnalyzer {
       analyzed.metadata.processingTimeMs,
       analyzed.ruleMatch,
       analyzed.networkIntelligence,
+      analyzed.historicalReportContext,
     );
 
     return analyzed.analysis;
@@ -53,6 +57,7 @@ class IncidentAnalyzer {
         analyzed.metadata.processingTimeMs,
         analyzed.ruleMatch,
         analyzed.networkIntelligence,
+        analyzed.historicalReportContext,
       ),
     };
   }
@@ -61,10 +66,12 @@ class IncidentAnalyzer {
     const startedAt = Date.now();
     const ruleResolution = providedRuleResolution || await this.resolveDetectionRule(payload);
     const networkIntelligence = await this.resolveNetworkIntelligence(payload);
-    const context = buildContext(payload, ruleResolution, networkIntelligence);
+    const historicalReportContext = await this.resolveHistoricalReportContext(payload, networkIntelligence);
+    const context = buildContext(payload, ruleResolution, networkIntelligence, historicalReportContext);
     const result = await this.llm.analyze(context);
     const normalized = normalizeAnalysisPayload(result);
-    const grounded = groundNetworkRelationshipAnalysis(normalized, context, networkIntelligence);
+    const networkGrounded = groundNetworkRelationshipAnalysis(normalized, context, networkIntelligence);
+    const grounded = groundHistoricalReportAnalysis(networkGrounded, historicalReportContext);
     const response = analysisResponseSchema.parse(grounded);
     const processingTimeMs = Date.now() - startedAt;
     const providerMetadata = this.llm.getMetadata ? this.llm.getMetadata() : {};
@@ -74,11 +81,14 @@ class IncidentAnalyzer {
       ruleResolution,
       ruleMatch: summarizeRuleResolution(ruleResolution),
       networkIntelligence,
+      historicalReportContext,
       metadata: {
         provider: providerMetadata.provider || "unknown",
         model: providerMetadata.model || "unknown",
         processingTimeMs,
         enrichmentStatus: networkIntelligence?.status || "unavailable",
+        historicalReportStatus: historicalReportContext?.status || "unavailable",
+        historicalReportCount: Number(historicalReportContext?.totalReports || 0),
       },
     };
   }
@@ -121,12 +131,34 @@ class IncidentAnalyzer {
     }
   }
 
+  async resolveHistoricalReportContext(payload, networkIntelligence) {
+    if (!this.historicalReportContext || typeof this.historicalReportContext.resolveForAlert !== "function") {
+      return {
+        status: "unavailable",
+        reason: "historical_report_context_not_configured",
+        totalReports: 0,
+      };
+    }
+
+    try {
+      return await this.historicalReportContext.resolveForAlert(payload || {}, networkIntelligence || {});
+    } catch (error) {
+      this.logger.warn?.({ err: error }, "Historical report context enrichment failed");
+      return {
+        status: "unavailable",
+        reason: "historical_report_context_failed",
+        totalReports: 0,
+      };
+    }
+  }
+
   async persistAnalyzedAlert(
     payload,
     analysisResult,
     processingTimeMs,
     ruleMatch,
     networkIntelligence,
+    historicalReportContext,
   ) {
     const eventHash = createEventHash(payload);
     const alertId = getAlertId(payload);
@@ -144,6 +176,7 @@ class IncidentAnalyzer {
           processingTimeMs,
           ruleMatch,
           networkIntelligence,
+          historicalReportContext,
         ),
       });
       this.logger.info({ alertId, eventHash, status: "analyzed" }, "Alert stored successfully");
@@ -158,9 +191,11 @@ class IncidentAnalyzer {
     processingTimeMs,
     ruleMatch,
     networkIntelligence,
+    historicalReportContext,
   ) {
     const providerMetadata = this.llm.getMetadata ? this.llm.getMetadata() : {};
     const hasNetworkSnapshot = Boolean(networkIntelligence);
+    const hasHistoricalSnapshot = Boolean(historicalReportContext);
 
     return {
       analysis: mapAnalysisSummary(analysisResult),
@@ -184,10 +219,78 @@ class IncidentAnalyzer {
         networkIntelligence: hasNetworkSnapshot
           ? networkIntelligence
           : alert?.soc?.networkIntelligence,
+        historicalReports: hasHistoricalSnapshot
+          ? historicalReportContext
+          : alert?.soc?.historicalReports,
         providerMetadata,
       },
     };
   }
+}
+
+function groundHistoricalReportAnalysis(analysis, historicalReportContext) {
+  if (!analysis || historicalReportContext?.status !== "matched" || !historicalReportContext.totalReports) {
+    return analysis;
+  }
+
+  const evidence = buildHistoricalReportEvidence(historicalReportContext);
+  const remediationStep = "Review the remediation status of matched historical security reports before closing or downgrading this alert.";
+  const priorityNote = `Historical exposure context (${historicalReportContext.exposure?.level || "elevated"}) is relevant to analyst prioritization but does not prove causation or current compromise.`;
+
+  return {
+    ...analysis,
+    observed_evidence: uniqueStrings([
+      ...(analysis.observed_evidence || []),
+      evidence,
+    ]),
+    risk_assessment: {
+      ...(analysis.risk_assessment || {}),
+      reasoning: joinSentences(analysis.risk_assessment?.reasoning, priorityNote),
+    },
+    analyst_decision: {
+      ...(analysis.analyst_decision || {}),
+      reason: joinSentences(analysis.analyst_decision?.reason, "Prior report history should be checked for unresolved remediation or repeated exposure."),
+    },
+    recommended_investigation_steps: uniqueStrings([
+      ...(analysis.recommended_investigation_steps || []),
+      remediationStep,
+    ]),
+    final_soc_note: joinSentences(analysis.final_soc_note, evidence),
+  };
+}
+
+function buildHistoricalReportEvidence(context = {}) {
+  const organization = context.matchedOrganizations?.[0]
+    || context.query?.organizations?.[0]
+    || "the matched organization/asset";
+  const typeParts = [
+    context.vulnerabilityReports ? `${context.vulnerabilityReports} vulnerability` : null,
+    context.misconfigurationReports ? `${context.misconfigurationReports} misconfiguration` : null,
+    context.incidentReports ? `${context.incidentReports} incident` : null,
+    context.malwareReports ? `${context.malwareReports} malware` : null,
+  ].filter(Boolean).join(", ");
+  const findings = (context.findingCounts || [])
+    .slice(0, 3)
+    .map((item) => `${item.name || item.type} (${item.count})`)
+    .join(", ");
+  const matchBasis = Array.isArray(context.matchedBy) && context.matchedBy.length
+    ? `matched by ${context.matchedBy.join(" + ")}`
+    : "matched to local report history";
+
+  return [
+    `Historical report context for ${organization}: ${context.totalReports} prior local security report(s)`,
+    typeParts ? `(${typeParts})` : null,
+    `${context.highCriticalCount || 0} high/critical`,
+    `${context.immediateCount || 0} immediate-action`,
+    context.sameIpReportCount ? `${context.sameIpReportCount} same-IP report(s)` : null,
+    findings ? `top prior findings: ${findings}` : null,
+    matchBasis,
+    "prior exposure context only; it does not prove the cause or compromise status of the current alert",
+  ].filter(Boolean).join("; ") + ".";
+}
+
+function joinSentences(...values) {
+  return uniqueStrings(values).join(" ");
 }
 
 function groundNetworkRelationshipAnalysis(analysis, context, networkIntelligence) {
@@ -434,4 +537,6 @@ module.exports = {
   buildThreatIntelligenceSnapshot,
   groundNetworkRelationshipAnalysis,
   buildDeterministicThreatFeedContext,
+  groundHistoricalReportAnalysis,
+  buildHistoricalReportEvidence,
 };

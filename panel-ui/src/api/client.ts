@@ -12,6 +12,19 @@ import {
   CopilotChatHistoryItem,
   CopilotConversationState,
 } from '../types';
+import type {
+  HistoricalReport,
+  HistoricalReportListResult,
+  ReportCopilotResult,
+  ReportEntitySummary,
+  ReportFacets,
+  ReportFilterParams,
+  ReportImportResult,
+  ReportImportScan,
+  ReportStats,
+  ReportUploadCommitResult,
+  ReportUploadPreviewSession,
+} from '../types/reports';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
@@ -126,6 +139,95 @@ export const api = {
       history,
       state,
     });
+    return response.data.data;
+  },
+
+  getReportYears: async (): Promise<Array<{ year: number; count: number }>> => {
+    const response = await apiClient.get<ApiResponse<Array<{ year: number; count: number }>>>('/reports/years');
+    return response.data.data || [];
+  },
+
+  getReportStats: async (params: ReportFilterParams): Promise<ReportStats> => {
+    const response = await apiClient.get<ApiResponse<ReportStats>>('/reports/stats', {
+      params: cleanParams(params),
+    });
+    return response.data.data;
+  },
+
+  getReportFacets: async (params: ReportFilterParams): Promise<ReportFacets> => {
+    const response = await apiClient.get<ApiResponse<ReportFacets>>('/reports/facets', {
+      params: cleanParams(params),
+    });
+    return response.data.data;
+  },
+
+  getReportEntitySummary: async (
+    type: 'organization' | 'scope' | 'ip' | 'finding',
+    value: string,
+    params: Pick<ReportFilterParams, 'year' | 'month' | 'day'>,
+  ): Promise<ReportEntitySummary> => {
+    const response = await apiClient.get<ApiResponse<ReportEntitySummary>>(
+      `/reports/entities/${encodeURIComponent(type)}`,
+      { params: cleanParams({ ...params, value }) },
+    );
+    return response.data.data;
+  },
+
+  getHistoricalReports: async (params: Record<string, unknown> = {}): Promise<HistoricalReportListResult> => {
+    const response = await apiClient.get<ApiResponse<HistoricalReportListResult>>('/reports', {
+      params: cleanParams(params),
+    });
+    return response.data.data;
+  },
+
+  getHistoricalReport: async (id: string): Promise<HistoricalReport> => {
+    const response = await apiClient.get<ApiResponse<HistoricalReport>>(`/reports/${encodeURIComponent(id)}`);
+    return response.data.data;
+  },
+
+  scanHistoricalReports: async (year: number): Promise<ReportImportScan> => {
+    const response = await apiClient.get<ApiResponse<ReportImportScan>>('/reports/import/scan', { params: { year } });
+    return response.data.data;
+  },
+
+  importHistoricalReports: async (year: number, dryRun = false): Promise<ReportImportResult> => {
+    const response = await apiClient.post<ApiResponse<ReportImportResult>>('/reports/import', { year, dryRun });
+    return response.data.data;
+  },
+
+  previewHistoricalReportUpload: async (year: number, files: File[]): Promise<ReportUploadPreviewSession> => {
+    const formData = new FormData();
+    formData.append('year', String(year));
+    files.forEach((file) => formData.append('reports', file, file.name));
+    const response = await apiClient.post<ApiResponse<ReportUploadPreviewSession>>(
+      '/reports/import/upload/preview',
+      formData,
+      { timeout: 120000 },
+    );
+    return response.data.data;
+  },
+
+  commitHistoricalReportUpload: async (
+    sessionToken: string,
+    selectedIds: string[],
+  ): Promise<ReportUploadCommitResult> => {
+    const response = await apiClient.post<ApiResponse<ReportUploadCommitResult>>(
+      '/reports/import/upload/commit',
+      { sessionToken, selectedIds },
+      { timeout: 120000 },
+    );
+    return response.data.data;
+  },
+
+  cancelHistoricalReportUpload: async (sessionToken: string): Promise<{ cancelled: boolean; sessionToken: string }> => {
+    const response = await apiClient.delete<ApiResponse<{ cancelled: boolean; sessionToken: string }>>(
+      `/reports/import/upload/${encodeURIComponent(sessionToken)}`,
+    );
+    return response.data.data;
+  },
+
+  queryReportCopilot: async (message: string): Promise<ReportCopilotResult> => {
+    const response = await apiClient.post<ApiResponse<ReportCopilotResult>>('/reports/copilot/query', { message });
     return response.data.data;
   },
 };

@@ -143,3 +143,89 @@ test("facets reuse the same Mongo filter scope", async () => {
   assert.deepEqual(result.reportTypes, []);
   assert.deepEqual(result.organizations, []);
 });
+
+
+test("all-years report analytics omit the Mongo year constraint", async () => {
+  let pipeline;
+
+  const model = {
+    aggregate(value) {
+      pipeline = value;
+      return { exec: async () => [{}] };
+    },
+  };
+
+  const service = new ReportAnalyticsService({ model });
+  const result = await service.getStats({});
+
+  assert.deepEqual(pipeline[0].$match, {});
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(pipeline[0].$match, "year"),
+    false,
+  );
+  assert.equal(result.year, null);
+  assert.equal(result.summary.total, 0);
+});
+
+test("all-years stats preserve non-year filters", async () => {
+  let pipeline;
+
+  const model = {
+    aggregate(value) {
+      pipeline = value;
+      return { exec: async () => [{}] };
+    },
+  };
+
+  const service = new ReportAnalyticsService({ model });
+
+  const result = await service.getStats({
+    month: 3,
+    reportType: "incident",
+    severity: "high",
+  });
+
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(pipeline[0].$match, "year"),
+    false,
+  );
+  assert.equal(pipeline[0].$match.month, 3);
+  assert.equal(pipeline[0].$match.reportType, "incident");
+  assert.equal(pipeline[0].$match["severity.level"], "high");
+  assert.equal(result.year, null);
+});
+
+test("all-years facets omit year while preserving date filters", async () => {
+  let pipeline;
+
+  const model = {
+    aggregate(value) {
+      pipeline = value;
+      return { exec: async () => [{}] };
+    },
+  };
+
+  const service = new ReportAnalyticsService({ model });
+  await service.getFacets({ month: 4, day: 9 });
+
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(pipeline[0].$match, "year"),
+    false,
+  );
+  assert.equal(pipeline[0].$match.month, 4);
+  assert.equal(pipeline[0].$match.day, 9);
+});
+
+test("buildReportFilter treats an omitted year as all years", () => {
+  const filter = buildReportFilter({
+    month: 7,
+    finding: "phishing",
+  });
+
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(filter, "year"),
+    false,
+  );
+  assert.equal(filter.month, 7);
+  assert.equal(filter["finding.type"], "phishing");
+});

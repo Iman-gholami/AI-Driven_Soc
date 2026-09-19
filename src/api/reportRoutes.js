@@ -50,7 +50,6 @@ function createReportRouter({
 
   router.get("/reports/stats", async (req, res) => {
     try {
-      if (!req.query.year) return res.status(400).json({ detail: "year is required" });
       return successResponse(res, await analytics.getStats(req.query || {}));
     } catch (error) {
       if (error instanceof ReportImportInputError) {
@@ -63,7 +62,6 @@ function createReportRouter({
 
   router.get("/reports/facets", async (req, res) => {
     try {
-      if (!req.query.year) return res.status(400).json({ detail: "year is required" });
       return successResponse(res, await analytics.getFacets(req.query || {}));
     } catch (error) {
       if (error instanceof ReportImportInputError) {
@@ -76,7 +74,6 @@ function createReportRouter({
 
   router.get("/reports/entities/:type", async (req, res) => {
     try {
-      if (!req.query.year) return res.status(400).json({ detail: "year is required" });
       if (!req.query.value) return res.status(400).json({ detail: "value is required" });
       return successResponse(res, await analytics.getEntitySummary(req.params.type, req.query.value, req.query || {}));
     } catch (error) {

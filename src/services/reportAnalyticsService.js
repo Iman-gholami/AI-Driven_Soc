@@ -17,10 +17,9 @@ class ReportAnalyticsService {
   async getStats(input = {}) {
     const params = typeof input === "object" && input !== null ? input : { year: input };
     const filter = buildReportFilter(params);
-    if (!Object.prototype.hasOwnProperty.call(filter, "year")) {
-      filter.year = normalizeYear(params.year);
-    }
-    const year = filter.year;
+    const year = Object.prototype.hasOwnProperty.call(filter, "year")
+      ? filter.year
+      : null;
 
     const [result = {}] = await this.model.aggregate([
       { $match: filter },

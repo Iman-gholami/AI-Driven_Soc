@@ -143,7 +143,7 @@ export interface ReportFilterParams {
 }
 
 export interface ReportStats {
-  year: number;
+  year: number | null;
   scope?: Partial<Omit<ReportFilterParams, 'year'>>;
   summary: {
     total: number;

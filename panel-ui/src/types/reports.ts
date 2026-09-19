@@ -118,7 +118,7 @@ export interface HistoricalReportListResult {
 }
 
 export interface ReportFilterParams {
-  year: number;
+  year?: number;
   month?: number;
   day?: number;
   reportType?: string;

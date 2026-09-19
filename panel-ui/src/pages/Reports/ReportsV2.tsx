@@ -78,9 +78,10 @@ const FILTER_LABELS: Record<string, string> = {
 };
 const SAVED_VIEW_KEY = 'report-intelligence-saved-views-v2';
 
+type ReportYear = number | 'all';
 type ReportFilterState = Omit<ReportFilterParams, 'year'>;
 type EntitySelection = { type: 'organization' | 'scope' | 'ip' | 'finding'; value: string };
-type SavedView = { id: string; name: string; year: number; filters: ReportFilterState };
+type SavedView = { id: string; name: string; year: ReportYear; filters: ReportFilterState };
 type Density = 'compact' | 'comfortable';
 type ChatMessage = { role: 'user' | 'assistant'; content: string; result?: ReportCopilotResult };
 type ChangeItem = { label: string; value: string; direction: 'up' | 'down' | 'flat'; detail: string };
@@ -88,7 +89,7 @@ type ChangeItem = { label: string; value: string; direction: 'up' | 'down' | 'fl
 const ReportsV2: React.FC = () => {
   const queryClient = useQueryClient();
   const initialUrlState = useMemo(() => readReportUrlState(), []);
-  const [year, setYear] = useState(initialUrlState.year);
+  const [year, setYear] = useState<ReportYear>(initialUrlState.year);
   const [filters, setFilters] = useState<ReportFilterState>(initialUrlState.filters);
   const [activeTab, setActiveTab] = useState('intelligence');
   const [page, setPage] = useState(1);
@@ -104,12 +105,32 @@ const ReportsV2: React.FC = () => {
   const [organizationActiveIndex, setOrganizationActiveIndex] = useState(-1);
 
   const yearsQuery = useQuery({ queryKey: ['report-years'], queryFn: api.getReportYears });
-  const params = useMemo<ReportFilterParams>(() => ({ year, ...filters }), [year, filters]);
-  const facetParams = useMemo<ReportFilterParams>(() => ({ year, month: filters.month, day: filters.day }), [year, filters.month, filters.day]);
-  const previousParams = useMemo(() => previousPeriodParams(params), [params]);
+  const params = useMemo<ReportFilterParams>(
+    () => ({
+      ...(year === 'all' ? {} : { year }),
+      ...filters,
+    }),
+    [year, filters],
+  );
+  const facetParams = useMemo<ReportFilterParams>(
+    () => ({
+      ...(year === 'all' ? {} : { year }),
+      month: filters.month,
+      day: filters.day,
+    }),
+    [year, filters.month, filters.day],
+  );
+  const previousParams = useMemo(
+    () => year === 'all' ? undefined : previousPeriodParams(params),
+    [year, params],
+  );
 
   const statsQuery = useQuery({ queryKey: ['report-stats-v2', params], queryFn: () => api.getReportStats(params) });
-  const previousStatsQuery = useQuery({ queryKey: ['report-stats-previous-v2', previousParams], queryFn: () => api.getReportStats(previousParams) });
+  const previousStatsQuery = useQuery({
+    queryKey: ['report-stats-previous-v2', previousParams],
+    queryFn: () => api.getReportStats(previousParams!),
+    enabled: Boolean(previousParams),
+  });
   const facetsQuery = useQuery({ queryKey: ['report-facets-v2', facetParams], queryFn: () => api.getReportFacets(facetParams) });
   const reportsQuery = useQuery({
     queryKey: ['historical-reports-v2', params, page],
@@ -117,13 +138,31 @@ const ReportsV2: React.FC = () => {
   });
   const entityQuery = useQuery({
     queryKey: ['report-entity-v2', entity, year, filters.month, filters.day],
-    queryFn: () => api.getReportEntitySummary(entity!.type, entity!.value, { year, month: filters.month, day: filters.day }),
+    queryFn: () => api.getReportEntitySummary(entity!.type, entity!.value, {
+      ...(year === 'all' ? {} : { year }),
+      month: filters.month,
+      day: filters.day,
+    }),
     enabled: Boolean(entity),
   });
 
-  const scanQuery = useQuery({ queryKey: ['report-import-scan-v2', year], queryFn: () => api.scanHistoricalReports(year), enabled: false });
+  const scanQuery = useQuery({
+    queryKey: ['report-import-scan-v2', year],
+    queryFn: () => {
+      if (year === 'all') {
+        throw new Error('برای Scan باید یک سال مشخص انتخاب شود');
+      }
+      return api.scanHistoricalReports(year);
+    },
+    enabled: false,
+  });
   const importMutation = useMutation({
-    mutationFn: ({ dryRun }: { dryRun: boolean }) => api.importHistoricalReports(year, dryRun),
+    mutationFn: ({ dryRun }: { dryRun: boolean }) => {
+      if (year === 'all') {
+        throw new Error('برای Import باید یک سال مشخص انتخاب شود');
+      }
+      return api.importHistoricalReports(year, dryRun);
+    },
     onSuccess: async (result) => {
       setLastImport(result);
       if (!result.dryRun) {
@@ -613,7 +652,15 @@ const ReportsV2: React.FC = () => {
 
   const importPanel = (
     <div className="report-v2-import-stack">
+      {year === 'all' ? (
+        <Alert
+          type="info"
+          showIcon
+          message="برای بررسی و ورود فایل، یک سال مشخص انتخاب کنید"
+        />
+      ) : (
       <ReportUploadReview year={year} onCommitted={refresh} />
+      )}
       <Divider>Advanced · Server folder</Divider>
       <Row gutter={[14, 14]}>
         <Col xs={24} xl={10}>
@@ -645,11 +692,16 @@ const ReportsV2: React.FC = () => {
             value={year}
             aria-label="سال گزارش"
             onChange={(event) => {
-              setYear(Number(event.target.value));
+              setYear(
+                event.target.value === 'all'
+                  ? 'all'
+                  : Number(event.target.value),
+              );
               setFilters({});
               setPage(1);
             }}
           >
+            <option value="all">همه سال‌ها</option>
             {years.map((value) => (
               <option key={value} value={value}>{value}</option>
             ))}
@@ -872,12 +924,18 @@ const URL_FILTER_KEYS: Array<keyof ReportFilterState> = [
   'search',
 ];
 
-function readReportUrlState(): { year: number; filters: ReportFilterState } {
+function readReportUrlState(): { year: ReportYear; filters: ReportFilterState } {
   if (typeof window === 'undefined') return { year: 1404, filters: {} };
 
   const search = new URLSearchParams(window.location.search);
-  const parsedYear = Number(search.get('year'));
-  const year = Number.isInteger(parsedYear) && parsedYear > 0 ? parsedYear : 1404;
+  const rawYear = search.get('year');
+  const parsedYear = Number(rawYear);
+  const year: ReportYear =
+    rawYear === 'all'
+      ? 'all'
+      : Number.isInteger(parsedYear) && parsedYear > 0
+        ? parsedYear
+        : 1404;
 
   const filters: ReportFilterState = {};
 
@@ -899,7 +957,7 @@ function readReportUrlState(): { year: number; filters: ReportFilterState } {
   return { year, filters };
 }
 
-function buildReportUrl(year: number, filters: ReportFilterState) {
+function buildReportUrl(year: ReportYear, filters: ReportFilterState) {
   const url = new URL(window.location.href);
   const next = new URLSearchParams();
 
@@ -915,7 +973,7 @@ function buildReportUrl(year: number, filters: ReportFilterState) {
   return url.toString();
 }
 
-function syncReportUrl(year: number, filters: ReportFilterState) {
+function syncReportUrl(year: ReportYear, filters: ReportFilterState) {
   if (typeof window === 'undefined') return;
 
   const next = buildReportUrl(year, filters);
@@ -925,17 +983,21 @@ function syncReportUrl(year: number, filters: ReportFilterState) {
 }
 
 function previousPeriodParams(params: ReportFilterParams): ReportFilterParams {
-  const next: ReportFilterParams = { ...params, day: undefined };
+  const currentYear = Number(params.year || 1404);
+  const next: ReportFilterParams = { ...params, year: currentYear, day: undefined };
   if (params.month) {
     if (params.month > 1) next.month = params.month - 1;
-    else { next.year = params.year - 1; next.month = 12; }
+    else { next.year = currentYear - 1; next.month = 12; }
   } else {
-    next.year = params.year - 1;
+    next.year = currentYear - 1;
   }
   return next;
 }
 
 function buildComparison(current?: ReportStats, previous?: ReportStats, params?: ReportFilterParams, previousParams?: ReportFilterParams) {
+  if (!previousParams) {
+    return { label: 'نمای مجموع همه سال‌ها', items: [] as ChangeItem[] };
+  }
   const label = params?.month ? `مقایسه با ${JALALI_MONTHS[Number(previousParams?.month || 1) - 1]} ${previousParams?.year}` : `مقایسه با سال ${previousParams?.year}`;
   if (!current || !previous) return { label, items: [] as ChangeItem[] };
   const metrics: Array<[string, number, number]> = [
@@ -962,7 +1024,8 @@ function targetModeDescription(mode: string) {
   return 'نیازمند بررسی';
 }
 
-function formatScopeLabel(year: number, filters: ReportFilterState) {
+function formatScopeLabel(year: ReportYear, filters: ReportFilterState) {
+  if (year === 'all') return 'همه سال‌ها';
   if (filters.month && filters.day) return `${filters.day} ${JALALI_MONTHS[filters.month - 1]} ${year}`;
   if (filters.month) return `${JALALI_MONTHS[filters.month - 1]} ${year}`;
   return `سال ${year}`;

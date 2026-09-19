@@ -4,11 +4,13 @@ import { ConfigProvider, theme as antdTheme } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ThemeProvider, useTheme } from './hooks/useTheme';
+import { AuthProvider, RequireAuth } from './auth/AuthContext';
 import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Alerts from './pages/Alerts/Alerts';
 import Reports from './pages/Reports/ReportsV2';
 import MitreCoverage from './pages/MitreCoverage/MitreCoverage';
+import Login from './pages/Login/Login';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,19 +64,25 @@ const ThemeApplier: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 function AppContent() {
   return (
     <ThemeApplier>
-      <BrowserRouter basename="/panel">
-        <Routes>
-          <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="alerts" element={<Alerts />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="mitre-coverage" element={<MitreCoverage />} />
-            <Route path="analytics" element={<PlaceholderPage eyebrow="ANALYTICS" title="Security Analytics" description="Advanced trend analysis and reporting will live here. The current dashboard continues to show production-backed operational metrics." />} />
-            <Route path="settings" element={<PlaceholderPage eyebrow="SYSTEM" title="Settings" description="Panel and integration settings are not exposed in V1 yet. Existing runtime configuration remains server-managed." />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter basename="/panel">
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route element={<RequireAuth />}>
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="alerts" element={<Alerts />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="mitre-coverage" element={<MitreCoverage />} />
+                <Route path="analytics" element={<PlaceholderPage eyebrow="ANALYTICS" title="Security Analytics" description="Advanced trend analysis and reporting will live here. The current dashboard continues to show production-backed operational metrics." />} />
+                <Route path="settings" element={<PlaceholderPage eyebrow="SYSTEM" title="Settings" description="Panel and integration settings are not exposed in V1 yet. Existing runtime configuration remains server-managed." />} />
+              </Route>
+            </Route>
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </ThemeApplier>
   );
 }

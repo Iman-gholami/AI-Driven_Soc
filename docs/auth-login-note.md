@@ -1,0 +1,1 @@
+This branch implements authenticated panel access.

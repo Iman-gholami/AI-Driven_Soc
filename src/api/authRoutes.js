@@ -26,6 +26,9 @@ function createAuthRouter() {
       if (!settings.authEnabled) {
         return res.status(503).json({ detail: "Panel authentication is disabled" });
       }
+      if (!settings.authTokenSecret) {
+        return res.status(503).json({ detail: "Panel authentication is not configured" });
+      }
 
       const user = authenticateUser(req.body || {}, {
         username: settings.authUsername,

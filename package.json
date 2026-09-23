@@ -8,7 +8,12 @@
     "start": "node src/main.js",
     "dev": "node --watch src/main.js",
     "test": "node --test",
-    "lint": "eslint .",
+    "test:integration": "node --test \"integration/*.js\"",
+    "lint": "npm run lint:backend && npm run lint:panel",
+    "lint:backend": "eslint .",
+    "lint:panel": "npm --prefix panel-ui run lint",
+    "format": "node scripts/format.js --write",
+    "format:check": "node scripts/format.js --check",
     "import:rules": "node scripts/import-rules.js",
     "panel:install": "npm --prefix panel-ui install",
     "panel:build": "npm --prefix panel-ui run build",
@@ -50,6 +55,8 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "eslint": "^9.39.5",
-    "globals": "^17.12.0"
+    "globals": "^17.12.0",
+    "mongodb-memory-server-core": "^10.4.3",
+    "prettier": "^3.9.9"
   }
 }

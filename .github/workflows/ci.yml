@@ -28,7 +28,10 @@ jobs:
         run: npm ci
 
       - name: Lint backend
-        run: npm run lint
+        run: npm run lint:backend
+
+      - name: Check formatting
+        run: npm run format:check
 
       - name: Run backend tests
         run: npm test
@@ -37,7 +40,7 @@ jobs:
         run: npm --prefix panel-ui ci --no-audit --no-fund
 
       - name: Lint panel
-        run: npm --prefix panel-ui run lint
+        run: npm run lint:panel
 
       - name: Build panel
         run: npm --prefix panel-ui run build

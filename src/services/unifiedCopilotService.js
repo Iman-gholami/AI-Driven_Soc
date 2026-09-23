@@ -3,15 +3,31 @@ const { ReportCopilotService } = require("./reportCopilotService");
 const { HistoricalReportContextService } = require("./historicalReportContextService");
 const { normalizeConversationState } = require("../copilot/conversationState");
 
-class UnifiedCopilotService extends CopilotService {
+// Routes each question to the right backend: focused historical exposure lookups and
+// historical-report analytics are answered deterministically; everything else goes to
+// the LLM-planned SOC Copilot. Composition keeps each backend independently testable.
+class UnifiedCopilotService {
   constructor({
+    socCopilot,
     reportCopilot = new ReportCopilotService(),
     historicalReportContext = new HistoricalReportContextService(),
-    ...options
+    ...socCopilotOptions
   } = {}) {
-    super(options);
+    this.socCopilot = socCopilot || new CopilotService(socCopilotOptions);
     this.reportCopilot = reportCopilot;
     this.historicalReportContext = historicalReportContext;
+  }
+
+  get timezone() {
+    return this.socCopilot.timezone;
+  }
+
+  listTools() {
+    return this.socCopilot.listTools();
+  }
+
+  describeSchema(dataset) {
+    return this.socCopilot.describeSchema(dataset);
   }
 
   async query(question, options = {}) {
@@ -64,7 +80,7 @@ class UnifiedCopilotService extends CopilotService {
       };
     }
 
-    return super.query(question, options);
+    return this.socCopilot.query(question, options);
   }
 }
 

@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { setUnauthorizedHandler } from '../api/client';
 
 const TOKEN_KEY = 'access_token';
 const USER_KEY = 'soc_auth_user';
@@ -59,13 +60,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(() => readStoredToken());
   const [user, setUser] = useState<AuthUser | null>(() => (readStoredToken() ? readStoredUser() : null));
 
-  const login = async (input: LoginInput) => {
+  const login = useCallback(async (input: LoginInput) => {
     const response = await axios.post(
       `${import.meta.env.VITE_API_URL || ''}/auth/login`,
       input,
       { timeout: 15000 },
     );
-    const payload = response.data?.data || response.data;
+    const payload = response.data?.data;
     const nextToken = String(payload?.token || '');
     const nextUser = payload?.user as AuthUser;
     if (!nextToken || !nextUser?.username) throw new Error('Invalid authentication response');
@@ -76,9 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(nextToken);
     setUser(nextUser);
     return nextUser;
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     const currentToken = token;
     clearStoredSession();
     setToken(null);
@@ -91,7 +92,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { headers: { Authorization: `Bearer ${currentToken}` }, timeout: 5000 },
       ).catch(() => undefined);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearStoredSession();
+      setToken(null);
+      setUser(null);
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
     user,
@@ -99,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: Boolean(token && user),
     login,
     logout,
-  }), [token, user]);
+  }), [token, user, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -9,6 +9,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { getErrorMessage } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import './Login.css';
 
@@ -46,12 +47,8 @@ const Login: React.FC = () => {
         remember: Boolean(values.remember),
       });
       navigate(destination, { replace: true });
-    } catch (requestError: any) {
-      setError(
-        requestError?.response?.data?.detail
-        || requestError?.message
-        || 'Sign-in failed. Check your credentials and try again.',
-      );
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Sign-in failed. Check your credentials and try again.'));
     } finally {
       setSubmitting(false);
     }

@@ -38,7 +38,10 @@ const MitreCoverage: React.FC = () => {
 
   const snapshot = data;
   const summary = snapshot?.summary;
-  const tierCounts = summary?.rules.byTier || { native: 0, imported: 0, community: 0 };
+  const tierCounts = useMemo(
+    () => summary?.rules.byTier || { native: 0, imported: 0, community: 0 },
+    [summary],
+  );
   const generated = snapshot?.generatedAt ? new Date(snapshot.generatedAt).toLocaleString() : 'Not built';
   const mappedPercent = summary?.rules.mappingCoveragePercent ?? 0;
   const techniquePercent = summary?.techniques.coveragePercent ?? 0;
@@ -337,7 +340,7 @@ const MitreCoverage: React.FC = () => {
                   key: 'mapping',
                   width: 145,
                   render: (_value: unknown, record) => {
-                    const sources = [...new Set((record.mitre?.mappings || []).map((mapping: any) => mapping.source))];
+                    const sources = [...new Set((record.mitre?.mappings || []).map((mapping) => mapping.source))];
                     return sources.map((source) => (
                       <Tag className={`mitre-mapping-tag mapping-${mappingClass(source)}`} key={source}>
                         {mappingLabel(source)}

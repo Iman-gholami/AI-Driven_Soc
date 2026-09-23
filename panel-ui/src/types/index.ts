@@ -1,18 +1,8 @@
-import type React from 'react';
-
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data: T;
   message?: string;
   total?: number;
-}
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  avatar?: string;
 }
 
 export interface DetectionRule {
@@ -38,7 +28,7 @@ export interface DetectionRuleContext {
   candidate_count?: number;
   reason?: string | null;
   candidates?: unknown[];
-  resolution_evidence?: any[];
+  resolution_evidence?: unknown[];
   rule?: DetectionRule;
 }
 
@@ -48,7 +38,7 @@ export interface RuleMatch {
   signature: string | null;
   candidateCount: number;
   reason: string | null;
-  resolutionEvidence: any[];
+  resolutionEvidence: unknown[];
   ruleId?: string;
   revision?: number;
   title?: string;
@@ -65,6 +55,89 @@ export interface AnalysisSummary {
   confidence?: number;
   action?: string;
   analyzedAt?: string;
+}
+
+// Persisted AI analysis. Fields are optional because older analyses predate the current schema
+// (see src/models/incidentSchema.js); legacy aliases are kept so those records still render.
+export interface RelationshipEndpoint {
+  ip?: string;
+  organization?: string;
+  context?: string;
+}
+
+export interface AttackMappingEntry {
+  technique?: string;
+  id?: string;
+  name?: string;
+}
+
+export interface IncidentAnalysis {
+  verdict?: string;
+  one_line_summary?: string;
+  incident_summary?: { what_happened?: string; summary?: string };
+  attack_story?: string[];
+  why_alert_triggered?: { rule?: string; evidence?: string[] };
+  observed_evidence?: unknown[];
+  network_relationship_analysis?: {
+    assessment?: string;
+    summary?: string;
+    source?: RelationshipEndpoint;
+    destination?: RelationshipEndpoint;
+    why_suspicious?: unknown[];
+    current_alert_domains?: unknown[];
+    current_alert_packet_evidence?: unknown[];
+    threat_feed_context?: unknown[];
+    limitations?: string;
+  };
+  detection_analysis?: {
+    rule_logic?: string;
+    trigger_reason?: string;
+    limitations?: string;
+    gaps?: string;
+    evidence?: string[];
+  };
+  behavior_analysis?: string;
+  attack_mapping?: Array<AttackMappingEntry | string> | { mitre_techniques?: Array<AttackMappingEntry | string> };
+  risk_assessment?: {
+    severity?: string;
+    confidence?: number | string;
+    reasoning?: string;
+    rationale?: string;
+  };
+  analyst_decision?: { action?: string; reason?: string };
+  false_positive_analysis?: unknown[] | { conditions?: unknown[] };
+  recommended_investigation_steps?: unknown[];
+  final_soc_note?: string;
+}
+
+interface ThreatMatchDetail {
+  malware?: string[];
+  classifications?: Array<{ identifier?: string }>;
+  latestObservedAt?: string;
+}
+
+export interface NetworkIntelligenceIp {
+  ip: string;
+  roles?: string[];
+  nationalNetwork?: boolean;
+  asset?: { owned?: boolean; organization?: string; category?: string; province?: string };
+  ipMetadata?: { matched?: boolean; asName?: string; organization?: string; countryCode?: string; city?: string };
+  threat?: {
+    directMatch?: boolean;
+    relationshipMatch?: boolean;
+    direct?: ThreatMatchDetail;
+    relationship?: ThreatMatchDetail;
+  };
+}
+
+export interface NetworkIntelligence {
+  status?: string;
+  ips?: NetworkIntelligenceIp[];
+  correlations?: Array<{ type?: string; strength?: string; matchedFields?: string[] }>;
+  sources?: {
+    threatDataset?: { sourceFile?: string; importedAt?: string } | null;
+    assetDataset?: { sourceFile?: string; importedAt?: string } | null;
+  };
 }
 
 export interface Alert {
@@ -85,19 +158,19 @@ export interface Alert {
   analysisCount?: number;
   ruleMatch?: RuleMatch;
   detectionRule?: DetectionRuleContext;
-  rawEvent?: Record<string, any>;
-  fullAnalysis?: any;
+  rawEvent?: Record<string, unknown>;
+  fullAnalysis?: IncidentAnalysis;
   analysis?: AnalysisSummary[];
   soc?: {
-    mitreAttack?: any;
-    iocs?: any[];
-    correlation?: any;
-    threatIntelligence?: any;
-    networkIntelligence?: any;
-    historicalReports?: any;
-    providerMetadata?: any;
+    mitreAttack?: unknown;
+    iocs?: unknown[];
+    correlation?: unknown;
+    threatIntelligence?: unknown;
+    networkIntelligence?: NetworkIntelligence;
+    historicalReports?: unknown;
+    providerMetadata?: unknown;
   };
-  processing?: Record<string, any>;
+  processing?: Record<string, unknown>;
 }
 
 export interface AlertListParams {
@@ -277,15 +350,6 @@ export interface AIAlertResponse {
   status: Alert['aiStatus'];
   cached?: boolean;
   analysisCount?: number;
-}
-
-export interface TableColumn {
-  title: string;
-  dataIndex: string;
-  key: string;
-  render?: (value: any, record: any) => React.ReactNode;
-  sorter?: boolean | ((a: any, b: any) => number);
-  filters?: { text: string; value: any }[];
 }
 
 export type ThemeMode = 'light' | 'dark';

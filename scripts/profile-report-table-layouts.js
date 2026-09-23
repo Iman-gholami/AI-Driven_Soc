@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 const path = require("node:path");
-const base = require("../src/services/reportDocxParser");
-const v4 = require("../src/services/reportDocxParserV4");
+const base = require("../src/services/reportParser/docxBase");
+const v4 = require("../src/services/reportParser/tableEnrichment");
 const { ReportImportService, normalizeYear } = require("../src/services/reportImportService");
 
 async function main() {

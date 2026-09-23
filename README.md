@@ -43,6 +43,8 @@ npm run panel:build
 npm start
 ```
 
+Historical DOCX report import also needs the system `unzip` command (see `docs/report-intelligence.md`).
+
 Open:
 
 ```text
@@ -78,14 +80,50 @@ npm run dev
 - `MAX_PAYLOAD_SIZE_BYTES` (default `200000`)
 - `ENABLE_RATE_LIMITING` (default `true`)
 - `LOG_LEVEL` (default `info`)
+- `SHUTDOWN_TIMEOUT_MS` (default `10000`; forced exit if open connections block graceful shutdown)
+
+Numeric, boolean, enum (`LLM_PROVIDER`, `LOG_LEVEL`, `SOC_WEEK_START`) and time-zone values are validated at startup. The server and MCP entry points refuse to start and list every invalid variable instead of running with silently wrong values.
+
+## Project layout
+
+```text
+src/
+  main.js              process entry: config validation, Mongo connection, listen, graceful shutdown
+  app.js               createApp(): Express middleware stack, used by main.js and tests
+  api/
+    routes.js          alert, copilot, MITRE and rule routes (wiring only)
+    reportRoutes.js    historical report routes (wiring only)
+    authRoutes.js      panel sign-in
+    controllers/       request/response handling per resource
+    presenters/        API shapes for persisted documents
+    middleware/        auth, async handler, central error handler
+  core/                config, logging, error types
+  services/            domain logic (analysis, rule resolution, reports, copilot)
+  repositories/        MongoDB access
+  models/              Mongoose schemas
+  copilot/, mcp/       Copilot query planning and MCP server
+panel-ui/              React analyst panel
+scripts/               import, profiling and maintenance CLIs
+```
 
 ## API
+
+Every JSON endpoint uses one envelope:
+
+```json
+{ "success": true,  "message": "Success", "data": { }, "timestamp": "..." }
+{ "success": false, "detail": "Human-readable reason", "timestamp": "..." }
+```
+
+Error responses may carry extra top-level context (for example `aiStatus`, `reason`, `ruleMatch` on a rejected analysis). Unknown routes return `404` in the same format, and unexpected failures return `500` without internal details.
 
 ### Health
 
 ```text
 GET /health
 ```
+
+Returns `200 {"status":"ok","database":"connected"}` when MongoDB is connected, otherwise `503` with `status: "degraded"`.
 
 ### Alert ingestion
 
@@ -349,6 +387,7 @@ npm run mcp:serve
 
 ```bash
 npm test
+npm --prefix panel-ui run lint
 npm run panel:build
 ```
 

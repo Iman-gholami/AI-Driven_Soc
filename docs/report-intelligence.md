@@ -35,6 +35,12 @@ sudo apt-get install unzip
 
 No cloud document service is used.
 
+### Parser layout
+
+`src/services/reportParser/index.js` is the only entry point. It reads each DOCX once and runs the stages listed there in order (base extraction, table enrichment, finding catalog, date/type reconciliation, APT title override, target scope, mixed and structured asset recovery). Each stage lives in its own module under `src/services/reportParser/` and has a matching `test/reportParser*.test.js` file.
+
+When a stage changes extraction output, bump `PARSER_VERSION` in `index.js` so `npm run reconcile:reports` flags records parsed by the previous pipeline as `stale_parser`.
+
 ## 3. Dry-run the 1404 dataset
 
 ```bash
@@ -59,7 +65,7 @@ Reports → Local Import
 
 ## 5. Extracted fields
 
-The V1 parser targets the current report template and stores:
+The parser targets the current report template and stores:
 
 - report title
 - report number

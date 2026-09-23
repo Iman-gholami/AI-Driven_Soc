@@ -1,5 +1,6 @@
 const HistoricalReport = require("../models/HistoricalReport");
 const { normalizeYear } = require("./reportImportService");
+const { InputError } = require("../core/errors");
 
 class ReportAnalyticsService {
   constructor({ model = HistoricalReport } = {}) {
@@ -203,14 +204,13 @@ class ReportAnalyticsService {
 
     const summary = {
       total: 0,
-      uniqueOrganizations: 0,
-      uniqueIps: 0,
       highCritical: 0,
       immediate: 0,
       actionRequired: 0,
       informational: 0,
       qualityWarnings: 0,
       ...(result.summary?.[0] || {}),
+      // Unique counts come from the dedicated universe facets, not the per-report summary.
       uniqueOrganizations: Number(result.organizationUniverse?.[0]?.count || 0),
       uniqueIps: Number(result.ipUniverse?.[0]?.count || 0),
     };
@@ -304,7 +304,7 @@ class ReportAnalyticsService {
   async getEntitySummary(type, value, input = {}) {
     const normalizedType = String(type || "").trim().toLowerCase();
     const normalizedValue = String(value || "").trim();
-    if (!normalizedValue) throw new Error("entity value is required");
+    if (!normalizedValue) throw new InputError("entity value is required");
 
     const params = { ...input };
     if (normalizedType === "organization") params.organization = normalizedValue;
@@ -313,7 +313,7 @@ class ReportAnalyticsService {
       params.scopeName = normalizedValue;
     } else if (normalizedType === "ip") params.ip = normalizedValue;
     else if (normalizedType === "finding") params.finding = normalizedValue;
-    else throw new Error(`unsupported entity type: ${normalizedType}`);
+    else throw new InputError(`unsupported entity type: ${normalizedType}`);
 
     const [stats, recent] = await Promise.all([
       this.getStats(params),

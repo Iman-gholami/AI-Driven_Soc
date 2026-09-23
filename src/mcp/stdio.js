@@ -1,6 +1,6 @@
 require("dotenv").config();
 const readline = require("node:readline");
-const { settings } = require("../core/config");
+const { settings, assertValidConfig } = require("../core/config");
 const { createLogger } = require("../core/logging");
 const { connectMongo, disconnectMongo } = require("../database/mongo");
 const { SocMcpServer } = require("./socMcpServer");
@@ -9,6 +9,7 @@ const logger = createLogger(settings.logLevel);
 const server = new SocMcpServer();
 
 async function main() {
+  assertValidConfig();
   await connectMongo(logger);
 
   const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -44,6 +45,6 @@ async function main() {
 
 main().catch(async (error) => {
   logger.error({ err: error }, "MCP server failed");
-  try { await disconnectMongo(logger); } catch (_) {}
+  try { await disconnectMongo(logger); } catch (_) { /* already exiting */ }
   process.exitCode = 1;
 });

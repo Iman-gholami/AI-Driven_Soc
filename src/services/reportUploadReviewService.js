@@ -4,7 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { settings } = require("../core/config");
 const HistoricalReport = require("../models/HistoricalReport");
-const { parseDocxReport } = require("./reportDocxParserV5");
+const { parseDocxReport } = require("./reportParser");
 const {
   ReportImportInputError,
   normalizeYear,
@@ -338,6 +338,7 @@ function buildItemId(parsed, index) {
 
 function safeDocxFilename(value) {
   let filename = path.basename(String(value || "report.docx"))
+    // eslint-disable-next-line no-control-regex -- strip control characters from uploaded file names
     .replace(/[\x00-\x1f<>:"/\\|?*]+/g, "_")
     .replace(/\s+/g, " ")
     .trim();

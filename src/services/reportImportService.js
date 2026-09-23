@@ -2,7 +2,8 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { settings } = require("../core/config");
 const HistoricalReport = require("../models/HistoricalReport");
-const { parseDocxReport } = require("./reportDocxParserV5");
+const { InputError } = require("../core/errors");
+const { parseDocxReport } = require("./reportParser");
 
 class ReportImportService {
   constructor({
@@ -292,12 +293,7 @@ function safeError(error) {
   return message.replace(/\/[^\s:]+/g, "<path>").slice(0, 500);
 }
 
-class ReportImportInputError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "ReportImportInputError";
-  }
-}
+class ReportImportInputError extends InputError {}
 
 module.exports = {
   ReportImportService,

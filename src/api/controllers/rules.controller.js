@@ -9,7 +9,7 @@ class RuleController {
     this.repository = repository;
   }
 
-  async importRules(req, res, next) {
+  importRules = async (req, res, next) => {
     const tempFilePath = req.file?.path || null;
 
     try {
@@ -68,9 +68,9 @@ class RuleController {
     } finally {
       if (tempFilePath) await fs.unlink(tempFilePath).catch(() => {});
     }
-  }
+  };
 
-  async getRules(req, res, next) {
+  getRules = async (req, res, next) => {
     try {
       const result = await this.repository.list({
         page: req.query.page,
@@ -83,9 +83,9 @@ class RuleController {
     } catch (error) {
       return next(error);
     }
-  }
+  };
 
-  async getRuleById(req, res, next) {
+  getRuleById = async (req, res, next) => {
     try {
       const rules = await this.repository.findByRuleId(req.params.ruleId, req.query.revision);
       if (!rules.length) return errorResponse(res, 'Rule not found', 404);
@@ -96,9 +96,9 @@ class RuleController {
     } catch (error) {
       return next(error);
     }
-  }
+  };
 
-  async deleteRule(req, res, next) {
+  deleteRule = async (req, res, next) => {
     try {
       const result = await this.repository.deleteByRuleId(req.params.ruleId, req.query.revision);
       if (!result?.deletedCount) return errorResponse(res, 'Rule not found', 404);
@@ -111,7 +111,7 @@ class RuleController {
     } catch (error) {
       return next(error);
     }
-  }
+  };
 }
 
 function parseRuleFile(fileContent) {
@@ -137,6 +137,4 @@ function parseRuleFile(fileContent) {
   }
 }
 
-module.exports = new RuleController();
-module.exports.RuleController = RuleController;
-module.exports.parseRuleFile = parseRuleFile;
+module.exports = { RuleController, parseRuleFile };

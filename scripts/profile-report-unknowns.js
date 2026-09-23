@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const path = require("node:path");
 const { ReportImportService, normalizeYear } = require("../src/services/reportImportService");
-const { parseDocxReport } = require("../src/services/reportDocxParserV5");
+const { parseDocxReport } = require("../src/services/reportParser");
 
 async function main() {
   const args = process.argv.slice(2);

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Table, Card, Typography, Button, Space, Tag, message, Modal, Tooltip, Badge, Collapse, Select, Input } from 'antd';
+import type { BadgeProps } from 'antd';
 import { PlusOutlined, RobotOutlined, FilterOutlined, DownloadOutlined, CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, InfoCircleOutlined, AlertOutlined, ClockCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { api } from '../../api/client';
+import { api, getErrorMessage } from '../../api/client';
 import { Alert, AlertListParams } from '../../types';
 import AISidebar from '../../components/AI/AISidebar';
 import './Alerts.css';
@@ -50,12 +51,20 @@ const Alerts: React.FC = () => {
   const alerts = data?.alerts || [];
   const pagination = data?.pagination || { page, limit: pageSize, total: 0, pages: 0 };
 
+  // Open the sidebar as soon as a deep link arrives; the effect below only fetches the alert.
+  const [handledDeepLink, setHandledDeepLink] = useState<string | null>(null);
+  if (deepLinkedAlertId !== handledDeepLink) {
+    setHandledDeepLink(deepLinkedAlertId);
+    if (deepLinkedAlertId) {
+      setAiSidebarOpen(true);
+      setSidebarLoading(true);
+    }
+  }
+
   useEffect(() => {
     const alertId = deepLinkedAlertId;
     if (!alertId) return;
     let active = true;
-    setAiSidebarOpen(true);
-    setSidebarLoading(true);
     api.getAlertById(alertId)
       .then((alert) => { if (active) setSelectedAlert(alert); })
       .catch(() => { if (active) message.error('Alert could not be loaded'); })
@@ -77,8 +86,8 @@ const Alerts: React.FC = () => {
       }
       setSelectedAlert(await api.getAlertById(alert.alertId));
       await invalidateAlertData();
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail || error?.message || 'Failed to run AI analysis';
+    } catch (error) {
+      const detail = getErrorMessage(error, 'Failed to run AI analysis');
       message.error(detail);
       try { setSelectedAlert(await api.getAlertById(alert.alertId)); } catch { /* keep current alert */ }
       await invalidateAlertData();
@@ -94,8 +103,8 @@ const Alerts: React.FC = () => {
       setSelectedAlert(await api.getAlertById(alert.alertId));
       message.success('AI analysis re-run completed');
       await invalidateAlertData();
-    } catch (error: any) {
-      message.error(error?.response?.data?.detail || error?.message || 'Failed to re-run AI analysis');
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Failed to re-run AI analysis'));
     } finally {
       setSidebarLoading(false);
     }
@@ -145,7 +154,7 @@ const Alerts: React.FC = () => {
       const headers = Object.keys(csvData[0]);
       const csvString = [
         headers.map(escapeCsv).join(','),
-        ...csvData.map(item => headers.map((header) => escapeCsv((item as any)[header])).join(',')),
+        ...csvData.map(item => headers.map((header) => escapeCsv(item[header as keyof typeof item])).join(',')),
       ].join('\n');
       const url = URL.createObjectURL(new Blob([csvString], { type: 'text/csv;charset=utf-8' }));
       const a = document.createElement('a');
@@ -154,8 +163,8 @@ const Alerts: React.FC = () => {
       a.click();
       URL.revokeObjectURL(url);
       message.success(`${allAlerts.length} alerts exported`);
-    } catch (error: any) {
-      message.error(error?.message || 'Failed to export alerts');
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Failed to export alerts'));
     } finally {
       setExporting(false);
     }
@@ -170,7 +179,7 @@ const Alerts: React.FC = () => {
     setPage(1);
   };
 
-  const getSeverityBadge = (severity: string) => ({ critical: 'error', high: 'warning', medium: 'warning', low: 'success', info: 'processing', unknown: 'default' }[severity] || 'default');
+  const getSeverityBadge = (severity: string): BadgeProps['status'] => ({ critical: 'error', high: 'warning', medium: 'warning', low: 'success', info: 'processing', unknown: 'default' } as Record<string, BadgeProps['status']>)[severity] || 'default';
   const getStatusIcon = (status: string) => ({ new: <AlertOutlined className="text-blue-500" />, analyzed: <CheckCircleOutlined className="text-green-500" /> }[status] || null);
   const getStatusColor = (status: string) => ({ new: 'blue', analyzed: 'green' }[status] || 'default');
   const getAiStatusColor = (status: string) => ({ not_analyzed: 'default', analyzing: 'processing', analyzed: 'success', failed: 'error' }[status] || 'default');
@@ -200,7 +209,7 @@ const Alerts: React.FC = () => {
     { title: 'Alert ID', dataIndex: 'alertId', key: 'alertId', render: (text: string) => <Text code className="text-xs">{text.length > 14 ? `${text.substring(0, 14)}…` : text}</Text> },
     { title: 'Signature / Event', dataIndex: 'signature', key: 'signature', render: (signature: string | null, record: Alert) => <div><div className="font-medium">{signature || 'No Signature'}</div>{record.eventType && <Tag className="alerts-meta-tag text-xs mt-1">{record.eventType}</Tag>}{record.host && <Tag className="alerts-meta-tag text-xs mt-1">{record.host}</Tag>}</div> },
     { title: 'Source', dataIndex: 'source', key: 'source', render: (source: string) => <Tag className="alerts-meta-tag">{source}</Tag> },
-    { title: 'Severity', dataIndex: 'severity', key: 'severity', render: (severity: string) => <Badge status={getSeverityBadge(severity) as any} text={severity.toUpperCase()} /> },
+    { title: 'Severity', dataIndex: 'severity', key: 'severity', render: (severity: string) => <Badge status={getSeverityBadge(severity)} text={severity.toUpperCase()} /> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={getStatusColor(status)} className="px-3 py-1">{getStatusIcon(status)} {status.toUpperCase()}</Tag> },
     { title: 'AI Status', dataIndex: 'aiStatus', key: 'aiStatus', render: (status: string, record: Alert) => <Tooltip title={record.aiEligibility.eligible ? 'Eligible for AI analysis' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Tag color={getAiStatusColor(status)}>{getAiStatusIcon(status)} {status.replace('_', ' ').toUpperCase()}</Tag>{!record.aiEligibility.eligible && <InfoCircleOutlined className="text-gray-400 ml-1" />}</Tooltip> },
     { title: 'AI Action', key: 'aiAction', render: (_: unknown, record: Alert) => <Tooltip title={record.aiStatus === 'analyzed' ? 'View persisted AI analysis' : record.aiEligibility.eligible ? 'Run deterministic rule resolution and AI triage' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Button type="primary" icon={<RobotOutlined />} onClick={() => handleAIAnalysis(record)} disabled={record.aiStatus !== 'analyzed' && !record.aiEligibility.eligible} size="middle">{record.aiStatus === 'analyzed' ? 'View AI Analysis' : 'AI Analyze'}</Button></Tooltip> },

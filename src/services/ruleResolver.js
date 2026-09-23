@@ -1,4 +1,4 @@
-const { normalizeTitle, extractSearchableContent } = require("./ruleParser");
+const { extractSearchableContent } = require("./ruleParser");
 
 class RuleResolver {
   constructor({ detectionRuleRepository } = {}) {

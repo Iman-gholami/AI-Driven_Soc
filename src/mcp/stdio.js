@@ -45,6 +45,6 @@ async function main() {
 
 main().catch(async (error) => {
   logger.error({ err: error }, "MCP server failed");
-  try { await disconnectMongo(logger); } catch (_) {}
+  try { await disconnectMongo(logger); } catch (_) { /* already exiting */ }
   process.exitCode = 1;
 });

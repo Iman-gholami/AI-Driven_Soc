@@ -379,7 +379,7 @@ test("network intelligence correlates an organizational asset with feed destinat
 
 test("LLM JSON parser accepts fenced JSON for local model compatibility", () => {
   assert.deepEqual(
-    parseJsonResponse("Here is the result:\n\`\`\`json\n{\"verdict\":\"UNKNOWN\"}\n\`\`\`"),
+    parseJsonResponse("Here is the result:\n```json\n{\"verdict\":\"UNKNOWN\"}\n```"),
     { verdict: "UNKNOWN" },
   );
 });

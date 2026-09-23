@@ -204,14 +204,13 @@ class ReportAnalyticsService {
 
     const summary = {
       total: 0,
-      uniqueOrganizations: 0,
-      uniqueIps: 0,
       highCritical: 0,
       immediate: 0,
       actionRequired: 0,
       informational: 0,
       qualityWarnings: 0,
       ...(result.summary?.[0] || {}),
+      // Unique counts come from the dedicated universe facets, not the per-report summary.
       uniqueOrganizations: Number(result.organizationUniverse?.[0]?.count || 0),
       uniqueIps: Number(result.ipUniverse?.[0]?.count || 0),
     };

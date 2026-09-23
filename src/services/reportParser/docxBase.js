@@ -427,7 +427,7 @@ function classifyReportType(title) {
 
 function parseJalaliDate(value, yearHint) {
   const normalized = toAsciiDigits(String(value || ""));
-  const match = normalized.match(/(\d{1,4})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{1,4})/);
+  const match = normalized.match(/(\d{1,4})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{1,4})/);
   if (!match) return { year: Number(yearHint) || null, month: null, day: null };
   const parts = match.slice(1).map(Number);
   if (parts[0] >= 1300) return { year: parts[0], month: parts[1], day: parts[2] };

@@ -8,7 +8,6 @@ function notFoundHandler(req, res) {
   return errorResponse(res, `Route ${req.method} ${req.path} not found`, 404);
 }
 
-// eslint-disable-next-line no-unused-vars
 function errorHandler(error, req, res, next) {
   cleanupUploadedFiles(req);
   if (res.headersSent) return next(error);

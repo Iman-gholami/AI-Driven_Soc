@@ -3,6 +3,7 @@ const path = require('node:path');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
+const pino = require('pino');
 const pinoHttp = require('pino-http');
 const { settings } = require('./core/config');
 const { createAuthRouter } = require('./api/authRoutes');
@@ -20,7 +21,8 @@ const MONGO_STATES = ['disconnected', 'connected', 'connecting', 'disconnecting'
 function createApp({ logger, routerDeps = {}, reportRouterDeps = {} } = {}) {
   const app = express();
 
-  if (logger) app.use(pinoHttp({ logger }));
+  // Controllers log through req.log, so always install it; callers without a logger get a silent one.
+  app.use(pinoHttp({ logger: logger || pino({ level: 'silent' }) }));
   app.use(cors());
   app.use(express.json({ limit: `${settings.maxPayloadSizeBytes}b` }));
 

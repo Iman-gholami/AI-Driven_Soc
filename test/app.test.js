@@ -83,6 +83,24 @@ test('createApp rejects malformed JSON with a 400 envelope', async () => {
   });
 });
 
+test('createApp serves successful requests without an injected logger', async () => {
+  await withSettings({ authEnabled: false, enableRateLimiting: false }, async () => {
+    const alertRepository = {
+      async upsertNewAlert(record) {
+        return { ...record, status: 'new', aiStatus: 'not_analyzed', createdAt: 'now', updatedAt: 'now' };
+      },
+    };
+    const response = await request(createTestApp({ alertRepository }), {
+      method: 'POST',
+      path: '/webhook-alert',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alertId: 'no-logger-1', severity: 'low' }),
+    });
+    assert.equal(response.status, 201);
+    assert.equal(response.body.data.count, 1);
+  });
+});
+
 test('createApp keeps analyst APIs behind authentication', async () => {
   await withSettings({ authEnabled: true, enableRateLimiting: false }, async () => {
     const response = await request(createTestApp(), { path: '/alerts' });

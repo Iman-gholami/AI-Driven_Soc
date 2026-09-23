@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       input,
       { timeout: 15000 },
     );
-    const payload = response.data?.data || response.data;
+    const payload = response.data?.data;
     const nextToken = String(payload?.token || '');
     const nextUser = payload?.user as AuthUser;
     if (!nextToken || !nextUser?.username) throw new Error('Invalid authentication response');

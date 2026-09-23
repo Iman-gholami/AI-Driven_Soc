@@ -1,9 +1,10 @@
-const { settings } = require("../core/config");
+const { settings } = require("../../core/config");
 const {
   AuthenticationError,
   getBearerToken,
   verifyAccessToken,
-} = require("../services/authService");
+} = require("../../services/authService");
+const { errorResponse } = require("../../utils/response");
 
 function requireAuth(req, res, next) {
   if (!settings.authEnabled) return next();
@@ -11,7 +12,7 @@ function requireAuth(req, res, next) {
   try {
     const token = getBearerToken(req.headers.authorization);
     if (!token) {
-      return res.status(401).json({ detail: "Authentication required" });
+      return errorResponse(res, "Authentication required", 401);
     }
 
     const payload = verifyAccessToken(token, {
@@ -26,10 +27,10 @@ function requireAuth(req, res, next) {
     return next();
   } catch (error) {
     if (error instanceof AuthenticationError) {
-      return res.status(401).json({ detail: error.message });
+      return errorResponse(res, error.message, 401);
     }
     req.log?.error({ err: error }, "auth_middleware_failed");
-    return res.status(500).json({ detail: "Authentication failure" });
+    return errorResponse(res, "Authentication failure", 500);
   }
 }
 

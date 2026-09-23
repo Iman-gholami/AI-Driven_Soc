@@ -1,8 +1,8 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const { settings } = require("../core/config");
-const { successResponse } = require("../utils/response");
-const { requireAuth } = require("../middleware/requireAuth");
+const { successResponse, errorResponse } = require("../utils/response");
+const { requireAuth } = require("./middleware/requireAuth");
 const {
   AuthenticationError,
   authenticateUser,
@@ -18,16 +18,16 @@ function createAuthRouter() {
     standardHeaders: true,
     legacyHeaders: false,
     skipSuccessfulRequests: true,
-    message: { detail: "Too many sign-in attempts. Try again later." },
+    message: { success: false, detail: "Too many sign-in attempts. Try again later." },
   });
 
   router.post("/login", loginLimiter, (req, res) => {
     try {
       if (!settings.authEnabled) {
-        return res.status(503).json({ detail: "Panel authentication is disabled" });
+        return errorResponse(res, "Panel authentication is disabled", 503);
       }
       if (!settings.authTokenSecret) {
-        return res.status(503).json({ detail: "Panel authentication is not configured" });
+        return errorResponse(res, "Panel authentication is not configured", 503);
       }
 
       const user = authenticateUser(req.body || {}, {
@@ -60,10 +60,10 @@ function createAuthRouter() {
           "panel_login_failed",
         );
         const status = /not configured/i.test(error.message) ? 503 : 401;
-        return res.status(status).json({ detail: status === 401 ? "Invalid username, password, or one-time code" : error.message });
+        return errorResponse(res, status === 401 ? "Invalid username, password, or one-time code" : error.message, status);
       }
       req.log?.error({ err: error }, "panel_login_error");
-      return res.status(500).json({ detail: "Unable to sign in" });
+      return errorResponse(res, "Unable to sign in", 500);
     }
   });
 

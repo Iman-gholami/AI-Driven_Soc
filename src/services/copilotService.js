@@ -1,5 +1,6 @@
 const { z } = require("zod");
 const { settings } = require("../core/config");
+const { AppError, InputError } = require("../core/errors");
 const { LLMService } = require("./llmService");
 const { SocMcpServer } = require("../mcp/socMcpServer");
 const { InProcessMcpClient } = require("../mcp/inProcessClient");
@@ -235,26 +236,27 @@ class CopilotService {
   }
 }
 
-class CopilotPlannerError extends Error {
-  constructor(message, options) {
-    super(message, options);
-    this.name = "CopilotPlannerError";
+class CopilotPlannerError extends AppError {
+  constructor(message, options = {}) {
+    super(message, {
+      ...options,
+      status: 502,
+      publicMessage: "The configured model could not produce a valid SOC query plan",
+    });
   }
 }
 
-class CopilotQueryError extends Error {
-  constructor(message, options) {
-    super(message, options);
-    this.name = "CopilotQueryError";
+class CopilotQueryError extends AppError {
+  constructor(message, options = {}) {
+    super(message, {
+      ...options,
+      status: 422,
+      publicMessage: "The requested SOC query is not permitted or cannot be executed",
+    });
   }
 }
 
-class CopilotInputError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "CopilotInputError";
-  }
-}
+class CopilotInputError extends InputError {}
 
 function isRepairableTool(tool) {
   return [

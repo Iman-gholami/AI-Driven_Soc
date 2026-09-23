@@ -178,6 +178,7 @@ function createTestApp({ alertRepository, analyzer }) {
   const express = require("express");
   delete require.cache[require.resolve("../src/api/routes")];
   const { createRouter } = require("../src/api/routes");
+  const { errorHandler } = require("../src/api/middleware/errorHandler");
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -185,6 +186,7 @@ function createTestApp({ alertRepository, analyzer }) {
     next();
   });
   app.use(createRouter({ alertRepository, analyzer }));
+  app.use(errorHandler);
   return app;
 }
 
@@ -317,9 +319,9 @@ test("POST /webhook-alert stores a single alert as new without invoking AI", asy
   });
 
   assert.equal(response.status, 201);
-  assert.equal(response.body.count, 1);
-  assert.equal(response.body.alerts[0].alertId, "splunk-1");
-  assert.equal(response.body.alerts[0].status, "new");
+  assert.equal(response.body.data.count, 1);
+  assert.equal(response.body.data.alerts[0].alertId, "splunk-1");
+  assert.equal(response.body.data.alerts[0].status, "new");
   assert.equal(repository.alerts[0].rawEvent.host, "srv-1");
   assert.match(repository.alerts[0].eventHash, /^[a-f0-9]{64}$/);
 });
@@ -335,7 +337,7 @@ test("POST /webhook-alert stores bulk alerts and overwrites duplicates by eventH
     body: { alerts: [duplicateBody, { id: "bulk-2", severity: "critical" }] },
   });
   assert.equal(response.status, 201);
-  assert.equal(response.body.count, 2);
+  assert.equal(response.body.data.count, 2);
 
   response = await request(app, { method: "POST", path: "/webhook-alert", body: duplicateBody });
 
@@ -354,16 +356,16 @@ test("GET /alerts lists summary alerts with filters and pagination", async () =>
   const response = await request(app, { path: "/alerts?status=new&severity=high&page=1&limit=10" });
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.alerts.length, 1);
+  assert.equal(response.body.data.alerts.length, 1);
   assert.deepEqual(
-    Object.keys(response.body.alerts[0]).sort(),
+    Object.keys(response.body.data.alerts[0]).sort(),
     ["alertId", "aiEligibility", "aiStatus", "createdAt", "eventHash", "eventType", "host", "severity", "signature", "source", "status", "updatedAt"].sort(),
   );
-  assert.equal(response.body.alerts[0].aiStatus, "not_analyzed");
-  assert.equal(response.body.alerts[0].aiEligibility.eligible, false);
-  assert.equal(response.body.alerts[0].aiEligibility.reason, "missing_signature");
-  assert.equal(response.body.alerts[0].alertId, "a1");
-  assert.equal(response.body.sort.createdAt, "desc");
+  assert.equal(response.body.data.alerts[0].aiStatus, "not_analyzed");
+  assert.equal(response.body.data.alerts[0].aiEligibility.eligible, false);
+  assert.equal(response.body.data.alerts[0].aiEligibility.reason, "missing_signature");
+  assert.equal(response.body.data.alerts[0].alertId, "a1");
+  assert.equal(response.body.data.sort.createdAt, "desc");
 });
 
 test("GET /alerts keeps signature and non-signature alerts in the same analyst queue", async () => {
@@ -401,10 +403,10 @@ test("GET /alerts keeps signature and non-signature alerts in the same analyst q
   const response = await request(app, { path: "/alerts?page=1&limit=10" });
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.alerts.length, 2);
+  assert.equal(response.body.data.alerts.length, 2);
 
-  const withSignature = response.body.alerts.find((alert) => alert.alertId === "with-signature");
-  const withoutSignature = response.body.alerts.find((alert) => alert.alertId === "without-signature");
+  const withSignature = response.body.data.alerts.find((alert) => alert.alertId === "with-signature");
+  const withoutSignature = response.body.data.alerts.find((alert) => alert.alertId === "without-signature");
 
   assert.equal(withSignature.aiEligibility.eligible, true);
   assert.equal(withSignature.aiEligibility.scenario, "signature_rule_v1");
@@ -490,9 +492,9 @@ test("POST /alerts/:id/analyze runs only after a signature resolves to a rule", 
   const response = await request(app, { method: "POST", path: "/alerts/a1/analyze" });
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.aiStatus, "analyzed");
-  assert.deepEqual(response.body.analysis, validAnalysis);
-  assert.equal(response.body.metadata.provider, "test");
+  assert.equal(response.body.data.aiStatus, "analyzed");
+  assert.deepEqual(response.body.data.analysis, validAnalysis);
+  assert.equal(response.body.data.metadata.provider, "test");
   assert.equal(repository.alerts[0].status, "analyzed");
   assert.equal(repository.alerts[0].aiStatus, "analyzed");
   assert.equal(repository.alerts[0].analysis.summary, "Suspicious login");
@@ -537,10 +539,10 @@ test("GET /alerts/:id returns full alert and requested SOC fields", async () => 
   const response = await request(app, { path: "/alerts/a1?socFields=mitreAttack,iocs" });
 
   assert.equal(response.status, 200);
-  assert.deepEqual(response.body.rawEvent, { user: "alice" });
-  assert.equal(response.body.analysis.summary, "summary");
-  assert.deepEqual(response.body.socFields.mitreAttack, { tactic: "Credential Access" });
-  assert.deepEqual(response.body.socFields.iocs, [{ type: "ip", value: "10.0.0.1" }]);
+  assert.deepEqual(response.body.data.rawEvent, { user: "alice" });
+  assert.equal(response.body.data.analysis.summary, "summary");
+  assert.deepEqual(response.body.data.socFields.mitreAttack, { tactic: "Credential Access" });
+  assert.deepEqual(response.body.data.socFields.iocs, [{ type: "ip", value: "10.0.0.1" }]);
 });
 
 

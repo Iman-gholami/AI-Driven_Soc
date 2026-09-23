@@ -1,4 +1,5 @@
 const HistoricalReport = require("../models/HistoricalReport");
+const { InputError } = require("../core/errors");
 const { ReportAnalyticsService, buildReportFilter } = require("./reportAnalyticsService");
 const { toAsciiDigits } = require("./reportDocxParser");
 
@@ -304,12 +305,7 @@ function formatReportAnswer(question, plan, data) {
   return "این سؤال هنوز در Report Copilot پشتیبانی نمی‌شود. می‌توانی درباره تعداد گزارش‌ها، Findingها، آسیب‌پذیری‌ها، نوع گزارش، سازمان‌ها، شدت، فوریت، پورت، روند ماهانه یا یک IP سؤال کنی.";
 }
 
-class ReportCopilotInputError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "ReportCopilotInputError";
-  }
-}
+class ReportCopilotInputError extends InputError {}
 
 module.exports = {
   ReportCopilotService,

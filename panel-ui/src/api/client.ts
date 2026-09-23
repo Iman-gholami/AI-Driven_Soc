@@ -56,11 +56,10 @@ apiClient.interceptors.response.use(
 
 export const api = {
   getAlertsPage: async (params: AlertListParams = {}): Promise<AlertListResult> => {
-    const response = await apiClient.get<ApiResponse<AlertListResult> & Partial<AlertListResult>>('/alerts', {
+    const response = await apiClient.get<ApiResponse<AlertListResult>>('/alerts', {
       params: cleanParams(params),
     });
-    const payload = response.data;
-    const data = payload.data || payload;
+    const data = response.data.data;
     return {
       alerts: data.alerts || [],
       pagination: data.pagination || { page: params.page || 1, limit: params.limit || 50, total: 0, pages: 0 },
@@ -75,8 +74,8 @@ export const api = {
   },
 
   getAlertById: async (alertId: string): Promise<Alert> => {
-    const response = await apiClient.get<Alert>(`/alerts/${encodeURIComponent(alertId)}`);
-    return response.data;
+    const response = await apiClient.get<ApiResponse<Alert>>(`/alerts/${encodeURIComponent(alertId)}`);
+    return response.data.data;
   },
 
   getDashboardStats: async (params: { createdAtFrom?: string; createdAtTo?: string } = {}): Promise<DashboardStats> => {

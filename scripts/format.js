@@ -4,7 +4,22 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const FORMATTED_PATHS = ['.prettierrc.json', 'scripts/format.js'];
+const FORMATTED_PATHS = [
+  '.prettierrc.json',
+  'scripts/format.js',
+  'src/config/dispositionReasons.js',
+  'src/investigation',
+  'src/models/InvestigationEvent.js',
+  'src/mcp/toolDefinitions.js',
+  'src/repositories/InvestigationRepository.js',
+  'src/services/investigationService.js',
+  'integration',
+  'test/support',
+  'test/investigationSchemas.test.js',
+  'test/investigationReducer.test.js',
+  'test/investigationAnalysisReference.test.js',
+  'test/investigationService.test.js',
+];
 
 const mode = process.argv[2] === '--write' ? '--write' : '--check';
 const root = path.join(__dirname, '..');

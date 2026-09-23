@@ -85,6 +85,9 @@ test("Alert model defines required persistence indexes", () => {
       { source: 1, createdAt: -1 },
       { "ruleMatch.status": 1, createdAt: -1 },
       { "analysis.severity": 1 },
+      { "analysis.analyzedAt": 1 },
+      { "triage.status": 1, createdAt: -1 },
+      { "triage.outcome": 1, createdAt: -1 },
     ]);
   } finally {
     mock.restore();

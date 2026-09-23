@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            panel-ui/package-lock.json
 
       - name: Install backend dependencies
         run: npm ci
@@ -28,7 +31,10 @@ jobs:
         run: npm test
 
       - name: Install panel dependencies
-        run: npm --prefix panel-ui install --no-audit --no-fund
+        run: npm --prefix panel-ui ci --no-audit --no-fund
+
+      - name: Lint panel
+        run: npm --prefix panel-ui run lint
 
       - name: Build panel
         run: npm --prefix panel-ui run build

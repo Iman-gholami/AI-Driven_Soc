@@ -2,6 +2,8 @@ import axios from 'axios';
 import {
   ApiResponse,
   Alert,
+  DetectionRuleContext,
+  IncidentAnalysis,
   AIAlertResponse,
   AlertListParams,
   AlertListResult,
@@ -36,6 +38,21 @@ apiClient.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+let unauthorizedHandler: (() => void) | null = null;
+
+// Lets the auth layer drop an expired or revoked server session instead of leaving the panel half signed-in.
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) unauthorizedHandler?.();
+    return Promise.reject(error);
+  },
+);
 
 export const api = {
   getAlertsPage: async (params: AlertListParams = {}): Promise<AlertListResult> => {
@@ -91,10 +108,10 @@ export const api = {
     const response = await apiClient.post<ApiResponse<{
       alertId: string;
       aiStatus: Alert['aiStatus'];
-      analysis: any;
+      analysis?: IncidentAnalysis;
       ruleMatch: Alert['ruleMatch'];
-      detectionRule?: any;
-      metadata?: any;
+      detectionRule?: DetectionRuleContext;
+      metadata?: { cached?: boolean; analysisCount?: number };
     }>>(`/alerts/${encodeURIComponent(alertId)}/analyze`, force ? { force: true } : {});
 
     const result = response.data.data;
@@ -112,10 +129,8 @@ export const api = {
       timestamp: new Date().toISOString(),
       confidence: Number(result.analysis?.risk_assessment?.confidence ?? 0),
       summary,
-      insights: Array.isArray(result.analysis?.observed_evidence) ? result.analysis.observed_evidence : [],
-      recommendations: Array.isArray(result.analysis?.recommended_investigation_steps)
-        ? result.analysis.recommended_investigation_steps
-        : [],
+      insights: toStringList(result.analysis?.observed_evidence),
+      recommendations: toStringList(result.analysis?.recommended_investigation_steps),
       severity: (result.analysis?.risk_assessment?.severity || 'unknown') as Alert['severity'],
       source: '',
       signature: null,
@@ -232,10 +247,24 @@ export const api = {
   },
 };
 
-function cleanParams<T extends Record<string, any>>(params: T): Partial<T> {
+function toStringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))) : [];
+}
+
+function cleanParams<T extends object>(params: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''),
   ) as Partial<T>;
+}
+
+// Prefers the backend's `detail` message, then the transport error, then the caller's fallback.
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const detail = (error.response?.data as { detail?: unknown } | undefined)?.detail;
+    if (typeof detail === 'string' && detail) return detail;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
 }
 
 export default apiClient;

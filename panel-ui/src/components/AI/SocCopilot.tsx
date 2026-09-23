@@ -7,7 +7,7 @@ import {
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { Button, Input, Spin, Tag, Typography } from 'antd';
-import { api } from '../../api/client';
+import { api, getErrorMessage } from '../../api/client';
 import type {
   CopilotBatchResult,
   CopilotChatHistoryItem,
@@ -90,9 +90,9 @@ const SocCopilot: React.FC = () => {
           response,
         },
       ]);
-    } catch (error: any) {
+    } catch (error) {
       sequence.current += 1;
-      const detail = error?.response?.data?.detail || error?.message || 'Copilot query failed';
+      const detail = getErrorMessage(error, 'Copilot query failed');
       setMessages((current) => [
         ...current,
         {

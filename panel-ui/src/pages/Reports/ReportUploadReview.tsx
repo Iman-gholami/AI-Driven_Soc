@@ -31,7 +31,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd';
-import { api } from '../../api/client';
+import { api, getErrorMessage } from '../../api/client';
 import type {
   ReportUploadCommitResult,
   ReportUploadPreviewItem,
@@ -110,8 +110,8 @@ const ReportUploadReview: React.FC<ReportUploadReviewProps> = ({ year, onCommitt
       } else {
         message.success(`${result.ready} report(s) extracted. Nothing has been saved yet.`);
       }
-    } catch (error: any) {
-      message.error(error?.response?.data?.detail || error?.message || 'Unable to extract reports for preview.');
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Unable to extract reports for preview.'));
     } finally {
       setExtracting(false);
     }
@@ -126,7 +126,7 @@ const ReportUploadReview: React.FC<ReportUploadReviewProps> = ({ year, onCommitt
     setCancelling(true);
     try {
       await api.cancelHistoricalReportUpload(preview.sessionToken);
-    } catch (_) {
+    } catch {
       // The session may already have expired; local UI can still be reset safely.
     } finally {
       setPreview(null);
@@ -170,8 +170,8 @@ const ReportUploadReview: React.FC<ReportUploadReviewProps> = ({ year, onCommitt
           } else {
             message.warning(`${result.failed} report(s) failed to save. The review session was kept for retry.`);
           }
-        } catch (error: any) {
-          message.error(error?.response?.data?.detail || error?.message || 'Unable to save reviewed reports.');
+        } catch (error) {
+          message.error(getErrorMessage(error, 'Unable to save reviewed reports.'));
           throw error;
         } finally {
           setSaving(false);

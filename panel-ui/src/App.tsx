@@ -1,16 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, theme as antdTheme } from 'antd';
+import { ConfigProvider, Spin, theme as antdTheme } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { AuthProvider, RequireAuth } from './auth/AuthContext';
 import MainLayout from './components/Layout/MainLayout';
-import Dashboard from './pages/Dashboard/Dashboard';
-import Alerts from './pages/Alerts/Alerts';
-import Reports from './pages/Reports/ReportsV2';
-import MitreCoverage from './pages/MitreCoverage/MitreCoverage';
 import Login from './pages/Login/Login';
+
+// Workspace pages are split into their own chunks so the login screen does not ship charts and tables.
+const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
+const Alerts = lazy(() => import('./pages/Alerts/Alerts'));
+const Reports = lazy(() => import('./pages/Reports/ReportsV2'));
+const MitreCoverage = lazy(() => import('./pages/MitreCoverage/MitreCoverage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +68,7 @@ function AppContent() {
     <ThemeApplier>
       <AuthProvider>
         <BrowserRouter basename="/panel">
+          <Suspense fallback={<Spin size="large" fullscreen />}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route element={<RequireAuth />}>
@@ -81,6 +84,7 @@ function AppContent() {
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </AuthProvider>
     </ThemeApplier>

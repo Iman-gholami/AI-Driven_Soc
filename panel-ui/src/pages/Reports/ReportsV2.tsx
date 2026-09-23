@@ -52,7 +52,7 @@ import {
   Tooltip as ChartTooltip,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { api } from '../../api/client';
+import { api, getErrorMessage } from '../../api/client';
 import type {
   HistoricalReport,
   ReportCopilotResult,
@@ -170,12 +170,12 @@ const ReportsV2: React.FC = () => {
         antMessage.success(`Import complete: ${result.imported} new, ${result.updated} updated`);
       }
     },
-    onError: (error: any) => antMessage.error(error?.response?.data?.detail || error?.message || 'Import failed'),
+    onError: (error) => antMessage.error(getErrorMessage(error, 'Import failed')),
   });
   const copilotMutation = useMutation({
     mutationFn: api.queryReportCopilot,
     onSuccess: (result) => setChat((current) => [...current, { role: 'assistant', content: result.answer, result }]),
-    onError: (error: any) => setChat((current) => [...current, { role: 'assistant', content: error?.response?.data?.detail || error?.message || 'Report query failed.' }]),
+    onError: (error) => setChat((current) => [...current, { role: 'assistant', content: getErrorMessage(error, 'Report query failed.') }]),
   });
 
   const stats = statsQuery.data;
@@ -247,10 +247,6 @@ const ReportsV2: React.FC = () => {
     return options.slice(0, 12);
   }, [organizationOptions, filters.organization]);
 
-  useEffect(() => {
-    setOrganizationActiveIndex(-1);
-  }, [filters.organization, organizationPickerOpen]);
-
 
   function selectOrganization(value: string) {
     setFilter('organization', value);
@@ -258,7 +254,7 @@ const ReportsV2: React.FC = () => {
     setOrganizationActiveIndex(-1);
   }
 
-  function setFilter(key: keyof ReportFilterState, value: any) {
+  function setFilter<K extends keyof ReportFilterState>(key: K, value: ReportFilterState[K] | '' | null) {
     setFilters((current) => ({ ...current, [key]: value === '' || value === null ? undefined : value }));
     setPage(1);
   }
@@ -336,8 +332,8 @@ const ReportsV2: React.FC = () => {
       link.click();
       URL.revokeObjectURL(url);
       antMessage.success(`${rows.length} گزارش export شد`);
-    } catch (error: any) {
-      antMessage.error(error?.message || 'Export failed');
+    } catch (error) {
+      antMessage.error(getErrorMessage(error, 'Export failed'));
     } finally {
       setExporting(false);
     }
@@ -387,8 +383,14 @@ const ReportsV2: React.FC = () => {
             allowClear
             value={filters.organization}
             placeholder="نام سازمان"
-            onFocus={() => setOrganizationPickerOpen(true)}
-            onBlur={() => setOrganizationPickerOpen(false)}
+            onFocus={() => {
+              setOrganizationPickerOpen(true);
+              setOrganizationActiveIndex(-1);
+            }}
+            onBlur={() => {
+              setOrganizationPickerOpen(false);
+              setOrganizationActiveIndex(-1);
+            }}
             onChange={(event) => {
               setFilter('organization', event.target.value || undefined);
               setOrganizationPickerOpen(true);

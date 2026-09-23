@@ -1,11 +1,7 @@
-const v6 = require("./reportDocxParserV6");
+const findingCatalog = require("./findingCatalog");
 
-const PARSER_VERSION = "docx-v7";
+const STAGE_VERSION = "docx-v7";
 
-async function parseDocxReport(filePath, { yearHint } = {}) {
-  const report = await v6.parseDocxReport(filePath, { yearHint });
-  return enhanceReportRecordV7(report, { yearHint });
-}
 
 function enhanceReportRecordV7(report, { yearHint } = {}) {
   if (!report || typeof report !== "object") return report;
@@ -31,7 +27,7 @@ function enhanceReportRecordV7(report, { yearHint } = {}) {
 
   report.extraction = {
     ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
+    parserVersion: STAGE_VERSION,
     warnings: [...warnings],
   };
 
@@ -128,7 +124,7 @@ function normalizeReportTypeV7(currentType, finding) {
 function vulnerabilityFromFindingV7(finding) {
   if (!finding || finding.type !== "swagger_api_exposure") {
     return finding && finding.type !== "unknown"
-      ? v6.vulnerabilityFromFindingV6(finding)
+      ? findingCatalog.vulnerabilityFromFindingV6(finding)
       : { name: null, normalizedName: "unknown", category: "unknown", cwe: null };
   }
 
@@ -153,8 +149,7 @@ function normalize(value) {
 }
 
 module.exports = {
-  PARSER_VERSION,
-  parseDocxReport,
+  STAGE_VERSION,
   enhanceReportRecordV7,
   reconcileReportDateYearV7,
   parseReportNumberDateV7,

@@ -1,11 +1,7 @@
-const v7 = require("./reportDocxParserV7");
+const reportDateAndType = require("./reportDateAndType");
 
-const PARSER_VERSION = "docx-v8";
+const STAGE_VERSION = "docx-v8";
 
-async function parseDocxReport(filePath, { yearHint } = {}) {
-  const report = await v7.parseDocxReport(filePath, { yearHint });
-  return enhanceReportRecordV8(report);
-}
 
 function enhanceReportRecordV8(report) {
   if (!report || typeof report !== "object") return report;
@@ -26,7 +22,7 @@ function enhanceReportRecordV8(report) {
 
   report.extraction = {
     ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
+    parserVersion: STAGE_VERSION,
     warnings: [...warnings],
   };
 
@@ -55,7 +51,7 @@ function classifyFindingV8(value) {
 
 function normalizeReportTypeV8(currentType, finding) {
   if (finding?.type === "apt_malicious_code_activity") return "malware";
-  return v7.normalizeReportTypeV7(currentType, finding);
+  return reportDateAndType.normalizeReportTypeV7(currentType, finding);
 }
 
 function vulnerabilityFromFindingV8(finding) {
@@ -67,7 +63,7 @@ function vulnerabilityFromFindingV8(finding) {
     return { name: null, normalizedName: "unknown", category: "unknown", cwe: null };
   }
 
-  return v7.vulnerabilityFromFindingV7(finding);
+  return reportDateAndType.vulnerabilityFromFindingV7(finding);
 }
 
 function normalize(value) {
@@ -82,8 +78,7 @@ function normalize(value) {
 }
 
 module.exports = {
-  PARSER_VERSION,
-  parseDocxReport,
+  STAGE_VERSION,
   enhanceReportRecordV8,
   classifyFindingV8,
   normalizeReportTypeV8,

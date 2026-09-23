@@ -2,11 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
-  PARSER_VERSION,
+  STAGE_VERSION,
   classifyFindingV11,
   extractStructuredAssetSystemsV11,
   recoverUnresolvedTargetV11,
-} = require("../src/services/reportDocxParserV11");
+} = require("../src/services/reportParser/structuredAssetRecovery");
 
 const cases = [
   ["آلودگی به بدافزار – ارتباط با دامنه بدافزار", "malware_domain_communication"],
@@ -92,7 +92,7 @@ test("v11 resolves an otherwise unresolved table target", () => {
 });
 
 test("v11 exports parser version", () => {
-  assert.equal(PARSER_VERSION, "docx-v11");
+  assert.equal(STAGE_VERSION, "docx-v11");
 });
 
 test("v11 infers an asset IP column when organization header exists but IP header is ambiguous", () => {
@@ -189,7 +189,7 @@ test("v11 removes stale multi-target warning after resolving to a single asset",
 test("v11 removes stale multi-target warning from final single mode", () => {
   const {
     normalizeTargetModeWarningsV11,
-  } = require("../src/services/reportDocxParserV11");
+  } = require("../src/services/reportParser/structuredAssetRecovery");
 
   const report = {
     target: { mode: "single" },

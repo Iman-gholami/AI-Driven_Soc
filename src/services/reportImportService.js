@@ -3,7 +3,7 @@ const path = require("node:path");
 const { settings } = require("../core/config");
 const HistoricalReport = require("../models/HistoricalReport");
 const { InputError } = require("../core/errors");
-const { parseDocxReport } = require("./reportDocxParserV5");
+const { parseDocxReport } = require("./reportParser");
 
 class ReportImportService {
   constructor({

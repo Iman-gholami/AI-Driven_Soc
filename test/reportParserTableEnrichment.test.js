@@ -1,14 +1,14 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const base = require("../src/services/reportDocxParser");
+const base = require("../src/services/reportParser/docxBase");
 const {
   enhanceReportRecord,
   classifyFindingV4,
   extractAffectedSystemsV4,
   extractRecommendationsFromTables,
   extractPhishingInfrastructure,
-} = require("../src/services/reportDocxParserV4");
+} = require("../src/services/reportParser/tableEnrichment");
 const { updateQualitySummary } = require("../src/services/reportImportService");
 
 function p(text) {

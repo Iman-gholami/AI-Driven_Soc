@@ -2,11 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
-  PARSER_VERSION,
+  STAGE_VERSION,
   enhanceReportRecordV8,
   classifyFindingV8,
   normalizeReportTypeV8,
-} = require("../src/services/reportDocxParserV8");
+} = require("../src/services/reportParser/aptTitleFinding");
 
 test("classifies malicious-code APT reports from the explicit title", () => {
   const finding = classifyFindingV8("کد مخرب – فعالیت APT");
@@ -52,5 +52,5 @@ test("normalizes APT malicious-code reports to malware", () => {
 });
 
 test("exports parser version v8", () => {
-  assert.equal(PARSER_VERSION, "docx-v8");
+  assert.equal(STAGE_VERSION, "docx-v8");
 });

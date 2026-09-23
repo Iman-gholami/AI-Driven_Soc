@@ -1,25 +1,8 @@
-const base = require("./reportDocxParser");
-const v4 = require("./reportDocxParserV4");
-const v9 = require("./reportDocxParserV9");
+const tableEnrichment = require("./tableEnrichment");
+const targetScope = require("./targetScope");
 
-const PARSER_VERSION = "docx-v10";
+const STAGE_VERSION = "docx-v10";
 
-async function parseDocxReport(filePath, { yearHint } = {}) {
-  let report = await v9.parseDocxReport(filePath, { yearHint });
-
-  if (needsMixedAssetRecovery(report)) {
-    const xml = await base.extractDocumentXml(filePath);
-    const parsed = base.parseWordXml(xml);
-    report = recoverUnresolvedTargetV10(report, parsed.tables);
-  }
-
-  report.extraction = {
-    ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
-  };
-
-  return report;
-}
 
 function needsMixedAssetRecovery(report) {
   if (!report || typeof report !== "object") return false;
@@ -41,7 +24,7 @@ function recoverUnresolvedTargetV10(report, tables) {
     recovered.flatMap((item) => Array.isArray(item.cves) ? item.cves : []),
   )];
 
-  report = v9.enhanceReportRecordV9(report);
+  report = targetScope.enhanceReportRecordV9(report);
 
   const warnings = new Set(report.extraction?.warnings || []);
   warnings.delete("target_table_reference_unresolved");
@@ -49,7 +32,7 @@ function recoverUnresolvedTargetV10(report, tables) {
 
   report.extraction = {
     ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
+    parserVersion: STAGE_VERSION,
     warnings: [...warnings],
   };
 
@@ -66,13 +49,13 @@ function extractMixedAssetSystemsV10(tables) {
 
     const sanitized = table.map((row) => Array.isArray(row) ? [...row] : row);
     sanitized[headerIndex] = sanitized[headerIndex].map((cell) => {
-      const key = v4.normalizeHeaderV4(cell);
+      const key = tableEnrichment.normalizeHeaderV4(cell);
       return key && key.startsWith("phishing_") ? "" : cell;
     });
     sanitizedTables.push(sanitized);
   }
 
-  return v4.extractAffectedSystemsV4(sanitizedTables)
+  return tableEnrichment.extractAffectedSystemsV4(sanitizedTables)
     .filter((item) => item && item.ip);
 }
 
@@ -84,7 +67,7 @@ function findMixedAssetHeaderIndexV10(table) {
   for (let index = 0; index < limit; index += 1) {
     const row = table[index];
     if (!Array.isArray(row)) continue;
-    const keys = row.map(v4.normalizeHeaderV4).filter(Boolean);
+    const keys = row.map(tableEnrichment.normalizeHeaderV4).filter(Boolean);
     const hasPhishingField = keys.some((key) => key.startsWith("phishing_"));
     const hasAssetIdentity = keys.some((key) => ["ip", "organization", "domain", "url"].includes(key));
     const score = keys.length;
@@ -100,8 +83,7 @@ function findMixedAssetHeaderIndexV10(table) {
 }
 
 module.exports = {
-  PARSER_VERSION,
-  parseDocxReport,
+  STAGE_VERSION,
   needsMixedAssetRecovery,
   recoverUnresolvedTargetV10,
   extractMixedAssetSystemsV10,

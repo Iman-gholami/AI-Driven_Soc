@@ -1,11 +1,5 @@
-const v8 = require("./reportDocxParserV8");
+const STAGE_VERSION = "docx-v9";
 
-const PARSER_VERSION = "docx-v9";
-
-async function parseDocxReport(filePath, { yearHint } = {}) {
-  const report = await v8.parseDocxReport(filePath, { yearHint });
-  return enhanceReportRecordV9(report);
-}
 
 function enhanceReportRecordV9(report) {
   if (!report || typeof report !== "object") return report;
@@ -65,7 +59,7 @@ function enhanceReportRecordV9(report) {
   report.target = nextTarget;
   report.extraction = {
     ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
+    parserVersion: STAGE_VERSION,
     warnings: [...warnings],
     organizationMismatch: tableReference && nextTarget.mode !== "single"
       ? false
@@ -149,8 +143,7 @@ function normalize(value) {
 }
 
 module.exports = {
-  PARSER_VERSION,
-  parseDocxReport,
+  STAGE_VERSION,
   enhanceReportRecordV9,
   extractTableReference,
   classifyScope,

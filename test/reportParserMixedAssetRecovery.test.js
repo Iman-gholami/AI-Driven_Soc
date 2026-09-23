@@ -2,10 +2,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
-  PARSER_VERSION,
+  STAGE_VERSION,
   extractMixedAssetSystemsV10,
   recoverUnresolvedTargetV10,
-} = require("../src/services/reportDocxParserV10");
+} = require("../src/services/reportParser/mixedAssetRecovery");
 
 test("v10 recovers asset rows from a mixed phishing-and-asset header", () => {
   const tables = [[
@@ -72,9 +72,9 @@ test("v10 resolves an unresolved scoped table reference with recovered assets", 
   assert.equal(recovered.extraction.warnings.includes("target_table_reference_unresolved"), false);
   assert.equal(recovered.extraction.warnings.includes("target_assets_resolved_from_table"), true);
   assert.equal(recovered.extraction.warnings.includes("mixed_asset_table_recovered"), true);
-  assert.equal(recovered.extraction.parserVersion, PARSER_VERSION);
+  assert.equal(recovered.extraction.parserVersion, STAGE_VERSION);
 });
 
 test("v10 exports parser version", () => {
-  assert.equal(PARSER_VERSION, "docx-v10");
+  assert.equal(STAGE_VERSION, "docx-v10");
 });

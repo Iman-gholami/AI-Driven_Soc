@@ -11,7 +11,7 @@ const {
   classifyVulnerability,
   parseTrafficBytes,
   extractCves,
-} = require("../src/services/reportDocxParser");
+} = require("../src/services/reportParser/docxBase");
 const { planReportQuestion } = require("../src/services/reportCopilotService");
 const {
   UnifiedCopilotService,

@@ -1,37 +1,7 @@
-const crypto = require("node:crypto");
-const fs = require("node:fs/promises");
-const path = require("node:path");
-const base = require("./reportDocxParser");
+const base = require("./docxBase");
 
-const PARSER_VERSION = "docx-v4";
+const STAGE_VERSION = "docx-v4";
 
-async function parseDocxReport(filePath, { yearHint } = {}) {
-  const absolutePath = path.resolve(filePath);
-  if (path.extname(absolutePath).toLowerCase() !== ".docx") {
-    throw new Error("Only .docx files are supported");
-  }
-
-  const [stat, buffer, xml] = await Promise.all([
-    fs.stat(absolutePath),
-    fs.readFile(absolutePath),
-    base.extractDocumentXml(absolutePath),
-  ]);
-
-  const parsed = base.parseWordXml(xml);
-  const report = enhanceReportRecord(base.extractReportRecord(parsed, { yearHint }), parsed);
-  const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
-
-  return {
-    ...report,
-    source: {
-      filename: path.basename(absolutePath),
-      relativePath: path.basename(absolutePath),
-      sha256,
-      sizeBytes: stat.size,
-      importedAt: new Date(),
-    },
-  };
-}
 
 function enhanceReportRecord(report, parsed = {}) {
   const tables = Array.isArray(parsed.tables) ? parsed.tables : [];
@@ -79,7 +49,7 @@ function enhanceReportRecord(report, parsed = {}) {
 
   report.extraction = {
     ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
+    parserVersion: STAGE_VERSION,
     warnings: [...warnings],
   };
 
@@ -378,8 +348,7 @@ function clean(value) {
 }
 
 module.exports = {
-  PARSER_VERSION,
-  parseDocxReport,
+  STAGE_VERSION,
   enhanceReportRecord,
   classifyFindingV4,
   extractAffectedSystemsV4,

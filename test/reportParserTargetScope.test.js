@@ -2,11 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
-  PARSER_VERSION,
+  STAGE_VERSION,
   enhanceReportRecordV9,
   extractTableReference,
   classifyScope,
-} = require("../src/services/reportDocxParserV9");
+} = require("../src/services/reportParser/targetScope");
 
 function baseReport(overrides = {}) {
   return {
@@ -76,7 +76,7 @@ test("v9 keeps a scoped multi-target report at report level and assets in affect
   assert.equal(report.extraction.warnings.includes("target_assets_resolved_from_table"), true);
   assert.equal(report.extraction.warnings.includes("missing_target_ip"), false);
   assert.equal(report.extraction.warnings.includes("target_organization_differs_from_affected_system"), false);
-  assert.equal(report.extraction.parserVersion, PARSER_VERSION);
+  assert.equal(report.extraction.parserVersion, STAGE_VERSION);
 });
 
 test("v9 derives a single target when a referenced table contains one organization/IP pair", () => {

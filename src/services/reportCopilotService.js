@@ -1,7 +1,7 @@
 const HistoricalReport = require("../models/HistoricalReport");
 const { InputError } = require("../core/errors");
 const { ReportAnalyticsService, buildReportFilter } = require("./reportAnalyticsService");
-const { toAsciiDigits } = require("./reportDocxParser");
+const { toAsciiDigits } = require("./reportParser/docxBase");
 
 class ReportCopilotService {
   constructor({ model = HistoricalReport, analytics = new ReportAnalyticsService({ model }) } = {}) {

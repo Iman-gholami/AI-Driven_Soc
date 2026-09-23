@@ -1,11 +1,5 @@
-const v4 = require("./reportDocxParserV4");
+const STAGE_VERSION = "docx-v6";
 
-const PARSER_VERSION = "docx-v6";
-
-async function parseDocxReport(filePath, { yearHint } = {}) {
-  const report = await v4.parseDocxReport(filePath, { yearHint });
-  return enhanceReportRecordV6(report);
-}
 
 function enhanceReportRecordV6(report) {
   if (!report || typeof report !== "object") return report;
@@ -27,7 +21,7 @@ function enhanceReportRecordV6(report) {
 
   report.extraction = {
     ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
+    parserVersion: STAGE_VERSION,
     warnings: [...warnings],
   };
 
@@ -320,8 +314,7 @@ function normalize(value) {
 }
 
 module.exports = {
-  PARSER_VERSION,
-  parseDocxReport,
+  STAGE_VERSION,
   enhanceReportRecordV6,
   classifyFindingV6,
   vulnerabilityFromFindingV6,

@@ -2,11 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
-  PARSER_VERSION,
+  STAGE_VERSION,
   enhanceReportRecordV7,
   classifyFindingV7,
   normalizeReportTypeV7,
-} = require("../src/services/reportDocxParserV7");
+} = require("../src/services/reportParser/reportDateAndType");
 
 test("classifies Swagger API exposure from the report title", () => {
   const finding = classifyFindingV7("پیکربندی نامناسب – آسیب‌پذیری API Swagger");
@@ -101,5 +101,5 @@ test("does not override a genuine previous-year report number", () => {
 });
 
 test("exports the v7 parser version", () => {
-  assert.equal(PARSER_VERSION, "docx-v7");
+  assert.equal(STAGE_VERSION, "docx-v7");
 });

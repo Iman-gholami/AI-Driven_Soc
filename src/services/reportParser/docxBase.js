@@ -1,40 +1,10 @@
-const crypto = require("node:crypto");
-const fs = require("node:fs/promises");
-const path = require("node:path");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
-const { normalizeIpv4 } = require("./ipExtractor");
+const { normalizeIpv4 } = require("../ipExtractor");
 
 const execFileAsync = promisify(execFile);
-const PARSER_VERSION = "docx-v3";
+const STAGE_VERSION = "docx-v3";
 
-async function parseDocxReport(filePath, { yearHint } = {}) {
-  const absolutePath = path.resolve(filePath);
-  if (path.extname(absolutePath).toLowerCase() !== ".docx") {
-    throw new Error("Only .docx files are supported");
-  }
-
-  const [stat, buffer, xml] = await Promise.all([
-    fs.stat(absolutePath),
-    fs.readFile(absolutePath),
-    extractDocumentXml(absolutePath),
-  ]);
-
-  const parsed = parseWordXml(xml);
-  const report = extractReportRecord(parsed, { yearHint });
-  const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
-
-  return {
-    ...report,
-    source: {
-      filename: path.basename(absolutePath),
-      relativePath: path.basename(absolutePath),
-      sha256,
-      sizeBytes: stat.size,
-      importedAt: new Date(),
-    },
-  };
-}
 
 async function extractDocumentXml(filePath) {
   try {
@@ -204,7 +174,7 @@ function extractReportRecord(parsed, { yearHint } = {}) {
     affectedSystems,
     fullText: flatText.slice(0, 120000),
     extraction: {
-      parserVersion: PARSER_VERSION,
+      parserVersion: STAGE_VERSION,
       paragraphCount: paragraphs.length,
       tableCount: tables.length,
       warnings,
@@ -616,8 +586,7 @@ function escapeRegExp(value) {
 }
 
 module.exports = {
-  PARSER_VERSION,
-  parseDocxReport,
+  STAGE_VERSION,
   extractDocumentXml,
   parseWordXml,
   extractReportRecord,

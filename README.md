@@ -43,6 +43,8 @@ npm run panel:build
 npm start
 ```
 
+Historical DOCX report import also needs the system `unzip` command (see `docs/report-intelligence.md`).
+
 Open:
 
 ```text

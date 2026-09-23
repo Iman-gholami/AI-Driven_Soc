@@ -1,30 +1,9 @@
-const base = require("./reportDocxParser");
-const v4 = require("./reportDocxParserV4");
-const v9 = require("./reportDocxParserV9");
-const v10 = require("./reportDocxParserV10");
+const base = require("./docxBase");
+const tableEnrichment = require("./tableEnrichment");
+const targetScope = require("./targetScope");
 
-const PARSER_VERSION = "docx-v11";
+const STAGE_VERSION = "docx-v11";
 
-async function parseDocxReport(filePath, { yearHint } = {}) {
-  let report = await v10.parseDocxReport(filePath, { yearHint });
-
-  report = enhanceFindingV11(report);
-
-  if (needsStructuredAssetRecoveryV11(report)) {
-    const xml = await base.extractDocumentXml(filePath);
-    const parsed = base.parseWordXml(xml);
-    report = recoverUnresolvedTargetV11(report, parsed.tables);
-  }
-
-  report = normalizeTargetModeWarningsV11(report);
-
-  report.extraction = {
-    ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
-  };
-
-  return report;
-}
 
 function enhanceFindingV11(report) {
   if (!report || typeof report !== "object") return report;
@@ -49,7 +28,7 @@ function enhanceFindingV11(report) {
 
   report.extraction = {
     ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
+    parserVersion: STAGE_VERSION,
     warnings: [...warnings],
   };
 
@@ -189,7 +168,7 @@ function recoverUnresolvedTargetV11(report, tables) {
     ),
   ];
 
-  report = v9.enhanceReportRecordV9(report);
+  report = targetScope.enhanceReportRecordV9(report);
 
   const warnings = new Set(report.extraction?.warnings || []);
 
@@ -210,7 +189,7 @@ function recoverUnresolvedTargetV11(report, tables) {
 
   report.extraction = {
     ...(report.extraction || {}),
-    parserVersion: PARSER_VERSION,
+    parserVersion: STAGE_VERSION,
     warnings: [...warnings],
   };
 
@@ -232,7 +211,7 @@ function extractStructuredAssetSystemsV11(tables) {
       if (!Array.isArray(row) || !row.some(Boolean)) continue;
 
       const repeatedHeaders = row
-        .map(v4.normalizeHeaderV4)
+        .map(tableEnrichment.normalizeHeaderV4)
         .filter(Boolean);
 
       if (repeatedHeaders.length >= 2) continue;
@@ -284,7 +263,7 @@ function findStructuredAssetHeaderV11(table) {
     const row = table[index];
     if (!Array.isArray(row)) continue;
 
-    const keys = row.map(v4.normalizeHeaderV4);
+    const keys = row.map(tableEnrichment.normalizeHeaderV4);
 
     let organizationIndex = keys.findIndex(
       (key) => key === "organization",
@@ -526,8 +505,7 @@ function normalize(value) {
 }
 
 module.exports = {
-  PARSER_VERSION,
-  parseDocxReport,
+  STAGE_VERSION,
   enhanceFindingV11,
   classifyFindingV11,
   vulnerabilityFromFindingV11,

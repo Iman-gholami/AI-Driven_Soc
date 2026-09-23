@@ -32,6 +32,15 @@ const settings = {
   maxRawLogChars: Number(env.MAX_RAW_LOG_CHARS || 4000),
   maxPayloadSizeBytes: Number(env.MAX_PAYLOAD_SIZE_BYTES || 200000),
   enableRateLimiting: toBool(env.ENABLE_RATE_LIMITING, true),
+  authEnabled: toBool(env.AUTH_ENABLED, true),
+  authUsername: env.AUTH_USERNAME || "",
+  authPassword: env.AUTH_PASSWORD || "",
+  authOtp: env.AUTH_OTP || "",
+  authDisplayName: env.AUTH_DISPLAY_NAME || "SOC Administrator",
+  authRole: env.AUTH_ROLE || "admin",
+  authTokenSecret: env.AUTH_TOKEN_SECRET || "",
+  authTokenTtlSeconds: Number(env.AUTH_TOKEN_TTL_SECONDS || 8 * 60 * 60),
+  authRememberTokenTtlSeconds: Number(env.AUTH_REMEMBER_TOKEN_TTL_SECONDS || 7 * 24 * 60 * 60),
   port: Number(env.PORT || 8000),
 };
 

@@ -9,7 +9,6 @@ import {
   Drawer,
   Empty,
   Input,
-  List,
   Row,
   Segmented,
   Select,
@@ -23,70 +22,68 @@ import {
   message as antMessage,
 } from 'antd';
 import {
-  ApartmentOutlined,
   BarChartOutlined,
   CheckCircleOutlined,
   CloudDownloadOutlined,
-  DatabaseOutlined,
   FileSearchOutlined,
-  FireOutlined,
   FolderOpenOutlined,
   ImportOutlined,
-  LineChartOutlined,
   LinkOutlined,
   MessageOutlined,
   ReloadOutlined,
-  SafetyCertificateOutlined,
   SaveOutlined,
   SearchOutlined,
-  ThunderboltOutlined,
-  WarningOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  BarElement,
-  CategoryScale,
-  Chart as ChartJS,
-  Legend,
-  LinearScale,
-  Tooltip as ChartTooltip,
-} from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+import { } from 'react-chartjs-2';
 import { api, getErrorMessage } from '../../api/client';
 import type {
   HistoricalReport,
-  ReportCopilotResult,
-  ReportEntitySummary,
-  ReportFacetItem,
   ReportFilterParams,
   ReportImportResult,
-  ReportStats,
 } from '../../types/reports';
 import ReportUploadReview from './ReportUploadReview';
-import './ReportsV2.css';
 
-ChartJS.register(BarElement, CategoryScale, LinearScale, Legend, ChartTooltip);
+
+import {
+  JALALI_MONTHS,
+  TARGET_LABEL,
+  REPORT_TYPE_LABEL,
+  SEVERITY_COLOR,
+  FILTER_LABELS,
+  SAVED_VIEW_KEY,
+  type ReportYear,
+  type ReportFilterState,
+  type EntitySelection,
+  type SavedView,
+  type Density,
+  type ChatMessage,
+  readReportUrlState,
+  buildReportUrl,
+  syncReportUrl,
+  previousPeriodParams,
+  buildComparison,
+  formatScopeLabel,
+  csvValues,
+  normalizeFa,
+  entityTitle,
+  humanFilterValue,
+  loadSavedViews,
+  toCsv,
+} from './reportsModel';
+import {
+  FacetGroup,
+  TargetCell,
+  QualityBadge,
+  EntityDrawer,
+  ReportDetail,
+} from './ReportWidgets';
+import ReportIntelligenceOverview from './ReportIntelligenceOverview';
+import './Reports.css';
 
 const { Paragraph, Text, Title } = Typography;
-const JALALI_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
-const TARGET_LABEL: Record<string, string> = { single: 'تک‌هدف', multi_target: 'چندهدف', scope: 'حوزه‌ای', unknown: 'نامشخص' };
-const TARGET_COLOR: Record<string, string> = { single: 'blue', multi_target: 'orange', scope: 'purple', unknown: 'default' };
-const REPORT_TYPE_LABEL: Record<string, string> = { misconfiguration: 'Misconfiguration', vulnerability: 'Vulnerability', incident: 'Incident', malware: 'Malware', unknown: 'Unknown' };
-const SEVERITY_COLOR: Record<string, string> = { critical: 'red', high: 'volcano', medium: 'gold', low: 'blue', info: 'cyan', unknown: 'default', none: 'default' };
-const FILTER_LABELS: Record<string, string> = {
-  month: 'ماه', day: 'روز', reportType: 'نوع گزارش', targetMode: 'نوع هدف', scopeName: 'حوزه', severity: 'شدت', urgency: 'فوریت', finding: 'Finding', organization: 'سازمان', ip: 'IP', port: 'Port', service: 'Service', domain: 'Domain', cve: 'CVE', provider: 'Provider', search: 'جستجو',
-};
-const SAVED_VIEW_KEY = 'report-intelligence-saved-views-v2';
 
-type ReportYear = number | 'all';
-type ReportFilterState = Omit<ReportFilterParams, 'year'>;
-type EntitySelection = { type: 'organization' | 'scope' | 'ip' | 'finding'; value: string };
-type SavedView = { id: string; name: string; year: ReportYear; filters: ReportFilterState };
-type Density = 'compact' | 'comfortable';
-type ChatMessage = { role: 'user' | 'assistant'; content: string; result?: ReportCopilotResult };
-type ChangeItem = { label: string; value: string; direction: 'up' | 'down' | 'flat'; detail: string };
-
-const ReportsV2: React.FC = () => {
+const Reports: React.FC = () => {
   const queryClient = useQueryClient();
   const initialUrlState = useMemo(() => readReportUrlState(), []);
   const [year, setYear] = useState<ReportYear>(initialUrlState.year);
@@ -484,111 +481,14 @@ const ReportsV2: React.FC = () => {
       {filterRail}
       <main className="report-v2-main">
         {statsQuery.isLoading ? <Card loading /> : stats ? (
-          <>
-            <section className="report-v2-command-strip">
-              <CommandMetric label="Reports" value={stats.summary.total} sub={scopeLabel} icon={<DatabaseOutlined />} />
-              <CommandMetric label="Organizations" value={stats.summary.uniqueOrganizations} sub="observed entities" icon={<ApartmentOutlined />} />
-              <CommandMetric label="High / Critical" value={stats.summary.highCritical} sub={`${stats.summary.highCriticalPercent}% of scope`} icon={<FireOutlined />} tone="danger" />
-              <CommandMetric label="Immediate" value={stats.summary.immediate} sub={`${stats.summary.immediatePercent}% of scope`} icon={<ThunderboltOutlined />} tone="warning" />
-              <CommandMetric label="Target IPs" value={stats.summary.uniqueIps} sub={`${stats.summary.qualityWarnings} review flags`} icon={<SafetyCertificateOutlined />} tone="cyan" />
-            </section>
-
-            <section className="report-v2-insight-banner">
-              <div className="report-v2-insight-title"><LineChartOutlined /><div><span>WHAT CHANGED?</span><strong>{comparison.label}</strong></div></div>
-              <div className="report-v2-change-grid">
-                {comparison.items.map((item) => <ChangeChip key={item.label} {...item} />)}
-              </div>
-            </section>
-
-            <Row gutter={[14, 14]}>
-              <Col xs={24} xl={14}>
-                <Card className="report-v2-card report-v2-chart-card" title="Trend intelligence" extra={<Text type="secondary">{scopeLabel}</Text>}>
-                  <Bar
-                    data={{
-                      labels: stats.byMonth.filter((item) => item.month).map((item) => JALALI_MONTHS[Number(item.month) - 1]),
-                      datasets: [{ label: 'Reports', data: stats.byMonth.filter((item) => item.month).map((item) => item.count), backgroundColor: '#3b82f6', borderRadius: 7, maxBarThickness: 42 }],
-                    }}
-                    options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } } }}
-                  />
-                </Card>
-              </Col>
-              <Col xs={24} xl={10}>
-                <Card className="report-v2-card" title="Target intelligence" extra={<Text type="secondary">report → target model</Text>}>
-                  <div className="report-v2-target-stack">
-                    {stats.byTargetMode.map((item) => (
-                      <button type="button" key={item.mode} onClick={() => { setFilter('targetMode', item.mode); setActiveTab('reports'); }}>
-                        <span><Tag color={TARGET_COLOR[item.mode] || 'default'}>{TARGET_LABEL[item.mode] || item.mode}</Tag><small>{targetModeDescription(item.mode)}</small></span>
-                        <strong>{item.count}</strong>
-                        <i style={{ width: `${stats.summary.total ? (item.count / stats.summary.total) * 100 : 0}%` }} />
-                      </button>
-                    ))}
-                  </div>
-                </Card>
-              </Col>
-            </Row>
-
-            <Row gutter={[14, 14]}>
-              <Col xs={24} xxl={15}>
-                <Card className="report-v2-card" title="Finding × Month heatmap" extra={<Text type="secondary">تکرار الگوها در طول سال</Text>}>
-                  <FindingHeatmap stats={stats} onFinding={(finding) => { setFilter('finding', finding); setActiveTab('reports'); }} />
-                </Card>
-              </Col>
-              <Col xs={24} xxl={9}>
-                <Card className="report-v2-card" title="Top scopes" extra={<Tag color="purple">حوزه‌ای</Tag>}>
-                  <RankList
-                    items={stats.topScopes.slice(0, 8).map((item) => ({ label: item.scope, value: item.count }))}
-                    onClick={(value) => setEntity({ type: 'scope', value })}
-                  />
-                </Card>
-              </Col>
-            </Row>
-
-            <Row gutter={[14, 14]}>
-              <Col xs={24} xl={12}>
-                <Card className="report-v2-card" title="Persistent / repeated exposure" extra={<Text type="secondary">organization + finding</Text>}>
-                  {!stats.repeatedPatterns.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No repeated patterns" /> : (
-                    <div className="report-v2-repeat-list">
-                      {stats.repeatedPatterns.slice(0, 8).map((item) => (
-                        <button type="button" key={`${item.organization}-${item.finding}`} onClick={() => setEntity({ type: 'organization', value: item.organization })}>
-                          <span><strong>{item.organization}</strong><small>{item.finding}</small></span><b>{item.count}<small> reports</small></b>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-              </Col>
-              <Col xs={24} xl={12}>
-                <Card className="report-v2-card" title="Organizations with most history" extra={<Text type="secondary">click to investigate</Text>}>
-                  <RankList
-                    items={stats.topOrganizations.slice(0, 8).map((item) => ({ label: item.organization, value: item.count }))}
-                    onClick={(value) => setEntity({ type: 'organization', value })}
-                  />
-                </Card>
-              </Col>
-            </Row>
-
-            <Row gutter={[14, 14]}>
-              <Col xs={24} xl={14}>
-                <Card className="report-v2-card" title="Largest multi-asset reports">
-                  <div className="report-v2-large-targets">
-                    {stats.largestTargets.slice(0, 8).map((item) => (
-                      <div key={`${item.reportNumber}-${item.title}`}>
-                        <span><Tag color={TARGET_COLOR[item.mode] || 'default'}>{TARGET_LABEL[item.mode] || item.mode}</Tag><strong>{item.scopeName || item.organization || item.reportNumber || item.title}</strong></span>
-                        <b>{item.assetCount}<small> assets</small></b>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </Col>
-              <Col xs={24} xl={10}>
-                <Card className="report-v2-card" title="Observed IP intelligence">
-                  <div className="report-v2-ip-cloud">
-                    {stats.topIps.slice(0, 12).map((item) => <button key={item.ip} type="button" onClick={() => setEntity({ type: 'ip', value: item.ip })}><Text code>{item.ip}</Text><span>{item.count}</span></button>)}
-                  </div>
-                </Card>
-              </Col>
-            </Row>
-          </>
+          <ReportIntelligenceOverview
+            stats={stats}
+            scopeLabel={scopeLabel}
+            comparison={comparison}
+            onTargetMode={(mode) => { setFilter('targetMode', mode); setActiveTab('reports'); }}
+            onFinding={(finding) => { setFilter('finding', finding); setActiveTab('reports'); }}
+            onEntity={setEntity}
+          />
         ) : <Empty description="No report intelligence available" />}
       </main>
     </div>
@@ -807,243 +707,4 @@ const ReportsV2: React.FC = () => {
   );
 };
 
-const FacetGroup: React.FC<{ title: string; items?: ReportFacetItem[]; selected: string[]; onToggle: (value: string) => void; labels?: Record<string, string>; useLabel?: boolean }> = ({ title, items = [], selected, onToggle, labels = {}, useLabel = false }) => (
-  <div className="report-v2-filter-group">
-    <div className="report-v2-filter-title"><span>{title}</span><small>{items.length}</small></div>
-    <div className="report-v2-facet-list">
-      {items.map((item) => {
-        const value = String(item.value);
-        const active = selected.includes(value);
-        return <button key={value} type="button" className={active ? 'is-active' : ''} onClick={() => onToggle(value)}><span><i />{useLabel ? (item.label || value) : (labels[value] || value)}</span><b>{item.count}</b></button>;
-      })}
-    </div>
-  </div>
-);
-
-const CommandMetric: React.FC<{ label: string; value: React.ReactNode; sub: string; icon: React.ReactNode; tone?: string }> = ({ label, value, sub, icon, tone = 'primary' }) => (
-  <div className={`report-v2-command-metric tone-${tone}`}><span className="report-v2-command-icon">{icon}</span><div><small>{label}</small><strong>{value}</strong><span>{sub}</span></div></div>
-);
-
-const ChangeChip: React.FC<ChangeItem> = ({ label, value, direction, detail }) => (
-  <div className={`report-v2-change-chip is-${direction}`}><small>{label}</small><strong>{value}</strong><span>{detail}</span></div>
-);
-
-const RankList: React.FC<{ items: Array<{ label: string; value: number }>; onClick?: (label: string) => void }> = ({ items, onClick }) => {
-  const max = Math.max(1, ...items.map((item) => item.value));
-  if (!items.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-  return <div className="report-v2-rank-list">{items.map((item, index) => <button type="button" key={item.label} onClick={() => onClick?.(item.label)}><span className="report-v2-rank-index">{String(index + 1).padStart(2, '0')}</span><span className="report-v2-rank-name"><strong>{item.label}</strong><i><b style={{ width: `${(item.value / max) * 100}%` }} /></i></span><span className="report-v2-rank-count">{item.value}</span></button>)}</div>;
-};
-
-const FindingHeatmap: React.FC<{ stats: ReportStats; onFinding: (finding: string) => void }> = ({ stats, onFinding }) => {
-  const findings = stats.byFinding.slice(0, 6);
-  const map = new Map(stats.findingMonthHeatmap.map((item) => [`${item.finding}:${item.month}`, item.count]));
-  const max = Math.max(1, ...stats.findingMonthHeatmap.map((item) => item.count));
-  if (!findings.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-  return (
-    <div className="report-v2-heatmap">
-      <div className="report-v2-heatmap-head"><span>Finding</span>{JALALI_MONTHS.map((month) => <b key={month}>{month.slice(0, 3)}</b>)}</div>
-      {findings.map((finding) => <div className="report-v2-heatmap-row" key={finding.key}><button type="button" onClick={() => onFinding(finding.key)}>{finding.name || finding.key}</button>{JALALI_MONTHS.map((_, index) => { const count = map.get(`${finding.key}:${index + 1}`) || 0; const level = count ? Math.max(0.16, count / max) : 0; return <Tooltip key={index} title={`${count} report(s)`}><span className={count ? 'has-value' : ''} style={{ '--heat': level } as React.CSSProperties}>{count || ''}</span></Tooltip>; })}</div>)}
-    </div>
-  );
-};
-
-const TargetCell: React.FC<{ report: HistoricalReport; onEntity: (value: EntitySelection) => void }> = ({ report, onEntity }) => {
-  const mode = report.target?.mode || 'unknown';
-  const label = mode === 'scope' ? report.target.scopeName : report.target.organization;
-  return <div className="report-v2-target-cell"><Tag color={TARGET_COLOR[mode] || 'default'}>{TARGET_LABEL[mode] || mode}</Tag>{label ? <button type="button" onClick={(event) => { event.stopPropagation(); onEntity({ type: mode === 'scope' ? 'scope' : 'organization', value: label }); }}>{label}</button> : <Text type="secondary">—</Text>}</div>;
-};
-
-const QualityBadge: React.FC<{ report: HistoricalReport }> = ({ report }) => {
-  const warnings = report.extraction?.warnings || [];
-  const recovered = warnings.some((item) => /recovered|resolved_from_table/.test(item));
-  if (!warnings.length) return <Tag color="green">Clean</Tag>;
-  if (recovered && !report.extraction.organizationMismatch && !report.extraction.ipMismatch) return <Tag color="cyan">Recovered</Tag>;
-  return <Tag color="gold">Review</Tag>;
-};
-
-const EntityDrawer: React.FC<{ entity: EntitySelection | null; data?: ReportEntitySummary; loading: boolean; onReport: (report: HistoricalReport) => void; onEntity: (value: EntitySelection) => void }> = ({ entity, data, loading, onReport, onEntity }) => {
-  if (loading) return <Card loading />;
-  if (!entity || !data) return <Empty description="No entity data" />;
-  const stats = data.stats;
-  return <div className="report-v2-entity-drawer">
-    <div className="report-v2-entity-hero"><span>{entityTitle(entity.type).toUpperCase()}</span><Title level={3}>{entity.value}</Title><Text type="secondary">Historical evidence across the selected time scope</Text></div>
-    <div className="report-v2-entity-metrics"><Statistic title="Reports" value={data.totalReports} /><Statistic title="Organizations" value={stats.summary.uniqueOrganizations} /><Statistic title="IPs" value={stats.summary.uniqueIps} /><Statistic title="High / Critical" value={stats.summary.highCritical} /></div>
-    <Divider />
-    <Title level={5}>Top findings</Title>
-    <div className="report-v2-entity-tags">{stats.byFinding.slice(0, 8).map((item) => <button type="button" key={item.key} onClick={() => onEntity({ type: 'finding', value: item.key })}><span>{item.name || item.key}</span><b>{item.count}</b></button>)}</div>
-    <Title level={5}>Target modes</Title>
-    <Space wrap>{stats.byTargetMode.map((item) => <Tag key={item.mode} color={TARGET_COLOR[item.mode] || 'default'}>{TARGET_LABEL[item.mode] || item.mode}: {item.count}</Tag>)}</Space>
-    <Divider />
-    <Title level={5}>Report timeline</Title>
-    <List dataSource={data.recentReports} renderItem={(report) => <List.Item className="report-v2-entity-report" onClick={() => onReport(report)}><List.Item.Meta title={<Space><Text code>{report.reportDateRaw || '—'}</Text><span>{report.title}</span></Space>} description={`${report.finding?.name || report.finding?.type || 'unknown'} · ${report.severity.level}`} /></List.Item>} />
-  </div>;
-};
-
-const ReportDetail: React.FC<{ report: HistoricalReport; onEntity: (value: EntitySelection) => void }> = ({ report, onEntity }) => {
-  const mode = report.target?.mode || 'unknown';
-  const organizations = [...new Set((report.affectedSystems || []).map((item) => String(item.organization || '').trim()).filter(Boolean))];
-  return <div className="report-v2-detail">
-    <div className="report-v2-detail-hero"><div><Tag color={TARGET_COLOR[mode] || 'default'}>{TARGET_LABEL[mode] || mode}</Tag><span>{report.reportType}</span></div><Title level={4}>{report.title}</Title><div className="report-v2-detail-metrics"><span><b>{report.affectedSystems?.length || 0}</b> assets</span><span><b>{organizations.length}</b> organizations</span><span><b>{report.cves?.length || 0}</b> CVEs</span></div></div>
-    <Descriptions bordered column={1} size="small">
-      <Descriptions.Item label="Date">{report.reportDateRaw || '—'}</Descriptions.Item>
-      <Descriptions.Item label="Report number"><Text code>{report.reportNumber || '—'}</Text></Descriptions.Item>
-      {mode === 'scope' ? <Descriptions.Item label="Scope"><button className="report-v2-link-button" type="button" onClick={() => report.target.scopeName && onEntity({ type: 'scope', value: report.target.scopeName })}>{report.target.scopeName || report.target.rawOrganization || '—'}</button></Descriptions.Item> : <Descriptions.Item label="Organization"><button className="report-v2-link-button" type="button" onClick={() => report.target.organization && onEntity({ type: 'organization', value: report.target.organization })}>{report.target.organization || '—'}</button></Descriptions.Item>}
-      <Descriptions.Item label="IP">{report.target.ip ? <button className="report-v2-link-button" type="button" onClick={() => onEntity({ type: 'ip', value: report.target.ip! })}><Text code>{report.target.ip}</Text></button> : <Text code>{report.target.rawIp || '—'}</Text>}</Descriptions.Item>
-      <Descriptions.Item label="Finding"><button className="report-v2-link-button" type="button" onClick={() => onEntity({ type: 'finding', value: report.finding?.type || 'unknown' })}>{report.finding?.name || report.finding?.type || 'unknown'}</button></Descriptions.Item>
-      <Descriptions.Item label="Severity"><Tag color={SEVERITY_COLOR[report.severity.level] || 'default'}>{report.severity.level} {report.severity.score ?? ''}</Tag></Descriptions.Item>
-      <Descriptions.Item label="Urgency">{report.urgency.raw || report.urgency.normalized}</Descriptions.Item>
-      <Descriptions.Item label="Source"><Text code>{report.source.relativePath}</Text></Descriptions.Item>
-    </Descriptions>
-    {report.extraction.warnings?.length ? <Alert className="report-v2-detail-alert" type="warning" showIcon icon={<WarningOutlined />} message="Extraction review metadata" description={report.extraction.warnings.join(' · ')} /> : null}
-    <Title level={5}>Description</Title><Paragraph className="report-v2-preserve">{report.description || 'No description extracted.'}</Paragraph>
-    {report.conclusion ? <><Title level={5}>Conclusion</Title><Paragraph className="report-v2-preserve">{report.conclusion}</Paragraph></> : null}
-    <Title level={5}>Affected systems</Title>
-    <Table size="small" pagination={{ pageSize: 20 }} rowKey={(_, index) => String(index)} dataSource={report.affectedSystems || []} scroll={{ x: 1000 }} columns={[
-      { title: 'Organization', dataIndex: 'organization', width: 220, ellipsis: true }, { title: 'IP', dataIndex: 'ip', width: 135 }, { title: 'Domain', dataIndex: 'domain', width: 180 }, { title: 'Port', dataIndex: 'port', width: 80 }, { title: 'Service', dataIndex: 'service', width: 150 }, { title: 'URL / Path', dataIndex: 'url', width: 260, ellipsis: true }, { title: 'Version', dataIndex: 'softwareVersion', width: 110 }, { title: 'Finding', dataIndex: 'reportedFinding', width: 220, ellipsis: true },
-    ]} />
-    <Title level={5}>Recommendations</Title><List size="small" dataSource={report.recommendations || []} locale={{ emptyText: 'No recommendations extracted.' }} renderItem={(item) => <List.Item>{item}</List.Item>} />
-  </div>;
-};
-
-
-const URL_FILTER_KEYS: Array<keyof ReportFilterState> = [
-  'month',
-  'day',
-  'reportType',
-  'targetMode',
-  'scopeType',
-  'scopeName',
-  'severity',
-  'urgency',
-  'finding',
-  'organization',
-  'ip',
-  'port',
-  'service',
-  'domain',
-  'cve',
-  'provider',
-  'search',
-];
-
-function readReportUrlState(): { year: ReportYear; filters: ReportFilterState } {
-  if (typeof window === 'undefined') return { year: 1404, filters: {} };
-
-  const search = new URLSearchParams(window.location.search);
-  const rawYear = search.get('year');
-  const parsedYear = Number(rawYear);
-  const year: ReportYear =
-    rawYear === 'all'
-      ? 'all'
-      : Number.isInteger(parsedYear) && parsedYear > 0
-        ? parsedYear
-        : 1404;
-
-  const filters: ReportFilterState = {};
-
-  for (const key of URL_FILTER_KEYS) {
-    const raw = search.get(key);
-    if (raw === null || raw === '') continue;
-
-    if (key === 'month' || key === 'day' || key === 'port') {
-      const numeric = Number(raw);
-      if (Number.isFinite(numeric)) {
-        (filters as Record<string, unknown>)[key] = numeric;
-      }
-      continue;
-    }
-
-    (filters as Record<string, unknown>)[key] = raw;
-  }
-
-  return { year, filters };
-}
-
-function buildReportUrl(year: ReportYear, filters: ReportFilterState) {
-  const url = new URL(window.location.href);
-  const next = new URLSearchParams();
-
-  next.set('year', String(year));
-
-  for (const key of URL_FILTER_KEYS) {
-    const value = filters[key];
-    if (value === undefined || value === null || value === '') continue;
-    next.set(key, String(value));
-  }
-
-  url.search = next.toString();
-  return url.toString();
-}
-
-function syncReportUrl(year: ReportYear, filters: ReportFilterState) {
-  if (typeof window === 'undefined') return;
-
-  const next = buildReportUrl(year, filters);
-  if (next !== window.location.href) {
-    window.history.replaceState(null, '', next);
-  }
-}
-
-function previousPeriodParams(params: ReportFilterParams): ReportFilterParams {
-  const currentYear = Number(params.year || 1404);
-  const next: ReportFilterParams = { ...params, year: currentYear, day: undefined };
-  if (params.month) {
-    if (params.month > 1) next.month = params.month - 1;
-    else { next.year = currentYear - 1; next.month = 12; }
-  } else {
-    next.year = currentYear - 1;
-  }
-  return next;
-}
-
-function buildComparison(current?: ReportStats, previous?: ReportStats, params?: ReportFilterParams, previousParams?: ReportFilterParams) {
-  if (!previousParams) {
-    return { label: 'نمای مجموع همه سال‌ها', items: [] as ChangeItem[] };
-  }
-  const label = params?.month ? `مقایسه با ${JALALI_MONTHS[Number(previousParams?.month || 1) - 1]} ${previousParams?.year}` : `مقایسه با سال ${previousParams?.year}`;
-  if (!current || !previous) return { label, items: [] as ChangeItem[] };
-  const metrics: Array<[string, number, number]> = [
-    ['Reports', current.summary.total, previous.summary.total],
-    ['Organizations', current.summary.uniqueOrganizations, previous.summary.uniqueOrganizations],
-    ['High / Critical', current.summary.highCritical, previous.summary.highCritical],
-    ['Scope-wide', current.byTargetMode.find((item) => item.mode === 'scope')?.count || 0, previous.byTargetMode.find((item) => item.mode === 'scope')?.count || 0],
-  ];
-  const items: ChangeItem[] = metrics.map(([name, now, before]) => {
-    const delta = now - before;
-    const pct = before ? Math.round((delta / before) * 100) : (now ? 100 : 0);
-    return { label: name, value: `${delta > 0 ? '+' : ''}${delta}`, direction: delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat', detail: `${pct > 0 ? '+' : ''}${pct}%` };
-  });
-  const currentTop = current.byFinding[0];
-  const previousTop = previous.byFinding[0];
-  if (currentTop) items.push({ label: 'Top finding', value: currentTop.name || currentTop.key, direction: currentTop.key === previousTop?.key ? 'flat' : 'up', detail: currentTop.key === previousTop?.key ? 'unchanged' : 'changed' });
-  return { label, items };
-}
-
-function targetModeDescription(mode: string) {
-  if (mode === 'scope') return 'حوزه/گروه هدف';
-  if (mode === 'multi_target') return 'چند سازمان یا دارایی';
-  if (mode === 'single') return 'یک هدف مشخص';
-  return 'نیازمند بررسی';
-}
-
-function formatScopeLabel(year: ReportYear, filters: ReportFilterState) {
-  if (year === 'all') return 'همه سال‌ها';
-  if (filters.month && filters.day) return `${filters.day} ${JALALI_MONTHS[filters.month - 1]} ${year}`;
-  if (filters.month) return `${JALALI_MONTHS[filters.month - 1]} ${year}`;
-  return `سال ${year}`;
-}
-
-function csvValues(value: string) { return value.split(',').map((item) => item.trim()).filter(Boolean); }
-function normalizeFa(value: string) { return String(value || '').replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\u200c/g, ' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase('fa'); }
-function entityTitle(type: EntitySelection['type']) { return type === 'organization' ? 'Organization' : type === 'scope' ? 'Scope' : type === 'ip' ? 'IP' : 'Finding'; }
-function humanFilterValue(key: string, value: unknown) { if (key === 'month') return JALALI_MONTHS[Number(value) - 1] || String(value); if (key === 'targetMode') return csvValues(String(value)).map((item) => TARGET_LABEL[item] || item).join('، '); if (key === 'reportType') return csvValues(String(value)).map((item) => REPORT_TYPE_LABEL[item] || item).join('، '); return String(value); }
-function loadSavedViews(): SavedView[] { try { const raw = localStorage.getItem(SAVED_VIEW_KEY); const parsed = raw ? JSON.parse(raw) : []; return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
-
-function toCsv(reports: HistoricalReport[]) {
-  const headers = ['date', 'reportNumber', 'reportType', 'targetMode', 'scope', 'organization', 'ip', 'assets', 'finding', 'severity', 'score', 'urgency', 'quality'];
-  const lines = reports.map((report) => [report.reportDateRaw, report.reportNumber, report.reportType, report.target?.mode, report.target?.scopeName, report.target?.organization, report.target?.ip, report.affectedSystems?.length || 0, report.finding?.name || report.finding?.type, report.severity?.level, report.severity?.score, report.urgency?.normalized, report.extraction?.warnings?.length ? 'review' : 'clean'].map(csvEscape).join(','));
-  return [headers.join(','), ...lines].join('\n');
-}
-function csvEscape(value: unknown) { const text = String(value ?? ''); return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; }
-
-export default ReportsV2;
+export default Reports;

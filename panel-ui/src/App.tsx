@@ -11,7 +11,7 @@ import Login from './pages/Login/Login';
 // Workspace pages are split into their own chunks so the login screen does not ship charts and tables.
 const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
 const Alerts = lazy(() => import('./pages/Alerts/Alerts'));
-const Reports = lazy(() => import('./pages/Reports/ReportsV2'));
+const Reports = lazy(() => import('./pages/Reports/Reports'));
 const MitreCoverage = lazy(() => import('./pages/MitreCoverage/MitreCoverage'));
 
 const queryClient = new QueryClient({

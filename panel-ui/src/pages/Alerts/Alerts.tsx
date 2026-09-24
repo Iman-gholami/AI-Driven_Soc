@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Table, Card, Typography, Button, Space, Tag, message, Modal, Tooltip, Badge, Collapse, Select, Input } from 'antd';
 import type { BadgeProps } from 'antd';
-import { PlusOutlined, RobotOutlined, FilterOutlined, DownloadOutlined, CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, InfoCircleOutlined, AlertOutlined, ClockCircleOutlined, FileTextOutlined } from '@ant-design/icons';
+import { PlusOutlined, RobotOutlined, FilterOutlined, DownloadOutlined, CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, InfoCircleOutlined, AlertOutlined, ClockCircleOutlined, FileTextOutlined, HistoryOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api, getErrorMessage } from '../../api/client';
@@ -74,6 +74,19 @@ const Alerts: React.FC = () => {
 
   const resetPage = () => setPage(1);
 
+  const handleAlertMemory = async (alert: Alert) => {
+    setAiSidebarOpen(true);
+    setSelectedAlert(alert);
+    try {
+      setSidebarLoading(true);
+      setSelectedAlert(await api.getAlertById(alert.alertId));
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Alert could not be loaded'));
+    } finally {
+      setSidebarLoading(false);
+    }
+  };
+
   const handleAIAnalysis = async (alert: Alert) => {
     setAiSidebarOpen(true);
     setSelectedAlert(alert);
@@ -114,6 +127,7 @@ const Alerts: React.FC = () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['alerts'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+      queryClient.invalidateQueries({ queryKey: ['alert-memory'] }),
     ]);
   };
 
@@ -212,6 +226,7 @@ const Alerts: React.FC = () => {
     { title: 'Severity', dataIndex: 'severity', key: 'severity', render: (severity: string) => <Badge status={getSeverityBadge(severity)} text={severity.toUpperCase()} /> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={getStatusColor(status)} className="px-3 py-1">{getStatusIcon(status)} {status.toUpperCase()}</Tag> },
     { title: 'AI Status', dataIndex: 'aiStatus', key: 'aiStatus', render: (status: string, record: Alert) => <Tooltip title={record.aiEligibility.eligible ? 'Eligible for AI analysis' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Tag color={getAiStatusColor(status)}>{getAiStatusIcon(status)} {status.replace('_', ' ').toUpperCase()}</Tag>{!record.aiEligibility.eligible && <InfoCircleOutlined className="text-gray-400 ml-1" />}</Tooltip> },
+    { title: 'History', key: 'history', render: (_: unknown, record: Alert) => <Tooltip title="Check previous related alerts and analyst outcomes without running AI"><Button icon={<HistoryOutlined />} onClick={() => handleAlertMemory(record)}>History</Button></Tooltip> },
     { title: 'AI Action', key: 'aiAction', render: (_: unknown, record: Alert) => <Tooltip title={record.aiStatus === 'analyzed' ? 'View persisted AI analysis' : record.aiEligibility.eligible ? 'Run deterministic rule resolution and AI triage' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Button type="primary" icon={<RobotOutlined />} onClick={() => handleAIAnalysis(record)} disabled={record.aiStatus !== 'analyzed' && !record.aiEligibility.eligible} size="middle">{record.aiStatus === 'analyzed' ? 'View AI Analysis' : 'AI Analyze'}</Button></Tooltip> },
   ];
 
@@ -240,7 +255,7 @@ const Alerts: React.FC = () => {
       </Space>
     </Card>
 
-    <Card className="alerts-table-card"><Table scroll={{ x: 1120 }} columns={columns} dataSource={alerts} loading={isLoading} rowKey="alertId" expandable={{ expandedRowRender, expandedRowKeys, onExpandedRowsChange: keys => setExpandedRowKeys(keys as string[]), expandIcon: ({ expanded, onExpand, record }) => <Button type="text" icon={expanded ? <CloseCircleOutlined /> : <FileTextOutlined />} onClick={e => onExpand(record, e)} /> }} pagination={{ current:pagination.page, pageSize:pagination.limit, total:pagination.total, showSizeChanger:true, showQuickJumper:true, showTotal:(total,range)=>`${range[0]}-${range[1]} of ${total} alerts`, pageSizeOptions:['10','20','50','100'], onChange:(nextPage,nextPageSize)=>{setPage(nextPageSize!==pageSize?1:nextPage);setPageSize(nextPageSize);} }} /></Card>
+    <Card className="alerts-table-card"><Table scroll={{ x: 1240 }} columns={columns} dataSource={alerts} loading={isLoading} rowKey="alertId" expandable={{ expandedRowRender, expandedRowKeys, onExpandedRowsChange: keys => setExpandedRowKeys(keys as string[]), expandIcon: ({ expanded, onExpand, record }) => <Button type="text" icon={expanded ? <CloseCircleOutlined /> : <FileTextOutlined />} onClick={e => onExpand(record, e)} /> }} pagination={{ current:pagination.page, pageSize:pagination.limit, total:pagination.total, showSizeChanger:true, showQuickJumper:true, showTotal:(total,range)=>`${range[0]}-${range[1]} of ${total} alerts`, pageSizeOptions:['10','20','50','100'], onChange:(nextPage,nextPageSize)=>{setPage(nextPageSize!==pageSize?1:nextPage);setPageSize(nextPageSize);} }} /></Card>
 
     <Modal title="Alert ingestion" open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={[<Button key="close" type="primary" onClick={() => setIsModalVisible(false)}>Close</Button>]} width={600}><Text>Alerts are ingested from Splunk through <Text code>/webhook-alert</Text>. This panel intentionally does not create or delete alerts.</Text></Modal>
     <AISidebar open={aiSidebarOpen} onClose={() => { setAiSidebarOpen(false); setSelectedAlert(null); }} alert={selectedAlert} loading={sidebarLoading} onReanalyze={handleReanalysis} />

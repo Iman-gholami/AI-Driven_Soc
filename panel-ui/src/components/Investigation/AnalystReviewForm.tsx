@@ -11,6 +11,8 @@ import {
 } from './investigationFormat';
 import SaveStatusNotice from './SaveStatusNotice';
 import { useInvestigationSubmission } from './useSubmission';
+import AnalysisChangedNotice from './AnalysisChangedNotice';
+import { useAnalysisBoundDraft } from './useAnalysisBoundDraft';
 
 const { Text } = Typography;
 
@@ -43,6 +45,17 @@ const AnalystReviewForm: React.FC<Props> = ({ alertId, investigation, onRefresh 
   const { status, submit } = useInvestigationSubmission(alertId, 'review');
 
   const { reviewableAnalysis, latestAnalysisReviewed } = investigation;
+  const hasDraft =
+    Object.values(sections).some((value) => value !== 'not_reviewed') ||
+    Boolean(correctedVerdict || correctedSeverity || comment.trim());
+  const draftGuard = useAnalysisBoundDraft(reviewableAnalysis.analysisRef?.fingerprint ?? 'none', hasDraft);
+  const resetDraft = () => {
+    setSections(EMPTY_SECTIONS);
+    setCorrectedVerdict(undefined);
+    setCorrectedSeverity(undefined);
+    setComment('');
+  };
+
   if (
     reviewableAnalysis.status !== 'available' ||
     !reviewableAnalysis.analysisRef ||
@@ -90,12 +103,7 @@ const AnalystReviewForm: React.FC<Props> = ({ alertId, investigation, onRefresh 
         ...(comment.trim() ? { comment: comment.trim() } : {}),
       },
     });
-    if (result) {
-      setSections(EMPTY_SECTIONS);
-      setCorrectedVerdict(undefined);
-      setCorrectedSeverity(undefined);
-      setComment('');
-    }
+    if (result) resetDraft();
   };
 
   const aiValue: Record<ReviewSection, React.ReactNode> = {
@@ -124,6 +132,14 @@ const AnalystReviewForm: React.FC<Props> = ({ alertId, investigation, onRefresh 
         {latestAnalysisReviewed === false && <Tag color="warning">Latest analysis not reviewed</Tag>}
         {latestAnalysisReviewed && <Tag color="success">Latest analysis reviewed</Tag>}
       </Space>
+
+      {draftGuard.changed && (
+        <AnalysisChangedNotice
+          description={`You are now looking at ${analysisRunLabel(ref.analysisIndex)}. Your judgments were entered for an earlier analysis and have not been saved. Check them against this analysis before keeping them.`}
+          onAccept={draftGuard.accept}
+          onDiscard={resetDraft}
+        />
+      )}
 
       {REVIEW_SECTIONS.map((section) => (
         <div className="investigation-review-row" key={section.id}>
@@ -181,7 +197,7 @@ const AnalystReviewForm: React.FC<Props> = ({ alertId, investigation, onRefresh 
         type="primary"
         onClick={save}
         loading={status.state === 'saving'}
-        disabled={!anyReviewed || verdictMissing || severityMissing}
+        disabled={!anyReviewed || verdictMissing || severityMissing || draftGuard.changed}
       >
         Save review
       </Button>

@@ -439,3 +439,15 @@ test('a concurrent identical request that wins the unique-key race is answered a
   assert.equal(loser.event.id, winner.event.id);
   assert.equal(repository.events.length, 1);
 });
+
+test('projection consistency compares the whole projection, not only its version', async () => {
+  const { service, repository } = setup();
+  await service.recordDisposition('splunk-1', dispositionBody(), ctx('dispo-key-11'));
+  assert.equal((await service.getInvestigation('splunk-1')).projectionConsistent, true);
+
+  // Same version, drifted content (for example after manual edits or a reducer change).
+  repository.alert('splunk-1').triage.status = 'open';
+  const drifted = await service.getInvestigation('splunk-1');
+  assert.equal(drifted.projectionConsistent, false);
+  assert.equal(drifted.state.status, 'closed');
+});

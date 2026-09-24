@@ -12,8 +12,7 @@ const { createLogger } = require('../src/core/logging');
 const { connectMongo, disconnectMongo } = require('../src/database/mongo');
 const Alert = require('../src/models/Alert');
 const InvestigationEvent = require('../src/models/InvestigationEvent');
-const { canonicalJson } = require('../src/investigation/analysisReference');
-const { initialTriageState, reduceTriage } = require('../src/investigation/triageReducer');
+const { initialTriageState, projectionsEqual, reduceTriage } = require('../src/investigation/triageReducer');
 
 const logger = createLogger(settings.logLevel);
 
@@ -43,8 +42,7 @@ async function rebuild({ apply }) {
       continue;
     }
 
-    const stored = alert.triage ? JSON.parse(JSON.stringify(alert.triage)) : null;
-    if (canonicalJson(stored) === canonicalJson(JSON.parse(JSON.stringify(replayed)))) {
+    if (alert.triage && projectionsEqual(alert.triage, replayed)) {
       summary.consistent += 1;
       continue;
     }

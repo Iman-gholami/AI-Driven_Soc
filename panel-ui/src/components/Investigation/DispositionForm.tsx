@@ -9,6 +9,8 @@ import type {
 import { analysisRunLabel, formatTime } from './investigationFormat';
 import SaveStatusNotice from './SaveStatusNotice';
 import { useInvestigationSubmission } from './useSubmission';
+import AnalysisChangedNotice from './AnalysisChangedNotice';
+import { useAnalysisBoundDraft } from './useAnalysisBoundDraft';
 
 const { Text } = Typography;
 
@@ -50,6 +52,18 @@ const DispositionForm: React.FC<Props> = ({ alertId, investigation, vocabulary, 
     );
   };
 
+  const hasDraft = Boolean(
+    outcome || action || reasonCodes.length || reasonText.trim() || ticketNumber.trim(),
+  );
+  const draftGuard = useAnalysisBoundDraft(analysisRef?.fingerprint ?? 'none', hasDraft);
+  function resetDraft() {
+    setOutcome(undefined);
+    setAction(undefined);
+    setReasonCodes([]);
+    setReasonText('');
+    setTicketNumber('');
+  }
+
   const save = async () => {
     if (!outcome || !action) return;
     const result = await submit({
@@ -63,13 +77,7 @@ const DispositionForm: React.FC<Props> = ({ alertId, investigation, vocabulary, 
         ...(ticketNumber.trim() ? { ticketNumber: ticketNumber.trim() } : {}),
       },
     });
-    if (result) {
-      setOutcome(undefined);
-      setAction(undefined);
-      setReasonCodes([]);
-      setReasonText('');
-      setTicketNumber('');
-    }
+    if (result) resetDraft();
   };
 
   return (
@@ -81,6 +89,18 @@ const DispositionForm: React.FC<Props> = ({ alertId, investigation, vocabulary, 
             ? `Linked to ${analysisRunLabel(analysisRef.analysisIndex)} (${formatTime(analysisRef.analyzedAt)}). Saved separately from the AI review.`
             : 'No AI analysis: this disposition will not reference one.'}
       </Text>
+
+      {draftGuard.changed && (
+        <AnalysisChangedNotice
+          description={
+            analysisRef
+              ? `This disposition will now be linked to ${analysisRunLabel(analysisRef.analysisIndex)}, not the analysis shown when you started it. Confirm it still applies before saving.`
+              : 'The analysis shown when you started this draft is no longer available. Confirm the disposition still applies before saving.'
+          }
+          onAccept={draftGuard.accept}
+          onDiscard={resetDraft}
+        />
+      )}
 
       <Text strong>Outcome</Text>
       <Radio.Group
@@ -160,7 +180,12 @@ const DispositionForm: React.FC<Props> = ({ alertId, investigation, vocabulary, 
       />
       <SaveStatusNotice status={status} onRefresh={onRefresh} />
       <Space>
-        <Button type="primary" onClick={save} loading={status.state === 'saving'} disabled={!ready}>
+        <Button
+          type="primary"
+          onClick={save}
+          loading={status.state === 'saving'}
+          disabled={!ready || draftGuard.changed}
+        >
           Save disposition
         </Button>
       </Space>

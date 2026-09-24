@@ -15,7 +15,12 @@ const {
   resolveAnalysisReference,
   ruleSnapshotFromAlert,
 } = require('../investigation/analysisReference');
-const { applyEvent, currentTriage, reduceTriage } = require('../investigation/triageReducer');
+const {
+  applyEvent,
+  currentTriage,
+  projectionsEqual,
+  reduceTriage,
+} = require('../investigation/triageReducer');
 const { listDispositionVocabulary } = require('../config/dispositionReasons');
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -54,7 +59,7 @@ class InvestigationService {
       alert: { alertId: alert.alertId, alertRef: String(alert._id), aiStatus: alert.aiStatus || null },
       state,
       version: state.version,
-      projectionConsistent: currentTriage(alert).version === state.version,
+      projectionConsistent: projectionsEqual(currentTriage(alert), state),
       reviewableAnalysis: {
         status: reviewable.status,
         reason: reviewable.reason,

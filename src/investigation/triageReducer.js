@@ -1,4 +1,5 @@
 const { CLOSING_ACTION_IDS } = require('../config/dispositionReasons');
+const { canonicalJson } = require('./analysisReference');
 
 // Pure projection of an alert's investigation events into its current triage state. The event log is
 // authoritative; Alert.triage stores the output of this reducer and can be rebuilt by replaying events.
@@ -124,10 +125,18 @@ function currentTriage(alert) {
   return alert?.triage && Number.isInteger(alert.triage.version) ? alert.triage : initialTriageState();
 }
 
+// Full comparison of a stored projection with a replayed one (not just the version), after normalizing
+// dates and dropping undefined fields the same way JSON serialization does.
+function projectionsEqual(stored, replayed) {
+  const normalize = (value) => canonicalJson(JSON.parse(JSON.stringify(value ?? null)));
+  return normalize(stored) === normalize(replayed);
+}
+
 module.exports = {
   TriageReplayError,
   initialTriageState,
   applyEvent,
   reduceTriage,
   currentTriage,
+  projectionsEqual,
 };

@@ -1,22 +1,25 @@
 const Alert = require('../models/Alert');
-const AlertResolution = require('../models/AlertResolution');
-const { InputError, NotFoundError, UnauthorizedError } = require('../core/errors');
+const { ConflictError, InputError, NotFoundError, UnauthorizedError } = require('../core/errors');
 const { extractNetworkTuple } = require('./ipExtractor');
 
-const OUTCOMES = new Set([
-  'true_positive',
-  'benign_true_positive',
-  'false_positive',
-  'inconclusive',
+const FINAL_OUTCOMES = new Set(['true_positive', 'false_positive']);
+const FALSE_POSITIVE_REASONS = new Set([
+  'authorized_scanner',
+  'authorized_testing',
+  'known_benign_service',
+  'rule_too_broad',
+  'duplicate_alert',
+  'expected_behavior',
+  'other',
 ]);
 const DEFAULT_LIMIT = 12;
 const MAX_LIMIT = 50;
 const CANDIDATE_LIMIT = 250;
+const MAX_ACTIONS = 50;
 
 class AlertMemoryService {
-  constructor({ alertModel = Alert, resolutionModel = AlertResolution, now = () => new Date() } = {}) {
+  constructor({ alertModel = Alert, now = () => new Date() } = {}) {
     this.alertModel = alertModel;
-    this.resolutionModel = resolutionModel;
     this.now = now;
   }
 
@@ -28,17 +31,14 @@ class AlertMemoryService {
     const currentSignals = extractSignals(current);
     const clauses = buildCandidateClauses(currentSignals);
 
-    const [currentResolution, candidates] = await Promise.all([
-      this.resolutionModel.findOne({ alertRef: current._id }).lean().exec(),
-      clauses.length
-        ? this.alertModel
-            .find({ _id: { $ne: current._id }, $or: clauses })
-            .sort({ eventTime: -1, createdAt: -1 })
-            .limit(CANDIDATE_LIMIT)
-            .lean()
-            .exec()
-        : [],
-    ]);
+    const candidates = clauses.length
+      ? await this.alertModel
+          .find({ _id: { $ne: current._id }, $or: clauses })
+          .sort({ eventTime: -1, createdAt: -1 })
+          .limit(CANDIDATE_LIMIT)
+          .lean()
+          .exec()
+      : [];
 
     const currentTime = effectiveTime(current);
     const ranked = candidates
@@ -52,26 +52,17 @@ class AlertMemoryService {
         return effectiveTime(right.candidate) - effectiveTime(left.candidate);
       });
 
-    const resolutionRows = ranked.length
-      ? await this.resolutionModel
-          .find({ alertRef: { $in: ranked.map((item) => item.candidate._id) } })
-          .lean()
-          .exec()
-      : [];
-    const resolutions = new Map(resolutionRows.map((row) => [String(row.alertRef), row]));
-
-    const allOccurrences = ranked.map((item) =>
-      presentOccurrence(item.candidate, item, resolutions.get(String(item.candidate._id)) || null),
-    );
+    const allOccurrences = ranked.map((item) => presentOccurrence(item.candidate, item));
 
     return {
       alertId: current.alertId,
       current: {
+        status: current.status || inferStatus(current),
         occurredAt: isoOrNull(current.eventTime || current.createdAt),
         signature: current.signature || null,
         host: current.host || null,
         ruleId: getRuleId(current),
-        analystResult: presentResolution(currentResolution),
+        analystCase: presentAnalystCase(current.analystCase),
       },
       summary: summarizeOccurrences(allOccurrences),
       occurrences: allOccurrences.slice(0, safeLimit),
@@ -83,31 +74,103 @@ class AlertMemoryService {
     };
   }
 
-  async saveOutcome(publicAlertId, payload, { user } = {}) {
+  async saveInvestigation(publicAlertId, payload, { user } = {}) {
     const actor = humanActor(user);
-    const normalized = validateOutcomePayload(payload);
-    const alert = await this.alertModel.findOne({ alertId: publicAlertId }).select('_id alertId').lean().exec();
-    if (!alert) throw new NotFoundError('Alert not found');
+    const normalized = validateInvestigationPayload(payload);
+    const current = await this.alertModel.findOne({ alertId: publicAlertId }).lean().exec();
+    if (!current) throw new NotFoundError('Alert not found');
+    if (current.status === 'closed' || current.analystCase?.closedAt) {
+      throw new ConflictError('Closed alerts cannot be edited');
+    }
 
-    const row = await this.resolutionModel
-      .findOneAndUpdate(
-        { alertRef: alert._id },
-        {
-          $set: {
-            alertId: alert.alertId,
-            outcome: normalized.outcome,
-            note: normalized.note || undefined,
-            ticketNumber: normalized.ticketNumber || undefined,
-            resolvedAt: this.now(),
-            resolvedBy: actor,
-          },
-        },
-        { new: true, upsert: true, setDefaultsOnInsert: true },
-      )
+    const now = this.now();
+    const set = {
+      status: 'investigating',
+      'analystCase.actionsTaken': normalized.actionsTaken,
+      'analystCase.updatedAt': now,
+      'analystCase.updatedBy': actor,
+    };
+    const unset = {};
+
+    if (normalized.note) set['analystCase.note'] = normalized.note;
+    else unset['analystCase.note'] = 1;
+
+    if (!current.analystCase?.startedAt) {
+      set['analystCase.startedAt'] = now;
+      set['analystCase.startedBy'] = actor;
+    }
+
+    const update = { $set: set };
+    if (Object.keys(unset).length) update.$unset = unset;
+
+    const alert = await this.alertModel
+      .findOneAndUpdate({ _id: current._id, status: { $ne: 'closed' } }, update, { new: true })
       .lean()
       .exec();
 
-    return presentResolution(row);
+    if (!alert) throw new ConflictError('Alert was closed while the investigation was being saved');
+    return {
+      status: alert.status,
+      analystCase: presentAnalystCase(alert.analystCase),
+    };
+  }
+
+  async closeAlert(publicAlertId, payload, { user } = {}) {
+    const actor = humanActor(user);
+    const normalized = validateClosePayload(payload);
+    const current = await this.alertModel.findOne({ alertId: publicAlertId }).lean().exec();
+    if (!current) throw new NotFoundError('Alert not found');
+    if (current.status === 'closed' || current.analystCase?.closedAt) {
+      throw new ConflictError('Alert is already closed');
+    }
+
+    const now = this.now();
+    const set = {
+      status: 'closed',
+      'analystCase.actionsTaken': normalized.actionsTaken,
+      'analystCase.finalOutcome': normalized.finalOutcome,
+      'analystCase.updatedAt': now,
+      'analystCase.updatedBy': actor,
+      'analystCase.closedAt': now,
+      'analystCase.closedBy': actor,
+    };
+    const unset = {};
+
+    if (!current.analystCase?.startedAt) {
+      set['analystCase.startedAt'] = now;
+      set['analystCase.startedBy'] = actor;
+    }
+    if (normalized.note) set['analystCase.note'] = normalized.note;
+    else unset['analystCase.note'] = 1;
+
+    if (normalized.finalOutcome === 'true_positive') {
+      set['analystCase.ticketNumber'] = normalized.ticketNumber;
+      unset['analystCase.falsePositiveReason'] = 1;
+      unset['analystCase.falsePositiveDetails'] = 1;
+    } else {
+      set['analystCase.falsePositiveReason'] = normalized.falsePositiveReason;
+      if (normalized.falsePositiveDetails) {
+        set['analystCase.falsePositiveDetails'] = normalized.falsePositiveDetails;
+      } else {
+        unset['analystCase.falsePositiveDetails'] = 1;
+      }
+      if (normalized.ticketNumber) set['analystCase.ticketNumber'] = normalized.ticketNumber;
+      else unset['analystCase.ticketNumber'] = 1;
+    }
+
+    const update = { $set: set };
+    if (Object.keys(unset).length) update.$unset = unset;
+
+    const alert = await this.alertModel
+      .findOneAndUpdate({ _id: current._id, status: { $ne: 'closed' } }, update, { new: true })
+      .lean()
+      .exec();
+
+    if (!alert) throw new ConflictError('Alert was already closed');
+    return {
+      status: alert.status,
+      analystCase: presentAnalystCase(alert.analystCase),
+    };
   }
 }
 
@@ -209,7 +272,7 @@ function scoreCandidate(current, candidate) {
   };
 }
 
-function presentOccurrence(alert, match, resolution) {
+function presentOccurrence(alert, match) {
   return {
     alertId: alert.alertId,
     occurredAt: isoOrNull(alert.eventTime || alert.createdAt),
@@ -219,6 +282,7 @@ function presentOccurrence(alert, match, resolution) {
     eventType: alert.eventType || null,
     severity: alert.severity || 'unknown',
     aiStatus: alert.aiStatus || 'not_analyzed',
+    status: alert.status || inferStatus(alert),
     ruleId: getRuleId(alert),
     match: {
       score: match.score,
@@ -226,7 +290,7 @@ function presentOccurrence(alert, match, resolution) {
       reasons: match.reasons,
     },
     aiResult: latestAiResult(alert),
-    analystResult: presentResolution(resolution),
+    analystResult: presentAnalystCase(alert.analystCase),
   };
 }
 
@@ -252,13 +316,12 @@ function latestAiResult(alert) {
 function summarizeOccurrences(occurrences) {
   const outcomeCounts = {
     true_positive: 0,
-    benign_true_positive: 0,
     false_positive: 0,
-    inconclusive: 0,
     unresolved: 0,
   };
   for (const item of occurrences) {
-    if (item.analystResult?.outcome) outcomeCounts[item.analystResult.outcome] += 1;
+    const outcome = item.analystResult?.finalOutcome;
+    if (outcome === 'true_positive' || outcome === 'false_positive') outcomeCounts[outcome] += 1;
     else outcomeCounts.unresolved += 1;
   }
 
@@ -276,14 +339,61 @@ function summarizeOccurrences(occurrences) {
   };
 }
 
-function validateOutcomePayload(payload = {}) {
-  const outcome = String(payload.outcome || '').trim();
-  if (!OUTCOMES.has(outcome)) {
-    throw new InputError('outcome must be true_positive, benign_true_positive, false_positive, or inconclusive');
+function validateInvestigationPayload(payload = {}) {
+  return {
+    actionsTaken: normalizeActions(payload.actionsTaken),
+    note: optionalText(payload.note, 4000, 'note'),
+  };
+}
+
+function validateClosePayload(payload = {}) {
+  const finalOutcome = String(payload.finalOutcome || '').trim();
+  if (!FINAL_OUTCOMES.has(finalOutcome)) {
+    throw new InputError('finalOutcome must be true_positive or false_positive');
   }
-  const note = optionalText(payload.note, 2000, 'note');
+
+  const actionsTaken = normalizeActions(payload.actionsTaken);
+  const note = optionalText(payload.note, 4000, 'note');
   const ticketNumber = optionalText(payload.ticketNumber, 128, 'ticketNumber');
-  return { outcome, note, ticketNumber };
+  const falsePositiveReason = optionalText(payload.falsePositiveReason, 128, 'falsePositiveReason');
+  const falsePositiveDetails = optionalText(payload.falsePositiveDetails, 2000, 'falsePositiveDetails');
+
+  if (finalOutcome === 'true_positive' && !ticketNumber) {
+    throw new InputError('ticketNumber is required when closing a true positive');
+  }
+  if (finalOutcome === 'false_positive') {
+    if (!falsePositiveReason || !FALSE_POSITIVE_REASONS.has(falsePositiveReason)) {
+      throw new InputError('A valid falsePositiveReason is required when closing a false positive');
+    }
+    if (falsePositiveReason === 'other' && !falsePositiveDetails) {
+      throw new InputError('falsePositiveDetails is required when falsePositiveReason is other');
+    }
+  }
+
+  return {
+    finalOutcome,
+    actionsTaken,
+    note,
+    ticketNumber,
+    falsePositiveReason: finalOutcome === 'false_positive' ? falsePositiveReason : null,
+    falsePositiveDetails: finalOutcome === 'false_positive' ? falsePositiveDetails : null,
+  };
+}
+
+function normalizeActions(value) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new InputError('actionsTaken must be an array');
+  if (value.length > MAX_ACTIONS) throw new InputError(`actionsTaken cannot contain more than ${MAX_ACTIONS} items`);
+
+  const normalized = [];
+  for (const item of value) {
+    if (typeof item !== 'string') throw new InputError('Each actionsTaken item must be a string');
+    const action = item.trim();
+    if (!action) continue;
+    if (action.length > 200) throw new InputError('Each actionsTaken item must be at most 200 characters');
+    if (!normalized.includes(action)) normalized.push(action);
+  }
+  return normalized;
 }
 
 function optionalText(value, maxLength, field) {
@@ -302,24 +412,41 @@ function humanActor(user) {
   return { id: id.slice(0, 200), displayName: displayName.slice(0, 200) };
 }
 
-function presentResolution(row) {
-  if (!row) return null;
+function presentAnalystCase(value) {
+  if (!value) return null;
   return {
-    outcome: row.outcome,
-    note: row.note || null,
-    ticketNumber: row.ticketNumber || null,
-    resolvedAt: isoOrNull(row.resolvedAt),
-    resolvedBy: row.resolvedBy
-      ? {
-          id: row.resolvedBy.id || null,
-          displayName: row.resolvedBy.displayName || row.resolvedBy.id || null,
-        }
-      : null,
+    actionsTaken: Array.isArray(value.actionsTaken) ? value.actionsTaken : [],
+    note: value.note || null,
+    startedAt: isoOrNull(value.startedAt),
+    startedBy: presentActor(value.startedBy),
+    updatedAt: isoOrNull(value.updatedAt),
+    updatedBy: presentActor(value.updatedBy),
+    finalOutcome: value.finalOutcome || null,
+    falsePositiveReason: value.falsePositiveReason || null,
+    falsePositiveDetails: value.falsePositiveDetails || null,
+    ticketNumber: value.ticketNumber || null,
+    closedAt: isoOrNull(value.closedAt),
+    closedBy: presentActor(value.closedBy),
+  };
+}
+
+function presentActor(actor) {
+  if (!actor) return null;
+  return {
+    id: actor.id || null,
+    displayName: actor.displayName || actor.id || null,
   };
 }
 
 function getRuleId(alert) {
   return alert?.ruleMatch?.ruleId ? String(alert.ruleMatch.ruleId).trim() : null;
+}
+
+function inferStatus(alert) {
+  if (alert?.analystCase?.closedAt) return 'closed';
+  if (alert?.analystCase?.startedAt) return 'investigating';
+  if (alert?.aiStatus === 'analyzed' || alert?.fullAnalysis) return 'analyzed';
+  return 'new';
 }
 
 function effectiveTime(alert) {
@@ -351,5 +478,6 @@ module.exports = {
   extractSignals,
   scoreCandidate,
   summarizeOccurrences,
-  validateOutcomePayload,
+  validateInvestigationPayload,
+  validateClosePayload,
 };

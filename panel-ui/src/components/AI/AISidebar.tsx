@@ -2,6 +2,7 @@ import React from 'react';
 import { Drawer, Button, Space, Typography, Card, Spin, message, Tag, Divider, Timeline, Progress, Collapse } from 'antd';
 import { CloseOutlined, CopyOutlined, RobotOutlined, CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { Alert as AlertType, AttackMappingEntry } from '../../types';
+import AlertMemoryCard from './AlertMemoryCard';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -87,6 +88,8 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
           {alert.analysisCount!==undefined && <Tag>Analyses {alert.analysisCount}</Tag>}
         </Space>
       </Card>
+
+      <AlertMemoryCard alertId={alert.alertId} />
 
       <Card title="Observed Evidence">
         {evidence.length ? evidence.map((item,index)=><Card size="small" key={index}>✓ {typeof item==='string'?item:JSON.stringify(item)}</Card>) : <Text type="secondary">No observed evidence was returned by the model.</Text>}

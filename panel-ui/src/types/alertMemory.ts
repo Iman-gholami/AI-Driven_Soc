@@ -1,15 +1,32 @@
-export type AnalystOutcome =
-  | 'true_positive'
-  | 'benign_true_positive'
-  | 'false_positive'
-  | 'inconclusive';
+export type AnalystOutcome = 'true_positive' | 'false_positive';
 
-export interface AlertResolution {
-  outcome: AnalystOutcome;
+export type FalsePositiveReason =
+  | 'authorized_scanner'
+  | 'authorized_testing'
+  | 'known_benign_service'
+  | 'rule_too_broad'
+  | 'duplicate_alert'
+  | 'expected_behavior'
+  | 'other';
+
+export interface AnalystActor {
+  id: string | null;
+  displayName: string | null;
+}
+
+export interface AnalystCase {
+  actionsTaken: string[];
   note: string | null;
+  startedAt: string | null;
+  startedBy: AnalystActor | null;
+  updatedAt: string | null;
+  updatedBy: AnalystActor | null;
+  finalOutcome: AnalystOutcome | null;
+  falsePositiveReason: FalsePositiveReason | null;
+  falsePositiveDetails: string | null;
   ticketNumber: string | null;
-  resolvedAt: string | null;
-  resolvedBy: { id: string | null; displayName: string | null } | null;
+  closedAt: string | null;
+  closedBy: AnalystActor | null;
 }
 
 export interface AlertMemoryOccurrence {
@@ -21,6 +38,7 @@ export interface AlertMemoryOccurrence {
   eventType: string | null;
   severity: string;
   aiStatus: string;
+  status: 'new' | 'analyzed' | 'investigating' | 'closed';
   ruleId: string | null;
   match: {
     score: number;
@@ -34,17 +52,18 @@ export interface AlertMemoryOccurrence {
     action: string | null;
     analyzedAt: string | null;
   };
-  analystResult: AlertResolution | null;
+  analystResult: AnalystCase | null;
 }
 
 export interface AlertMemoryResult {
   alertId: string;
   current: {
+    status: 'new' | 'analyzed' | 'investigating' | 'closed';
     occurredAt: string | null;
     signature: string | null;
     host: string | null;
     ruleId: string | null;
-    analystResult: AlertResolution | null;
+    analystCase: AnalystCase | null;
   };
   summary: {
     seenBefore: boolean;
@@ -63,8 +82,19 @@ export interface AlertMemoryResult {
   };
 }
 
-export interface SaveAlertOutcomeInput {
-  outcome: AnalystOutcome;
+export interface SaveInvestigationInput {
+  actionsTaken: string[];
   note?: string;
+}
+
+export interface CloseAlertInput extends SaveInvestigationInput {
+  finalOutcome: AnalystOutcome;
   ticketNumber?: string;
+  falsePositiveReason?: FalsePositiveReason;
+  falsePositiveDetails?: string;
+}
+
+export interface AnalystCaseWriteResult {
+  status: 'investigating' | 'closed';
+  analystCase: AnalystCase;
 }

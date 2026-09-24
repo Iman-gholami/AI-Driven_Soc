@@ -59,7 +59,7 @@ function makeAlert({
     src_ip: srcIp,
     dst_ip: dstIp,
     test_data: true,
-    alert_memory_seed: 'v1',
+    alert_memory_seed: 'v2',
     event_time: eventTime.toISOString(),
   };
 
@@ -81,7 +81,7 @@ function makeAlert({
       revision: 1,
       title: `Synthetic rule ${ruleId}`,
     },
-    eventHash: `alert-memory-test-hash-${String(n).padStart(3, '0')}-v1`,
+    eventHash: `alert-memory-test-hash-${String(n).padStart(3, '0')}-v2`,
     ...(analyzed
       ? analyzedFields({ verdict, severity, summary, analyzedAt: new Date(eventTime.getTime() + 10 * 60 * 1000) })
       : {
@@ -94,67 +94,138 @@ function makeAlert({
   };
 }
 
+function closedCase({ days, finalOutcome, actionsTaken, note, ticketNumber, falsePositiveReason, falsePositiveDetails }) {
+  const startedAt = daysAgo(days, -1);
+  const closedAt = daysAgo(days, -2);
+  return {
+    actionsTaken,
+    note,
+    startedAt,
+    startedBy: ACTOR,
+    updatedAt: closedAt,
+    updatedBy: ACTOR,
+    finalOutcome,
+    falsePositiveReason,
+    falsePositiveDetails,
+    ticketNumber,
+    closedAt,
+    closedBy: ACTOR,
+  };
+}
+
 const alerts = [
-  makeAlert({
-    n: 1,
-    days: 12,
-    ruleId: 'TEST-RULE-9001',
-    signature: 'ALERT MEMORY TEST - suspicious outbound connection',
-    host: 'am-test-ws-01',
-    srcIp: '10.20.30.40',
-    dstIp: '203.0.113.50',
-    verdict: 'SUSPICIOUS',
-    severity: 'high',
-    summary: 'Earlier exact occurrence; analyst later marked it false positive.',
-  }),
-  makeAlert({
-    n: 2,
-    days: 9,
-    ruleId: 'TEST-RULE-9001',
-    signature: 'ALERT MEMORY TEST - suspicious outbound connection',
-    host: 'am-test-ws-01',
-    srcIp: '10.20.30.40',
-    dstIp: '203.0.113.51',
-    verdict: 'BENIGN',
-    severity: 'low',
-    summary: 'Exact rule/signature occurrence to a different destination.',
-  }),
-  makeAlert({
-    n: 3,
-    days: 7,
-    ruleId: 'TEST-RULE-9002',
-    signature: 'ALERT MEMORY TEST - suspicious outbound connection',
-    host: 'am-test-ws-01',
-    srcIp: '10.20.30.99',
-    dstIp: '203.0.113.50',
-    verdict: 'MALICIOUS',
-    severity: 'critical',
-    summary: 'Strong historical match with a different detection rule.',
-  }),
-  makeAlert({
-    n: 4,
-    days: 5,
-    ruleId: 'TEST-RULE-9001',
-    signature: 'ALERT MEMORY TEST - alternate signature',
-    host: 'am-test-ws-77',
-    srcIp: '10.77.0.10',
-    dstIp: '203.0.113.50',
-    verdict: 'UNKNOWN',
-    severity: 'medium',
-    summary: 'Strong match via rule, event type, and destination IP.',
-  }),
-  makeAlert({
-    n: 5,
-    days: 3,
-    ruleId: 'TEST-RULE-9999',
-    signature: 'ALERT MEMORY TEST - unrelated signature same destination',
-    host: 'am-test-ws-88',
-    eventType: 'dns_query',
-    srcIp: '10.88.0.8',
-    dstIp: '203.0.113.50',
-    analyzed: false,
-    severity: 'info',
-  }),
+  {
+    ...makeAlert({
+      n: 1,
+      days: 12,
+      ruleId: 'TEST-RULE-9001',
+      signature: 'ALERT MEMORY TEST - suspicious outbound connection',
+      host: 'am-test-ws-01',
+      srcIp: '10.20.30.40',
+      dstIp: '203.0.113.50',
+      verdict: 'SUSPICIOUS',
+      severity: 'high',
+      summary: 'Earlier exact occurrence; AI considered it suspicious.',
+    }),
+    status: 'closed',
+    analystCase: closedCase({
+      days: 11,
+      finalOutcome: 'false_positive',
+      actionsTaken: ['Reviewed previous occurrences', 'Checked source IP', 'Contacted asset owner'],
+      note: 'Approved scanner activity confirmed with the asset owner.',
+      falsePositiveReason: 'authorized_scanner',
+    }),
+  },
+  {
+    ...makeAlert({
+      n: 2,
+      days: 9,
+      ruleId: 'TEST-RULE-9001',
+      signature: 'ALERT MEMORY TEST - suspicious outbound connection',
+      host: 'am-test-ws-01',
+      srcIp: '10.20.30.40',
+      dstIp: '203.0.113.51',
+      verdict: 'BENIGN',
+      severity: 'low',
+      summary: 'Exact rule/signature occurrence to a different destination.',
+    }),
+    status: 'closed',
+    analystCase: closedCase({
+      days: 8,
+      finalOutcome: 'false_positive',
+      actionsTaken: ['Reviewed firewall / network logs', 'Checked destination asset'],
+      note: 'Expected application behavior; detection rule was too broad for this traffic pattern.',
+      falsePositiveReason: 'rule_too_broad',
+    }),
+  },
+  {
+    ...makeAlert({
+      n: 3,
+      days: 7,
+      ruleId: 'TEST-RULE-9002',
+      signature: 'ALERT MEMORY TEST - suspicious outbound connection',
+      host: 'am-test-ws-01',
+      srcIp: '10.20.30.99',
+      dstIp: '203.0.113.50',
+      verdict: 'MALICIOUS',
+      severity: 'critical',
+      summary: 'Strong historical match with a different detection rule.',
+    }),
+    status: 'closed',
+    analystCase: closedCase({
+      days: 6,
+      finalOutcome: 'true_positive',
+      actionsTaken: ['Checked endpoint / EDR', 'Checked threat intelligence', 'Escalated to IR'],
+      note: 'Malicious activity confirmed and escalated.',
+      ticketNumber: 'SOC-TEST-003',
+    }),
+  },
+  {
+    ...makeAlert({
+      n: 4,
+      days: 5,
+      ruleId: 'TEST-RULE-9001',
+      signature: 'ALERT MEMORY TEST - alternate signature',
+      host: 'am-test-ws-77',
+      srcIp: '10.77.0.10',
+      dstIp: '203.0.113.50',
+      verdict: 'SUSPICIOUS',
+      severity: 'medium',
+      summary: 'Strong match via rule, event type, and destination IP.',
+    }),
+    status: 'closed',
+    analystCase: closedCase({
+      days: 4,
+      finalOutcome: 'false_positive',
+      actionsTaken: ['Checked threat intelligence', 'Reviewed firewall / network logs'],
+      note: 'Known benign service generated the traffic.',
+      falsePositiveReason: 'known_benign_service',
+    }),
+  },
+  {
+    ...makeAlert({
+      n: 5,
+      days: 3,
+      ruleId: 'TEST-RULE-9999',
+      signature: 'ALERT MEMORY TEST - unrelated signature same destination',
+      host: 'am-test-ws-88',
+      eventType: 'dns_query',
+      srcIp: '10.88.0.8',
+      dstIp: '203.0.113.50',
+      analyzed: true,
+      verdict: 'UNKNOWN',
+      severity: 'info',
+    }),
+    status: 'investigating',
+    analystCase: {
+      actionsTaken: ['Checked destination asset'],
+      note: 'Investigation started but no final decision was recorded.',
+      startedAt: daysAgo(2, 20),
+      startedBy: ACTOR,
+      updatedAt: daysAgo(2, 19),
+      updatedBy: ACTOR,
+    },
+  },
   makeAlert({
     n: 6,
     days: 0,
@@ -163,8 +234,10 @@ const alerts = [
     host: 'am-test-ws-01',
     srcIp: '10.20.30.40',
     dstIp: '203.0.113.50',
-    analyzed: false,
+    analyzed: true,
+    verdict: 'SUSPICIOUS',
     severity: 'high',
+    summary: 'Current test alert: analyst should review history, investigate, then close it.',
   }),
   makeAlert({
     n: 7,
@@ -180,72 +253,32 @@ const alerts = [
   }),
 ];
 
-const resolutionSpecs = [
-  {
-    alertId: `${PREFIX}001`,
-    outcome: 'false_positive',
-    note: 'Synthetic test: previously confirmed as noise from an approved process.',
-    ticketNumber: 'SOC-TEST-001',
-  },
-  {
-    alertId: `${PREFIX}002`,
-    outcome: 'benign_true_positive',
-    note: 'Synthetic test: detection was correct but the activity was authorized.',
-    ticketNumber: 'SOC-TEST-002',
-  },
-  {
-    alertId: `${PREFIX}003`,
-    outcome: 'true_positive',
-    note: 'Synthetic test: prior occurrence was escalated as a real security event.',
-    ticketNumber: 'SOC-TEST-003',
-  },
-  {
-    alertId: `${PREFIX}004`,
-    outcome: 'inconclusive',
-    note: 'Synthetic test: previous evidence was insufficient for a final determination.',
-    ticketNumber: 'SOC-TEST-004',
-  },
-];
-
 async function cleanup() {
   const existing = await Alert.find({ alertId: { $regex: `^${PREFIX}` } }).select('_id').lean().exec();
   const refs = existing.map((row) => row._id);
-  const resolutionFilter = refs.length
+  const legacyResolutionFilter = refs.length
     ? { $or: [{ alertRef: { $in: refs } }, { alertId: { $regex: `^${PREFIX}` } }] }
     : { alertId: { $regex: `^${PREFIX}` } };
 
-  const [resolutionResult, alertResult] = await Promise.all([
-    AlertResolution.deleteMany(resolutionFilter),
+  const [legacyResolutionResult, alertResult] = await Promise.all([
+    AlertResolution.deleteMany(legacyResolutionFilter),
     Alert.deleteMany({ alertId: { $regex: `^${PREFIX}` } }),
   ]);
 
   return {
     alertsDeleted: alertResult.deletedCount || 0,
-    resolutionsDeleted: resolutionResult.deletedCount || 0,
+    legacyResolutionsDeleted: legacyResolutionResult.deletedCount || 0,
   };
 }
 
 async function seed() {
   const removed = await cleanup();
   const inserted = await Alert.insertMany(alerts, { ordered: true });
-  const byId = new Map(inserted.map((row) => [row.alertId, row]));
-
-  const resolutions = resolutionSpecs.map((spec, index) => ({
-    alertRef: byId.get(spec.alertId)._id,
-    alertId: spec.alertId,
-    outcome: spec.outcome,
-    note: spec.note,
-    ticketNumber: spec.ticketNumber,
-    resolvedAt: daysAgo(11 - index * 2),
-    resolvedBy: ACTOR,
-  }));
-  await AlertResolution.insertMany(resolutions, { ordered: true });
 
   console.log(JSON.stringify({
     ok: true,
     removed,
     insertedAlerts: inserted.length,
-    insertedResolutions: resolutions.length,
     currentAlert: `${PREFIX}006`,
     negativeControl: `${PREFIX}007`,
     expectedHistoryForCurrent: {
@@ -255,12 +288,18 @@ async function seed() {
       related: [`${PREFIX}005`],
       shouldNotAppear: `${PREFIX}007`,
       outcomeCounts: {
-        false_positive: 1,
-        benign_true_positive: 1,
         true_positive: 1,
-        inconclusive: 1,
+        false_positive: 3,
         unresolved: 1,
       },
+    },
+    workflowTest: {
+      alertId: `${PREFIX}006`,
+      initialStatus: 'analyzed',
+      expectedAfterSaveProgress: 'investigating',
+      expectedAfterClose: 'closed',
+      truePositiveRequiresTicket: true,
+      falsePositiveRequiresReason: true,
     },
   }, null, 2));
 }

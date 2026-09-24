@@ -57,8 +57,14 @@ class AlertRepository {
     processingTimeMs,
   }) {
     const now = new Date();
+    const identity = { $or: [{ alertId }, { eventHash }] };
+    const existing = await this.alertModel.findOne(identity).select("status").lean().exec();
+    const lifecycleStatus = ["investigating", "closed"].includes(existing?.status)
+      ? existing.status
+      : "analyzed";
+
     return this.alertModel.findOneAndUpdate(
-      { $or: [{ alertId }, { eventHash }] },
+      identity,
       {
         $set: {
           alertId,
@@ -76,7 +82,7 @@ class AlertRepository {
           llmProvider,
           model,
           processingTimeMs,
-          status: "analyzed",
+          status: lifecycleStatus,
           aiStatus: "analyzed",
           "processing.completedAt": now,
           "processing.failedAt": undefined,
@@ -327,6 +333,11 @@ class AlertRepository {
     model,
     processingTimeMs,
   }) {
+    const existing = await this.alertModel.findOne({ alertId }).select("status").lean().exec();
+    const lifecycleStatus = ["investigating", "closed"].includes(existing?.status)
+      ? existing.status
+      : "analyzed";
+
     return this.alertModel.findOneAndUpdate(
      { alertId },
      {
@@ -338,7 +349,7 @@ class AlertRepository {
         llmProvider,
         model,
         processingTimeMs,
-        status: "analyzed",
+        status: lifecycleStatus,
         aiStatus: "analyzed",
         "processing.completedAt": new Date(),
         "processing.failedAt": undefined,

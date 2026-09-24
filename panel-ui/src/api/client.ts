@@ -15,6 +15,11 @@ import {
   CopilotConversationState,
 } from '../types';
 import type {
+  AlertMemoryResult,
+  AlertResolution,
+  SaveAlertOutcomeInput,
+} from '../types/alertMemory';
+import type {
   HistoricalReport,
   HistoricalReportListResult,
   ReportCopilotResult,
@@ -75,6 +80,25 @@ export const api = {
 
   getAlertById: async (alertId: string): Promise<Alert> => {
     const response = await apiClient.get<ApiResponse<Alert>>(`/alerts/${encodeURIComponent(alertId)}`);
+    return response.data.data;
+  },
+
+  getAlertMemory: async (alertId: string, limit = 12): Promise<AlertMemoryResult> => {
+    const response = await apiClient.get<ApiResponse<AlertMemoryResult>>(
+      `/alerts/${encodeURIComponent(alertId)}/history`,
+      { params: { limit } },
+    );
+    return response.data.data;
+  },
+
+  saveAlertOutcome: async (
+    alertId: string,
+    input: SaveAlertOutcomeInput,
+  ): Promise<AlertResolution> => {
+    const response = await apiClient.put<ApiResponse<AlertResolution>>(
+      `/alerts/${encodeURIComponent(alertId)}/outcome`,
+      input,
+    );
     return response.data.data;
   },
 

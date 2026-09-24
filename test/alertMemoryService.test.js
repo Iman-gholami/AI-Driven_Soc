@@ -4,7 +4,8 @@ const test = require('node:test');
 const {
   scoreCandidate,
   summarizeOccurrences,
-  validateOutcomePayload,
+  validateInvestigationPayload,
+  validateClosePayload,
 } = require('../src/services/alertMemoryService');
 
 function signals(overrides = {}) {
@@ -52,17 +53,17 @@ test('related network peer does not become an exact match without rule or signat
   assert.deepEqual(result.reasons, ['same_network_peer']);
 });
 
-test('history summary counts analyst outcomes and unresolved occurrences', () => {
+test('history summary counts only final human decisions as resolved', () => {
   const summary = summarizeOccurrences([
     {
       occurredAt: '2026-09-01T00:00:00.000Z',
       match: { reasons: ['same_detection_rule', 'same_host'] },
-      analystResult: { outcome: 'false_positive' },
+      analystResult: { finalOutcome: 'false_positive' },
     },
     {
       occurredAt: '2026-09-02T00:00:00.000Z',
       match: { reasons: ['same_detection_rule'] },
-      analystResult: null,
+      analystResult: { actionsTaken: ['Checked source IP'], finalOutcome: null },
     },
   ]);
 
@@ -76,24 +77,68 @@ test('history summary counts analyst outcomes and unresolved occurrences', () =>
   assert.equal(summary.lastSeen, '2026-09-02T00:00:00.000Z');
 });
 
-test('analyst outcome validation accepts the supported compact workflow', () => {
+test('investigation progress normalizes actions and note', () => {
   assert.deepEqual(
-    validateOutcomePayload({
-      outcome: 'benign_true_positive',
-      note: ' Authorized maintenance window ',
-      ticketNumber: ' SOC-42 ',
+    validateInvestigationPayload({
+      actionsTaken: [' Checked source IP ', 'Checked source IP', 'Reviewed firewall logs'],
+      note: '  No endpoint evidence yet. ',
     }),
     {
-      outcome: 'benign_true_positive',
-      note: 'Authorized maintenance window',
-      ticketNumber: 'SOC-42',
+      actionsTaken: ['Checked source IP', 'Reviewed firewall logs'],
+      note: 'No endpoint evidence yet.',
     },
   );
 });
 
-test('analyst outcome validation rejects unknown outcomes', () => {
+test('true positive cannot be closed without a ticket', () => {
   assert.throws(
-    () => validateOutcomePayload({ outcome: 'maybe' }),
-    /outcome must be true_positive/,
+    () => validateClosePayload({ finalOutcome: 'true_positive', actionsTaken: [] }),
+    /ticketNumber is required/,
   );
+});
+
+test('true positive closes with a required ticket', () => {
+  const result = validateClosePayload({
+    finalOutcome: 'true_positive',
+    ticketNumber: ' SOC-42 ',
+    actionsTaken: ['Escalated to IR'],
+    note: ' Confirmed malicious activity ',
+  });
+
+  assert.equal(result.finalOutcome, 'true_positive');
+  assert.equal(result.ticketNumber, 'SOC-42');
+  assert.equal(result.falsePositiveReason, null);
+  assert.deepEqual(result.actionsTaken, ['Escalated to IR']);
+});
+
+test('false positive cannot be closed without a reason', () => {
+  assert.throws(
+    () => validateClosePayload({ finalOutcome: 'false_positive', actionsTaken: [] }),
+    /falsePositiveReason is required/,
+  );
+});
+
+test('other false-positive reason requires details', () => {
+  assert.throws(
+    () => validateClosePayload({
+      finalOutcome: 'false_positive',
+      falsePositiveReason: 'other',
+      actionsTaken: [],
+    }),
+    /falsePositiveDetails is required/,
+  );
+});
+
+test('false positive closes with a canonical reason', () => {
+  const result = validateClosePayload({
+    finalOutcome: 'false_positive',
+    falsePositiveReason: 'authorized_scanner',
+    actionsTaken: ['Reviewed previous occurrences'],
+    note: ' Known approved scanner ',
+  });
+
+  assert.equal(result.finalOutcome, 'false_positive');
+  assert.equal(result.falsePositiveReason, 'authorized_scanner');
+  assert.equal(result.note, 'Known approved scanner');
+  assert.equal(result.ticketNumber, null);
 });

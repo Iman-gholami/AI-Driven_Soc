@@ -15,6 +15,50 @@ const alertAnalysisSchema = new Schema(
   { _id: false, strict: false },
 );
 
+const analystActorSchema = new Schema(
+  {
+    id: { type: String, required: true, trim: true, maxlength: 200 },
+    displayName: { type: String, required: true, trim: true, maxlength: 200 },
+  },
+  { _id: false },
+);
+
+const analystCaseSchema = new Schema(
+  {
+    actionsTaken: [{ type: String, trim: true, maxlength: 200 }],
+    note: { type: String, default: undefined, trim: true, maxlength: 4000 },
+    startedAt: { type: Date, default: undefined },
+    startedBy: { type: analystActorSchema, default: undefined },
+    updatedAt: { type: Date, default: undefined },
+    updatedBy: { type: analystActorSchema, default: undefined },
+    finalOutcome: {
+      type: String,
+      enum: ["true_positive", "false_positive"],
+      default: undefined,
+      trim: true,
+    },
+    falsePositiveReason: {
+      type: String,
+      enum: [
+        "authorized_scanner",
+        "authorized_testing",
+        "known_benign_service",
+        "rule_too_broad",
+        "duplicate_alert",
+        "expected_behavior",
+        "other",
+      ],
+      default: undefined,
+      trim: true,
+    },
+    falsePositiveDetails: { type: String, default: undefined, trim: true, maxlength: 2000 },
+    ticketNumber: { type: String, default: undefined, trim: true, maxlength: 128 },
+    closedAt: { type: Date, default: undefined },
+    closedBy: { type: analystActorSchema, default: undefined },
+  },
+  { _id: false, minimize: false },
+);
+
 const futureSocFieldsSchema = new Schema(
   {
     mitreAttack: { type: Schema.Types.Mixed, default: undefined },
@@ -45,7 +89,13 @@ const alertSchema = new Schema(
       trim: true,
     },
     analysis: { type: [alertAnalysisSchema], default: undefined },
-    status: { type: String, default: "new", enum: ["new", "analyzed"], trim: true },
+    status: {
+      type: String,
+      default: "new",
+      enum: ["new", "analyzed", "investigating", "closed"],
+      trim: true,
+    },
+    analystCase: { type: analystCaseSchema, default: undefined },
     severity: { type: String, default: "unknown", trim: true },
     llmProvider: { type: String, trim: true },
     model: { type: String, trim: true },
@@ -82,5 +132,6 @@ alertSchema.index({ severity: 1, eventTime: -1 });
 alertSchema.index({ source: 1, createdAt: -1 });
 alertSchema.index({ "ruleMatch.status": 1, createdAt: -1 });
 alertSchema.index({ "analysis.severity": 1 });
+alertSchema.index({ "analystCase.finalOutcome": 1, "analystCase.closedAt": -1 });
 
 module.exports = mongoose.models.Alert || mongoose.model("Alert", alertSchema);

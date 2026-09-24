@@ -17,6 +17,12 @@ class InputError extends AppError {
   }
 }
 
+class UnauthorizedError extends AppError {
+  constructor(message = "Authentication required", options = {}) {
+    super(message, { ...options, status: 401 });
+  }
+}
+
 class NotFoundError extends AppError {
   constructor(message = "Not found", options = {}) {
     super(message, { ...options, status: 404 });
@@ -29,4 +35,4 @@ class ConflictError extends AppError {
   }
 }
 
-module.exports = { AppError, InputError, NotFoundError, ConflictError };
+module.exports = { AppError, InputError, UnauthorizedError, NotFoundError, ConflictError };

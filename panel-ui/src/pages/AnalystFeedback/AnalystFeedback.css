@@ -1,0 +1,33 @@
+.analyst-feedback-title {
+  margin: 4px 0 6px;
+  color: var(--panel-text);
+  font-size: 22px;
+}
+
+.analyst-feedback-lead {
+  max-width: 720px;
+  margin: 0 !important;
+}
+
+.analyst-feedback-kpis {
+  margin: 14px 0 10px;
+}
+
+.analyst-feedback-note {
+  margin-bottom: 14px !important;
+}
+
+.analyst-feedback-card {
+  margin-bottom: 14px;
+}
+
+@media (max-width: 760px) {
+  .analyst-feedback .command-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .analyst-feedback-kpis {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,3 +1,5 @@
+const { currentTriage } = require('../../investigation/triageReducer');
+
 // Shapes persisted alert documents into the summaries the panel and API clients consume.
 function toAlertSummary(alert) {
   const plain = toPlainObject(alert);
@@ -24,6 +26,7 @@ function toAlertSummary(alert) {
     createdAt: plain.createdAt,
     updatedAt: plain.updatedAt,
     eventHash: plain.eventHash,
+    triage: summarizeTriage(plain),
   };
 
   if (plain.processingTimeMs !== undefined && plain.processingTimeMs !== null) summary.processingTimeMs = plain.processingTimeMs;
@@ -39,6 +42,43 @@ function toAlertSummary(alert) {
     summary.analysis = plain.analysis;
   }
   return summary;
+}
+
+function toIso(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+// Triage summary for lists and detail views. Alerts without a projection (created before investigations
+// existed) are reported as open at version 0.
+function summarizeTriage(alert) {
+  const triage = currentTriage(alert);
+  const analyses = Array.isArray(alert?.analysis) ? alert.analysis : [];
+  const latestAnalyzedAt = analyses.length ? toIso(analyses[analyses.length - 1]?.analyzedAt) : null;
+  const reviewedRef = triage.review?.analysisRef || null;
+
+  return {
+    status: triage.status,
+    version: triage.version,
+    outcome: triage.outcome ?? null,
+    action: triage.action ?? null,
+    ticketNumber: triage.ticketNumber ?? null,
+    closedAt: triage.closedAt ?? null,
+    updatedAt: triage.updatedAt ?? null,
+    updatedBy: triage.updatedBy ?? null,
+    reviewedAnalysisRef: reviewedRef
+      ? { analysisIndex: reviewedRef.analysisIndex, analyzedAt: toIso(reviewedRef.analyzedAt) }
+      : null,
+    // null when there is no referenceable analysis to compare against.
+    latestAnalysisReviewed: latestAnalyzedAt
+      ? Boolean(
+          reviewedRef &&
+            reviewedRef.analysisIndex === analyses.length - 1 &&
+            toIso(reviewedRef.analyzedAt) === latestAnalyzedAt,
+        )
+      : null,
+  };
 }
 
 function getLatestAnalysis(alert) {
@@ -86,6 +126,7 @@ function toPlainObject(document) {
 
 module.exports = {
   toAlertSummary,
+  summarizeTriage,
   getAiStatus,
   getAiEligibility,
   toPlainObject,

@@ -240,4 +240,5 @@ module.exports = {
   analysisResponseSchema,
   normalizeAnalysisPayload,
   severitySchema,
+  verdictSchema,
 };

@@ -85,6 +85,9 @@ test("Alert model defines required persistence indexes", () => {
       { source: 1, createdAt: -1 },
       { "ruleMatch.status": 1, createdAt: -1 },
       { "analysis.severity": 1 },
+      { "analysis.analyzedAt": 1 },
+      { "triage.status": 1, createdAt: -1 },
+      { "triage.outcome": 1, createdAt: -1 },
     ]);
   } finally {
     mock.restore();
@@ -359,8 +362,12 @@ test("GET /alerts lists summary alerts with filters and pagination", async () =>
   assert.equal(response.body.data.alerts.length, 1);
   assert.deepEqual(
     Object.keys(response.body.data.alerts[0]).sort(),
-    ["alertId", "aiEligibility", "aiStatus", "createdAt", "eventHash", "eventType", "host", "severity", "signature", "source", "status", "updatedAt"].sort(),
+    ["alertId", "aiEligibility", "aiStatus", "createdAt", "eventHash", "eventType", "host", "severity", "signature", "source", "status", "triage", "updatedAt"].sort(),
   );
+  // Legacy alerts without a projection are reported as open at version 0.
+  assert.equal(response.body.data.alerts[0].triage.status, "open");
+  assert.equal(response.body.data.alerts[0].triage.version, 0);
+  assert.equal(response.body.data.alerts[0].triage.latestAnalysisReviewed, null);
   assert.equal(response.body.data.alerts[0].aiStatus, "not_analyzed");
   assert.equal(response.body.data.alerts[0].aiEligibility.eligible, false);
   assert.equal(response.body.data.alerts[0].aiEligibility.reason, "missing_signature");

@@ -28,6 +28,74 @@ const futureSocFieldsSchema = new Schema(
   { _id: false, strict: false },
 );
 
+const actorRefSchema = new Schema(
+  {
+    kind: { type: String, trim: true },
+    id: { type: String, trim: true },
+    displayName: { type: String, trim: true },
+  },
+  { _id: false },
+);
+
+const analysisRefSchema = new Schema(
+  {
+    analysisIndex: { type: Number, min: 0 },
+    analyzedAt: { type: Date },
+    fingerprint: { type: String, trim: true },
+  },
+  { _id: false },
+);
+
+// Rebuildable projection of the alert's investigation events (see src/investigation/triageReducer.js).
+// Kept separate from `status` / `aiStatus`, which describe ingestion and AI processing.
+const triageSchema = new Schema(
+  {
+    status: { type: String, enum: ["open", "closed"], default: "open" },
+    version: { type: Number, default: 0, min: 0 },
+    outcome: { type: String, default: null },
+    action: { type: String, default: null },
+    reasonCodes: { type: [String], default: [] },
+    reasonText: { type: String, default: null },
+    ticketNumber: { type: String, default: null },
+    closedAt: { type: Date, default: null },
+    disposition: {
+      type: new Schema(
+        {
+          eventId: String,
+          sequence: Number,
+          at: Date,
+          actor: { type: actorRefSchema, default: null },
+          analysisRef: { type: analysisRefSchema, default: null },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+    review: {
+      type: new Schema(
+        {
+          eventId: String,
+          sequence: Number,
+          at: Date,
+          actor: { type: actorRefSchema, default: null },
+          analysisRef: { type: analysisRefSchema, default: null },
+          sections: { type: Schema.Types.Mixed, default: undefined },
+          corrections: { type: Schema.Types.Mixed, default: undefined },
+        },
+        { _id: false, minimize: false },
+      ),
+      default: null,
+    },
+    lastEvent: {
+      type: new Schema({ eventId: String, sequence: Number, type: String, at: Date }, { _id: false }),
+      default: null,
+    },
+    updatedAt: { type: Date, default: null },
+    updatedBy: { type: actorRefSchema, default: null },
+  },
+  { _id: false, minimize: false },
+);
+
 const alertSchema = new Schema(
   {
     alertId: { type: String, required: true, trim: true },
@@ -53,6 +121,7 @@ const alertSchema = new Schema(
     eventHash: { type: String, required: true, trim: true },
     fullAnalysis: { type: Schema.Types.Mixed, default: undefined },
     soc: { type: futureSocFieldsSchema, default: () => ({}) },
+    triage: { type: triageSchema, default: undefined },
     processing: {
       attempts: { type: Number, default: 0, min: 0 },
       lastIngestedAt: { type: Date, default: undefined },
@@ -82,5 +151,8 @@ alertSchema.index({ severity: 1, eventTime: -1 });
 alertSchema.index({ source: 1, createdAt: -1 });
 alertSchema.index({ "ruleMatch.status": 1, createdAt: -1 });
 alertSchema.index({ "analysis.severity": 1 });
+alertSchema.index({ "analysis.analyzedAt": 1 });
+alertSchema.index({ "triage.status": 1, createdAt: -1 });
+alertSchema.index({ "triage.outcome": 1, createdAt: -1 });
 
 module.exports = mongoose.models.Alert || mongoose.model("Alert", alertSchema);

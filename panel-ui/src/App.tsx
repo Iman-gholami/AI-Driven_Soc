@@ -13,6 +13,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
 const Alerts = lazy(() => import('./pages/Alerts/Alerts'));
 const Reports = lazy(() => import('./pages/Reports/Reports'));
 const MitreCoverage = lazy(() => import('./pages/MitreCoverage/MitreCoverage'));
+const AnalystFeedback = lazy(() => import('./pages/AnalystFeedback/AnalystFeedback'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,7 +79,7 @@ function AppContent() {
                 <Route path="alerts" element={<Alerts />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="mitre-coverage" element={<MitreCoverage />} />
-                <Route path="analytics" element={<PlaceholderPage eyebrow="ANALYTICS" title="Security Analytics" description="Advanced trend analysis and reporting will live here. The current dashboard continues to show production-backed operational metrics." />} />
+                <Route path="analytics" element={<AnalystFeedback />} />
                 <Route path="settings" element={<PlaceholderPage eyebrow="SYSTEM" title="Settings" description="Panel and integration settings are not exposed in V1 yet. Existing runtime configuration remains server-managed." />} />
               </Route>
             </Route>

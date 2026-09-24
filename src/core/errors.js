@@ -29,4 +29,31 @@ class ConflictError extends AppError {
   }
 }
 
-module.exports = { AppError, InputError, NotFoundError, ConflictError };
+class UnauthorizedError extends AppError {
+  constructor(message = "Authentication required", options = {}) {
+    super(message, { ...options, status: 401 });
+  }
+}
+
+// Well-formed request whose content is invalid for the target resource (validation failures).
+class UnprocessableError extends AppError {
+  constructor(message, options = {}) {
+    super(message, { ...options, status: 422 });
+  }
+}
+
+class ServiceUnavailableError extends AppError {
+  constructor(message, options = {}) {
+    super(message, { publicMessage: message, ...options, status: 503 });
+  }
+}
+
+module.exports = {
+  AppError,
+  InputError,
+  NotFoundError,
+  ConflictError,
+  UnauthorizedError,
+  UnprocessableError,
+  ServiceUnavailableError,
+};

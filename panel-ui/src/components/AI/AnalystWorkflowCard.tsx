@@ -36,6 +36,14 @@ const FP_LABELS = Object.fromEntries(FALSE_POSITIVE_OPTIONS.map((item) => [item.
   string
 >;
 
+// Ant Design renders Select menus in document.body by default. Inside the investigation
+// Drawer that can put the popup outside the Drawer's stacking/scrolling context and make
+// an otherwise populated Select look like it does not open. Keep each popup next to its
+// trigger so both menus remain clickable and visible inside the Drawer.
+function selectPopupContainer(trigger: HTMLElement): HTMLElement {
+  return trigger.parentElement || document.body;
+}
+
 interface Props {
   alertId: string;
 }
@@ -152,6 +160,8 @@ function WorkflowEditor({
         options={ACTION_OPTIONS}
         placeholder="Select or type investigation actions"
         tokenSeparators={[',']}
+        optionFilterProp="label"
+        getPopupContainer={selectPopupContainer}
         style={{ width: '100%', marginTop: 6 }}
         maxTagCount="responsive"
       />
@@ -213,6 +223,7 @@ function WorkflowEditor({
             options={FALSE_POSITIVE_OPTIONS}
             placeholder="Required false-positive reason"
             status={missingFpReason ? 'error' : undefined}
+            getPopupContainer={selectPopupContainer}
             style={{ width: '100%', marginTop: 6 }}
           />
           {falsePositiveReason === 'other' && (

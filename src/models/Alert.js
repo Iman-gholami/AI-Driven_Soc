@@ -132,6 +132,5 @@ alertSchema.index({ severity: 1, eventTime: -1 });
 alertSchema.index({ source: 1, createdAt: -1 });
 alertSchema.index({ "ruleMatch.status": 1, createdAt: -1 });
 alertSchema.index({ "analysis.severity": 1 });
-alertSchema.index({ "analystCase.finalOutcome": 1, "analystCase.closedAt": -1 });
 
 module.exports = mongoose.models.Alert || mongoose.model("Alert", alertSchema);

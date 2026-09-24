@@ -97,6 +97,8 @@ class AlertRepository {
     search,
     createdAtFrom,
     createdAtTo,
+    triageStatus,
+    outcome,
     page = 1,
     limit = 50,
     sortBy = "createdAt",
@@ -110,6 +112,8 @@ class AlertRepository {
       search,
       createdAtFrom,
       createdAtTo,
+      triageStatus,
+      outcome,
     });
     const safePage = Math.max(Number(page) || 1, 1);
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
@@ -125,7 +129,7 @@ class AlertRepository {
       .sort(sort)
       .skip(skip)
       .limit(safeLimit)
-      .select("alertId source signature eventType host status aiStatus severity analysis ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host eventTime createdAt updatedAt eventHash processing processingTimeMs fullAnalysis.risk_assessment fullAnalysis.attack_mapping")
+      .select("alertId source signature eventType host status aiStatus severity analysis ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host eventTime createdAt updatedAt eventHash processing processingTimeMs fullAnalysis.risk_assessment fullAnalysis.attack_mapping triage")
       .lean();
 
     const [alerts, total] = await Promise.all([
@@ -276,7 +280,7 @@ class AlertRepository {
         .find(match)
         .sort({ createdAt: -1 })
         .limit(safeRecentLimit)
-        .select("alertId source signature eventType host status aiStatus severity analysis ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host createdAt updatedAt eventHash processing processingTimeMs fullAnalysis.risk_assessment fullAnalysis.attack_mapping")
+        .select("alertId source signature eventType host status aiStatus severity analysis ruleMatch rawEvent.signature rawEvent.Signature rawEvent.rule_name rawEvent.eventtype rawEvent.host createdAt updatedAt eventHash processing processingTimeMs fullAnalysis.risk_assessment fullAnalysis.attack_mapping triage")
         .lean()
         .exec(),
     ]);
@@ -384,6 +388,8 @@ function buildListFilters({
   search,
   createdAtFrom,
   createdAtTo,
+  triageStatus,
+  outcome,
 } = {}) {
   const filters = buildDateFilter(createdAtFrom, createdAtTo);
   const clauses = [];
@@ -409,6 +415,16 @@ function buildListFilters({
   } else if (aiStatus) {
     filters.aiStatus = String(aiStatus);
   }
+
+  // Alerts without a triage projection predate investigations and count as open.
+  if (triageStatus === "open") {
+    clauses.push({
+      $or: [{ "triage.status": "open" }, { triage: { $exists: false } }, { triage: null }],
+    });
+  } else if (triageStatus === "closed") {
+    filters["triage.status"] = "closed";
+  }
+  if (outcome) filters["triage.outcome"] = String(outcome);
 
   if (search) {
     const expression = new RegExp(escapeRegex(String(search).trim()), "i");

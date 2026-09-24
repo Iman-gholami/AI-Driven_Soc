@@ -37,7 +37,9 @@
     "copilot:smoke": "node scripts/copilot-smoke.js",
     "copilot:ask": "node scripts/copilot-ask.js",
     "copilot:investigation-smoke": "node scripts/copilot-investigation-smoke.js",
-    "copilot:backfill-event-time": "node scripts/backfill-alert-event-time.js"
+    "copilot:backfill-event-time": "node scripts/backfill-alert-event-time.js",
+    "investigation:backfill-triage": "node scripts/investigation-projections.js backfill",
+    "investigation:rebuild-triage": "node scripts/investigation-projections.js rebuild"
   },
   "dependencies": {
     "cors": "^2.8.6",

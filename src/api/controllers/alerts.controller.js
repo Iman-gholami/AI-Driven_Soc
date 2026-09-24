@@ -18,7 +18,9 @@ const {
   getAiStatus,
   getAiEligibility,
   toPlainObject,
+  summarizeTriage,
 } = require('../presenters/alertPresenter');
+const { OUTCOME_IDS } = require('../../config/dispositionReasons');
 const { successResponse, errorResponse } = require('../../utils/response');
 
 const SOC_FIELDS = ['mitreAttack', 'iocs', 'correlation', 'threatIntelligence', 'networkIntelligence'];
@@ -60,7 +62,17 @@ class AlertController {
   };
 
   list = async (req, res) => {
+    const { triageStatus, outcome } = req.query;
+    if (triageStatus && !['open', 'closed'].includes(triageStatus)) {
+      throw new InputError('triageStatus must be open or closed');
+    }
+    if (outcome && !OUTCOME_IDS.includes(outcome)) {
+      throw new InputError(`outcome must be one of ${OUTCOME_IDS.join(', ')}`);
+    }
+
     const result = await this.alertRepository.listAlerts({
+      triageStatus: triageStatus || undefined,
+      outcome: outcome || undefined,
       status: req.query.status,
       aiStatus: req.query.aiStatus,
       severity: req.query.severity,
@@ -102,6 +114,7 @@ class AlertController {
     const response = toPlainObject(alert);
     const signature = getIncidentSignature(response.rawEvent || {});
     response.aiStatus = getAiStatus(response);
+    response.triage = summarizeTriage(response);
     response.analysisCount = Array.isArray(response.analysis) ? response.analysis.length : 0;
     response.aiEligibility = getAiEligibility({ signature, ruleMatch: response.ruleMatch });
 

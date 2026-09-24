@@ -193,3 +193,28 @@ test('standalone MongoDB is rejected with 503 instead of writing without a trans
     await standalone.stop();
   }
 });
+
+test('projection maintenance backfills legacy alerts and repairs drift from the event log', async () => {
+  const { backfill, rebuild } = require('../scripts/investigation-projections');
+  const alert = await createAnalyzedAlert();
+  await Alert.collection.insertOne({ alertId: 'legacy-1', rawEvent: {}, eventHash: 'legacy-hash' });
+  const service = new InvestigationService({ repository: new InvestigationRepository() });
+  await service.recordNote(
+    'it-1',
+    { payload: { text: 'x' } },
+    { idempotencyKey: 'it-note-0004', user: analyst },
+  );
+
+  const backfilled = await backfill();
+  assert.equal(backfilled.updated, 1);
+  assert.equal((await Alert.findOne({ alertId: 'legacy-1' }).lean()).triage.status, 'open');
+  assert.equal((await backfill()).updated, 0);
+
+  await Alert.collection.updateOne({ _id: alert._id }, { $set: { 'triage.status': 'closed' } });
+  const report = await rebuild({ apply: false });
+  assert.equal(report.drifted, 1);
+  const repaired = await rebuild({ apply: true });
+  assert.equal(repaired.updated, 1);
+  assert.equal((await Alert.findById(alert._id).lean()).triage.status, 'open');
+  assert.equal((await rebuild({ apply: false })).drifted, 0);
+});

@@ -5,8 +5,10 @@ const path = require('node:path');
 const { IncidentAnalyzer } = require('../services/analyzer');
 const { AlertRepository } = require('../repositories/AlertRepository');
 const { UnifiedCopilotService } = require('../services/unifiedCopilotService');
+const { InvestigationService } = require('../services/investigationService');
 const { AlertController, getRequestedSocFields } = require('./controllers/alerts.controller');
 const { CopilotController } = require('./controllers/copilot.controller');
+const { createInvestigationController } = require('./controllers/investigation.controller');
 const { RuleController } = require('./controllers/rules.controller');
 const { MitreController } = require('./controllers/mitre.controller');
 const { normalizeAlertPayload } = require('../services/alertIngest');
@@ -21,10 +23,12 @@ function createRouter({
   copilot = new UnifiedCopilotService(),
   ruleController = new RuleController(),
   mitreController = new MitreController(),
+  investigationService = new InvestigationService(),
 } = {}) {
   const router = express.Router();
   const alerts = new AlertController({ alertRepository, analyzer });
   const copilotController = new CopilotController({ copilot });
+  const investigation = createInvestigationController({ investigationService });
 
   router.get('/copilot/schema', asyncHandler(copilotController.describeSchema));
   router.get('/copilot/tools', asyncHandler(copilotController.listTools));
@@ -38,6 +42,14 @@ function createRouter({
   router.post('/alerts/:id/analyze', asyncHandler(alerts.analyze));
   router.get('/dashboard/stats', asyncHandler(alerts.dashboardStats));
   router.get('/intelligence/ip/:ip', asyncHandler(alerts.ipIntelligence));
+
+  // Analyst investigation: human actions only. These endpoints never call the LLM.
+  router.get('/investigation/reasons', asyncHandler(investigation.listReasons));
+  router.get('/alerts/:id/investigation', asyncHandler(investigation.getInvestigation));
+  router.post('/alerts/:id/investigation/review', asyncHandler(investigation.recordReview));
+  router.post('/alerts/:id/investigation/disposition', asyncHandler(investigation.recordDisposition));
+  router.post('/alerts/:id/investigation/notes', asyncHandler(investigation.recordNote));
+  router.post('/alerts/:id/investigation/reopen', asyncHandler(investigation.reopen));
 
   // Rule-level MITRE ATT&CK coverage.
   router.get('/mitre/coverage', mitreController.getCoverage);

@@ -22,6 +22,10 @@ const FORMATTED_PATHS = [
   'test/investigationApi.test.js',
   'src/api/controllers/investigation.controller.js',
   'scripts/investigation-projections.js',
+  'src/api/controllers/analytics.controller.js',
+  'src/repositories/AnalystFeedbackRepository.js',
+  'src/services/analystFeedbackService.js',
+  'test/analystFeedbackMetrics.test.js',
 ];
 
 const mode = process.argv[2] === '--write' ? '--write' : '--check';

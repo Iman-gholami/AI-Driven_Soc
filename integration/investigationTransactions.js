@@ -218,3 +218,98 @@ test('projection maintenance backfills legacy alerts and repairs drift from the 
   assert.equal((await Alert.findById(alert._id).lean()).triage.status, 'open');
   assert.equal((await rebuild({ apply: false })).drifted, 0);
 });
+
+test('feedback aggregations select the same cohorts as the pure selectors', async () => {
+  const { AnalystFeedbackRepository } = require('../src/repositories/AnalystFeedbackRepository');
+  const {
+    selectLatestHumanReview,
+    selectEffectiveHumanDisposition,
+  } = require('../src/investigation/feedbackMetrics');
+  const { AnalystFeedbackService } = require('../src/services/analystFeedbackService');
+
+  const alert = await createAnalyzedAlert('it-metrics');
+  const events = InvestigationEvent.collection;
+  const base = {
+    alertRef: alert._id,
+    alertId: 'it-metrics',
+    schemaVersion: 1,
+    idempotencyKey: '',
+    requestHash: 'x',
+  };
+  const human = { kind: 'human', id: 'a', displayName: 'A' };
+  const snapshot = {
+    verdict: 'MALICIOUS',
+    provider: 'openai',
+    model: 'gpt-4.1',
+    rule: { ruleId: 'R1', revision: 1 },
+  };
+  const analysisRef = {
+    analysisIndex: 0,
+    analyzedAt: new Date('2026-09-02T10:00:00.000Z'),
+    fingerprint: 'f',
+  };
+  const docs = [
+    {
+      sequence: 1,
+      type: 'ai_review',
+      createdAt: new Date('2026-09-03T00:00:00Z'),
+      payload: { sections: { verdict: 'agree' } },
+    },
+    {
+      sequence: 2,
+      type: 'disposition',
+      createdAt: new Date('2026-09-04T00:00:00Z'),
+      payload: { outcome: 'false_positive' },
+    },
+    { sequence: 3, type: 'reopened', createdAt: new Date('2026-09-05T00:00:00Z'), payload: { reason: 'x' } },
+    {
+      sequence: 4,
+      type: 'disposition',
+      createdAt: new Date('2026-09-06T00:00:00Z'),
+      payload: { outcome: 'true_positive' },
+    },
+    {
+      sequence: 5,
+      type: 'ai_review',
+      createdAt: new Date('2026-09-09T00:00:00Z'),
+      payload: { sections: { verdict: 'disagree' } },
+    },
+  ].map((doc) => ({
+    ...base,
+    ...doc,
+    idempotencyKey: `seed-${doc.sequence}`,
+    actor: human,
+    context: { analysisRef, analysisSnapshot: snapshot, rule: snapshot.rule },
+  }));
+  await events.insertMany(docs);
+
+  const window = { from: new Date('2026-09-01T00:00:00Z'), to: new Date('2026-09-08T00:00:00Z') };
+  const repository = new AnalystFeedbackRepository();
+  const collect = async (cursor) => {
+    const rows = [];
+    for await (const row of cursor) rows.push(row);
+    return rows;
+  };
+
+  const reviewRows = await collect(repository.reviewRows(window));
+  const dispositionRows = await collect(repository.dispositionRows(window));
+  const coverageRows = await collect(repository.coverageRows(window));
+
+  assert.equal(reviewRows.length, 1);
+  assert.equal(
+    reviewRows[0].createdAt.toISOString(),
+    selectLatestHumanReview(docs, window).createdAt.toISOString(),
+  );
+  assert.equal(dispositionRows.length, 1);
+  assert.equal(dispositionRows[0].outcome, selectEffectiveHumanDisposition(docs, window).payload.outcome);
+  assert.equal(coverageRows.length, 1);
+  assert.equal(coverageRows[0].reviews.length, 1);
+
+  const report = await new AnalystFeedbackService({ repository }).getReport({
+    from: window.from.toISOString(),
+    to: window.to.toISOString(),
+  });
+  assert.equal(report.agreement.sections.verdict.strictAgreementRate, 1);
+  assert.equal(report.falsePositiveShareByRule.rules[0].falsePositiveShare, 0);
+  assert.equal(report.coverage.coverageRate, 1);
+});

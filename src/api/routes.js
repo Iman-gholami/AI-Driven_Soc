@@ -6,6 +6,8 @@ const { IncidentAnalyzer } = require('../services/analyzer');
 const { AlertRepository } = require('../repositories/AlertRepository');
 const { UnifiedCopilotService } = require('../services/unifiedCopilotService');
 const { InvestigationService } = require('../services/investigationService');
+const { AnalystFeedbackService } = require('../services/analystFeedbackService');
+const { createAnalyticsController } = require('./controllers/analytics.controller');
 const { AlertController, getRequestedSocFields } = require('./controllers/alerts.controller');
 const { CopilotController } = require('./controllers/copilot.controller');
 const { createInvestigationController } = require('./controllers/investigation.controller');
@@ -24,11 +26,13 @@ function createRouter({
   ruleController = new RuleController(),
   mitreController = new MitreController(),
   investigationService = new InvestigationService(),
+  analystFeedbackService = new AnalystFeedbackService(),
 } = {}) {
   const router = express.Router();
   const alerts = new AlertController({ alertRepository, analyzer });
   const copilotController = new CopilotController({ copilot });
   const investigation = createInvestigationController({ investigationService });
+  const analytics = createAnalyticsController({ analystFeedbackService });
 
   router.get('/copilot/schema', asyncHandler(copilotController.describeSchema));
   router.get('/copilot/tools', asyncHandler(copilotController.listTools));
@@ -50,6 +54,9 @@ function createRouter({
   router.post('/alerts/:id/investigation/disposition', asyncHandler(investigation.recordDisposition));
   router.post('/alerts/:id/investigation/notes', asyncHandler(investigation.recordNote));
   router.post('/alerts/:id/investigation/reopen', asyncHandler(investigation.reopen));
+
+  // Analyst Feedback metrics over human investigation events (kept at the ai-accuracy URL).
+  router.get('/analytics/ai-accuracy', asyncHandler(analytics.aiAccuracy));
 
   // Rule-level MITRE ATT&CK coverage.
   router.get('/mitre/coverage', mitreController.getCoverage);

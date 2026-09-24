@@ -39,7 +39,8 @@ function createRouter({
 
   router.get('/alerts', asyncHandler(alerts.list));
   router.get('/alerts/:id/history', asyncHandler(alertMemory.history));
-  router.put('/alerts/:id/outcome', asyncHandler(alertMemory.saveOutcome));
+  router.put('/alerts/:id/investigation', asyncHandler(alertMemory.saveInvestigation));
+  router.post('/alerts/:id/close', asyncHandler(alertMemory.closeAlert));
   router.get('/alerts/:id', asyncHandler(alerts.get));
   router.post('/alerts/:id/analyze', asyncHandler(alerts.analyze));
   router.get('/dashboard/stats', asyncHandler(alerts.dashboardStats));

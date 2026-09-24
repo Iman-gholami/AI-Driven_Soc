@@ -45,6 +45,16 @@ npm start
 
 Historical DOCX report import also needs the system `unzip` command (see `docs/report-intelligence.md`).
 
+Analyst investigation writes (reviews, dispositions, notes, reopen) require MongoDB **transactions**, which need a replica set or sharded cluster. A single-node replica set is enough:
+
+```bash
+mongod --replSet rs0 --dbpath /data/db
+mongosh --eval 'rs.initiate()'
+export MONGODB_URI="mongodb://localhost:27017/ai-driven-soc?replicaSet=rs0"
+```
+
+Against a standalone `mongod` the rest of the service works, investigation reads work, and investigation writes return `503` (`reason: transactions_unavailable`) instead of writing without a transaction. Investigation writes also need an authenticated panel user: with `AUTH_ENABLED=false` there is no analyst identity and writes return `401`.
+
 Open:
 
 ```text
@@ -91,19 +101,22 @@ src/
   main.js              process entry: config validation, Mongo connection, listen, graceful shutdown
   app.js               createApp(): Express middleware stack, used by main.js and tests
   api/
-    routes.js          alert, copilot, MITRE and rule routes (wiring only)
+    routes.js          alert, copilot, investigation, analytics, MITRE and rule routes (wiring only)
     reportRoutes.js    historical report routes (wiring only)
     authRoutes.js      panel sign-in
     controllers/       request/response handling per resource
     presenters/        API shapes for persisted documents
     middleware/        auth, async handler, central error handler
   core/                config, logging, error types
-  services/            domain logic (analysis, rule resolution, reports, copilot)
+  config/              stable vocabularies (disposition outcomes, actions, reason codes)
+  investigation/       pure investigation logic: event schemas, triage reducer, analysis references, feedback metrics
+  services/            domain logic (analysis, rule resolution, reports, copilot, investigation)
   repositories/        MongoDB access
   models/              Mongoose schemas
   copilot/, mcp/       Copilot query planning and MCP server
 panel-ui/              React analyst panel
 scripts/               import, profiling and maintenance CLIs
+integration/           MongoDB replica-set integration tests (npm run test:integration)
 ```
 
 ## API
@@ -153,6 +166,10 @@ Server-side query parameters:
 - `createdAtTo` / `to`
 - `sortBy`: `createdAt`, `updatedAt`, `alertId`, `severity`, `source`
 - `sortDirection`: `asc` / `desc`
+- `triageStatus`: `open` or `closed` (alerts created before investigations existed count as open)
+- `outcome`: `true_positive`, `benign_true_positive`, `false_positive`, `inconclusive`
+
+Invalid `triageStatus` / `outcome` values return `400`. Each alert summary includes a `triage` object: `status`, `version`, `outcome`, `action`, `ticketNumber`, `closedAt`, `updatedAt`, `updatedBy`, `reviewedAnalysisRef` and `latestAnalysisReviewed` (`null` when there is no referenceable analysis).
 
 The React alert table uses this pagination directly; it is no longer limited to the first 50 stored alerts.
 
@@ -197,6 +214,181 @@ POST /analyze-incident
 ```
 
 Runs the same canonical analysis pipeline immediately.
+
+## Analyst investigation and disposition
+
+Records what the analyst did with an alert: how they judged the AI analysis, their disposition and reasons, notes, reopenings, and an external ticket number. This release records **human actions only**. The investigation endpoints never call the LLM and never decide, close or reopen anything automatically. Re-analysis does not change triage either.
+
+### Event model
+
+Every action is an append-only document in the `investigation_events` collection (`src/models/InvestigationEvent.js`):
+
+| Field | Meaning |
+| --- | --- |
+| `alertRef` | Immutable MongoDB `_id` of the Alert, used for joins, ordering and uniqueness |
+| `alertId` | Public alert ID at the time of the event, kept for display |
+| `schemaVersion` | `1` |
+| `type` | `ai_review`, `disposition`, `note`, `reopened` (writable); `query_run`, `evidence_marked` (reserved) |
+| `sequence` | Server-assigned per-alert sequence 1, 2, 3, …; the total order, even when timestamps tie |
+| `createdAt` | Server time (UTC) |
+| `actor` | `{ kind: "human" \| "ai", id, displayName }`; API writes are always `human` and use `req.user` |
+| `payload` | Type-specific body validated with strict Zod schemas (`src/investigation/eventSchemas.js`) |
+| `context` | Server-captured `analysisRef`, `analysisSnapshot` and `rule` (see below) |
+| `idempotencyKey`, `requestHash` | Duplicate-write protection |
+
+Events are never updated or deleted, and there is no TTL or delete endpoint; corrections are new events. The API resolves the public alert ID to the Alert `_id` and uses that internally, so history stays attached even if re-ingestion changes the public `alertId`.
+
+`query_run` and `evidence_marked` are reserved for future agent workflows. They are validated by the model (MCP tool name from the shared tool list in `src/mcp/toolDefinitions.js`, tool input validated with the Copilot argument schemas, bounded result summary, evidence references; `evidence_marked` also records the evidence and whether it `supports`, `contradicts` or gives `context` for an assessment). No endpoint or UI writes them in V1. Clients can never write `actor.kind: "ai"`.
+
+### Which AI analysis is being reviewed
+
+`analysis[]` stores summaries of each run. `fullAnalysis`, `llmProvider` and `model` are replaced by each re-analysis, so they describe only the latest run. Consequently:
+
+- Only the **latest persisted analysis** can receive a new review. Nothing is reconstructed for older runs.
+- The investigation GET returns its reference: zero-based `analysisIndex` (the UI shows run #index+1), its stored `analyzedAt`, and a SHA-256 `fingerprint` of the reviewable context (index, time, verdict, severity, attack mapping, recommendations, provider, model and matched rule ID/revision).
+- Reviews must send that reference. Dispositions must send it when an analysis exists, and send `null` otherwise.
+- At write time the server stores an immutable **snapshot** on the event: AI verdict, severity, attack mapping, recommendations, provider, model, matched rule ID/revision, plus the reference. Missing legacy metadata is stored as `null` (unknown), never guessed.
+- A reference whose analysis no longer exists returns `422`. A reference to an older run, a changed context, or an analysis in progress returns `409`. The client refreshes and keeps its unsaved input.
+- The write re-checks the analysis state (index, `analyzedAt`, no newer entry, `aiStatus`, rule, provider/model) atomically in the same transaction as the event insert. A re-analysis that completes mid-write therefore aborts the write instead of attaching it to different data.
+
+Later AI runs never overwrite or move earlier reviews. The timeline shows each review against its original run, and flags when the latest run has no review.
+
+**Limitation:** re-ingesting an alert can update `ruleMatch` without re-analysis. The rule in a snapshot is the alert's matched rule when the event was written. A rule change makes an open review reference stale (`409`).
+
+### Review, disposition, reasons
+
+**AI review** (`ai_review`): four sections, `verdict`, `severity`, `mitre` and `recommendations`, each `agree`, `partially_agree`, `disagree` or `not_reviewed` (the default; nothing is preselected).
+- At least one section must be reviewed.
+- `disagree` on verdict or severity requires a corrected value from the canonical enums, and it must differ from the AI value.
+- Corrections are rejected for sections that are not `disagree`.
+- An optional comment of up to 2000 characters.
+- A new review supersedes the previous one in the triage summary; all reviews and their snapshots are kept.
+
+**Disposition** (`disposition`):
+
+| Outcome | Definition |
+| --- | --- |
+| `true_positive` | The detected security concern was confirmed. |
+| `benign_true_positive` | The rule correctly detected the behavior, but investigation established that it was authorized or benign. |
+| `false_positive` | Investigation established that the detection incorrectly indicated the claimed condition. |
+| `inconclusive` | The evidence is insufficient to determine the outcome. |
+
+Actions:
+- `ticket_created`, `escalated` and `closed_no_action` close local triage. That does not mean the incident was remediated.
+- `monitoring` keeps triage open.
+
+Other disposition fields:
+- `reasonCodes` requires one to eight stable reason IDs, each valid for the chosen outcome.
+- `reasonText` is required when `other` is selected and optional otherwise.
+- `ticketNumber` is optional (up to 128 characters). There is no ticketing integration.
+
+Outcome is never inferred from action or reason: a duplicate ticket is not automatically a false positive, and an authorized scan can be a benign true positive.
+
+**Reason codes** live in `src/config/dispositionReasons.js` and are served by `GET /investigation/reasons`; the panel does not hardcode them. The table below lists each reason's allowed outcomes:
+
+| ID | English | Persian | Allowed outcomes |
+| --- | --- | --- | --- |
+| `confirmed_malicious_activity` | Confirmed malicious activity | فعالیت مخرب تأییدشده | true positive |
+| `authorized_internal_scanner` | Authorized internal scanner | اسکنر داخلی مجاز | benign true positive, false positive |
+| `authorized_test_or_simulation` | Authorized test or simulation | آزمون یا شبیه‌سازی مجاز | benign true positive |
+| `known_benign_service` | Known benign service | سرویس شناخته‌شده و بی‌خطر | benign true positive, false positive |
+| `rule_too_broad` | Detection rule too broad | قاعده تشخیص بیش از حد کلی است | false positive, benign true positive |
+| `duplicate_existing_ticket` | Duplicate of an existing ticket | تکراری؛ تیکت موجود | all |
+| `remediated_previous_report` | Remediated per a previous report | طبق گزارش قبلی رفع شده است | true positive, benign true positive, inconclusive |
+| `insufficient_evidence` | Insufficient evidence | شواهد ناکافی | inconclusive |
+| `other` | Other | سایر | all (requires text) |
+
+IDs are stored in events and never renamed or reused. A retired reason stays in the list with `retired: true` so history keeps its label.
+
+**Note** (`note`): nonblank text, up to 4000 characters. **Reopen** (`reopened`): a required reason.
+
+### Triage state and lifecycle
+
+`status` and `aiStatus` are unchanged. `Alert.triage` is a separate projection produced by the pure reducer in `src/investigation/triageReducer.js`:
+
+| Event / action | Effect |
+| --- | --- |
+| No investigation events | `open`, no disposition or review |
+| `ai_review`, `note` | No change to open/closed or the current disposition |
+| Disposition with `monitoring` | Stays open; records the disposition |
+| Disposition with `ticket_created`, `escalated`, `closed_no_action` | Closes local triage |
+| New disposition | Completely supersedes the previous one |
+| `reopened` | Opens triage; clears disposition, outcome, action, reasons, ticket and closure time; keeps notes and reviews |
+
+Reopening an alert that is already open (including `monitoring`) returns `409`, unless the request is an identical idempotent retry. `triage.version` equals the latest event `sequence`.
+
+**Legacy alerts** without `triage` are treated as open at version 0 in responses and filters. Optional maintenance:
+
+```bash
+npm run investigation:backfill-triage          # idempotent: sets an explicit open projection on legacy alerts
+npm run investigation:rebuild-triage           # report projections that differ from an event-log replay
+npm run investigation:rebuild-triage -- --apply  # rewrite those projections from the event log
+```
+
+The backfill only helps the `triage.status` index serve `triageStatus=open`; queries are correct without it. New indexes are created by Mongoose on startup: `triage.status`/`createdAt`, `triage.outcome`/`createdAt` and `analysis.analyzedAt` on alerts, plus the event indexes above.
+
+### Consistency and idempotency
+
+- The event log is authoritative and the projection is derived from it. Each write inserts the event and updates `Alert.triage` in **one MongoDB transaction**, so both commit or neither does.
+- **Idempotency:** every write needs an `Idempotency-Key` header (8–128 characters `[A-Za-z0-9._:-]`), unique per alert.
+  - Repeating an identical request (same type, body and user) returns the original event with `200` and `Idempotent-Replayed: true`, without writing again.
+  - Reusing a key for different content returns `409 idempotency_key_reused`.
+  - The identical-retry check runs before the version check, so a retry is never rejected as stale.
+- **Optimistic concurrency:** review, disposition and reopen require `expectedVersion`. For notes it is optional and enforced when sent. A mismatch returns `409 stale_version` with `currentVersion` and the current state.
+- A lost race inside the transaction (concurrent write, re-analysis) returns `409 concurrent_change`, and nothing is written.
+
+### Endpoints
+
+All routes sit behind the panel auth gate.
+
+| Method and path | Purpose |
+| --- | --- |
+| `GET /alerts/:id/investigation?limit=&before=` | Events newest first (`limit` 1–200, default 50; `before` = sequence cursor, `pagination.nextBefore` for the next page), current `state` and `version` derived from the **complete** history, `reviewableAnalysis`, `latestAnalysisReviewed`, and a summary of every stored AI run |
+| `POST /alerts/:id/investigation/review` | `{ expectedVersion, analysisRef, payload: { sections, corrections?, comment? } }` |
+| `POST /alerts/:id/investigation/disposition` | `{ expectedVersion, analysisRef \| null, payload: { outcome, action, reasonCodes, reasonText?, ticketNumber? } }` |
+| `POST /alerts/:id/investigation/notes` | `{ expectedVersion?, payload: { text } }` |
+| `POST /alerts/:id/investigation/reopen` | `{ expectedVersion, payload: { reason } }` |
+| `GET /investigation/reasons` | Outcomes, actions and reason codes |
+| `GET /analytics/ai-accuracy?from=&to=` | Analyst Feedback metrics (below) |
+
+Writes return `201` with `{ event, state, version, replayed }`.
+
+| Status | Meaning |
+| --- | --- |
+| `401` | No authenticated identity |
+| `404` | Unknown alert |
+| `422` | Invalid payload, reference or `Idempotency-Key`. The body carries `reason` and `issues[]`. Unknown fields such as `actor`, `createdAt`, `sequence` or `model` are rejected. |
+| `409` | Stale version, stale reference, analysis in progress, already open, or reused key |
+| `503` | Transactions unavailable |
+
+### Analyst Feedback metrics
+
+`GET /analytics/ai-accuracy` powers the **Analyst Feedback** page. The numbers describe **analyst-reviewed samples**, not calibrated AI accuracy on all SOC traffic. Only `actor.kind: "human"` events count as feedback.
+
+**Window and cohorts**
+
+- The window is a half-open UTC interval `[from, to)` using server event timestamps. It defaults to the last 30 days ending at request time. Malformed timestamps or `from >= to` return `400`.
+- **Review cohort:** per alert, the latest human `ai_review` created before `to`, included only if it is at or after `from`.
+  - A later note does not supersede a review, and a reopen does not erase one.
+  - The review may concern an older AI run than the newest one. It stays attributed to its original analysis and model.
+- **Disposition cohort:** per alert, disposition and reopen events from every actor before `to` are replayed. The effective disposition is included only if a human made it at or after `from`. A reopen before `to` removes the alert from this cohort.
+- Grouping uses the rule, provider and model captured in event snapshots, never current Alert fields. There is an explicit `unknown` bucket.
+
+**Formulas**
+
+1. **Strict agreement** per section = `agree / (agree + partially_agree + disagree)`. `not_reviewed` is excluded from that section's denominator. Partial agreement and disagreement are reported separately rather than weighted.
+2. The same breakdown **by detection rule** (`ruleId@revision`) and **by provider/model**, with counts and denominators.
+3. **False-positive share** per rule = `false_positive / (true_positive + benign_true_positive + false_positive)`.
+   - `inconclusive` is excluded from the denominator and reported separately.
+   - Only the top 10 rules are listed, ordered by share, then sample size, then rule key.
+   - This is not `FP / (FP + TN)`: non-alerting true negatives are never observed.
+4. **AI verdict × analyst outcome** uses the AI snapshot stored on each effective disposition.
+   - Original categories are kept; nothing is collapsed and no diagonal accuracy is computed.
+   - Dispositions without an AI snapshot are excluded and counted.
+5. **Median time to disposition** = disposition time − `analyzedAt` of the analysis that disposition referenced. Monitoring decisions are included. Missing or negative durations are excluded, and the eligible count is reported. This measures time to disposition, not time to remediation.
+6. **Human-review coverage:** among alerts with an analysis persisted in `[from, to)`, how many have any human review before `to`. This is alert-level coverage, not per-run. The latest run before `to` is reported as reviewed, unreviewed, or not establishable from stored references.
+
+Undefined rates and medians are `null` and are shown as "No data", never as zero. The pure calculators live in `src/investigation/feedbackMetrics.js`. MongoDB aggregations reduce the event log to one row per alert and stream them through the calculators, so events are never loaded into memory wholesale.
 
 ## Canonical AI output contract
 
@@ -386,10 +578,14 @@ npm run mcp:serve
 ## Testing
 
 ```bash
-npm test
-npm --prefix panel-ui run lint
+npm test                  # hermetic unit and HTTP tests
+npm run lint              # backend + panel ESLint
+npm run format:check      # Prettier on the files listed in scripts/format.js
 npm run panel:build
+npm run test:integration  # MongoDB replica-set tests (transactions, rollback, aggregations)
 ```
+
+`test:integration` starts a real single-node replica set through `mongodb-memory-server`. On first use it downloads the MongoDB binary from `fastdl.mongodb.org` (set `MONGOMS_VERSION` / `MONGOMS_DOWNLOAD_DIR` to control it). CI runs it as a separate `mongodb-integration` job.
 
 Backend tests cover event hashing, model indexes, LLM contract normalization, duplicate-ingest history preservation, queue filtering/pagination, AI eligibility, analysis caching/re-analysis, rule resolution, alert detail, and dashboard statistics.
 

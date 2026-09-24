@@ -1,27 +1,19 @@
-import React, { useState } from 'react';
-import { Alert, Button, Card, Collapse, Empty, Input, Select, Space, Spin, Tag, Typography, message } from 'antd';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React from 'react';
+import { Alert, Card, Collapse, Empty, Space, Spin, Tag, Typography } from 'antd';
+import { useQuery } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api/client';
-import type { AlertResolution, AnalystOutcome } from '../../types/alertMemory';
+import type { AnalystOutcome } from '../../types/alertMemory';
 
 const { Text, Paragraph } = Typography;
 
-const OUTCOME_OPTIONS: Array<{ value: AnalystOutcome; label: string }> = [
-  { value: 'true_positive', label: 'True positive' },
-  { value: 'benign_true_positive', label: 'Benign true positive' },
-  { value: 'false_positive', label: 'False positive' },
-  { value: 'inconclusive', label: 'Inconclusive' },
-];
-
-const OUTCOME_LABELS: Record<AnalystOutcome, string> = Object.fromEntries(
-  OUTCOME_OPTIONS.map((item) => [item.value, item.label]),
-) as Record<AnalystOutcome, string>;
+const OUTCOME_LABELS: Record<AnalystOutcome, string> = {
+  true_positive: 'True positive',
+  false_positive: 'False positive',
+};
 
 const OUTCOME_COLORS: Record<AnalystOutcome, string> = {
   true_positive: 'red',
-  benign_true_positive: 'green',
   false_positive: 'gold',
-  inconclusive: 'default',
 };
 
 const MATCH_LABELS: Record<string, string> = {
@@ -32,6 +24,16 @@ const MATCH_LABELS: Record<string, string> = {
   same_source_ip: 'same source IP',
   same_destination_ip: 'same destination IP',
   same_network_peer: 'same network peer',
+};
+
+const FP_REASON_LABELS: Record<string, string> = {
+  authorized_scanner: 'Authorized scanner',
+  authorized_testing: 'Authorized testing / simulation',
+  known_benign_service: 'Known benign service',
+  rule_too_broad: 'Detection rule too broad',
+  duplicate_alert: 'Duplicate alert',
+  expected_behavior: 'Expected behavior',
+  other: 'Other',
 };
 
 interface Props {
@@ -60,8 +62,7 @@ const AlertMemoryCard: React.FC<Props> = ({ alertId }) => {
     );
   }
 
-  const { summary, occurrences, current, pagination } = query.data;
-  const outcomeEntries = Object.entries(summary.outcomeCounts).filter(([, count]) => count > 0);
+  const { summary, occurrences, pagination } = query.data;
 
   return (
     <Card
@@ -72,6 +73,10 @@ const AlertMemoryCard: React.FC<Props> = ({ alertId }) => {
           : <Tag>First observed occurrence</Tag>
       }
     >
+      <Paragraph type="secondary">
+        Previous similar alerts and their final human outcomes. Use this as investigation context, not as an automatic decision.
+      </Paragraph>
+
       <Space wrap size={[6, 6]}>
         {summary.sameRuleCount > 0 && <Tag>{summary.sameRuleCount} same rule</Tag>}
         {summary.sameHostCount > 0 && <Tag>{summary.sameHostCount} same host</Tag>}
@@ -79,28 +84,22 @@ const AlertMemoryCard: React.FC<Props> = ({ alertId }) => {
         {summary.lastSeen && <Text type="secondary">Last: {formatTime(summary.lastSeen)}</Text>}
       </Space>
 
-      {outcomeEntries.length > 0 && (
+      {summary.count > 0 && (
         <div style={{ marginTop: 10 }}>
-          <Text strong>Previous analyst outcomes: </Text>
+          <Text strong>Previous final outcomes: </Text>
           <Space wrap size={[4, 4]}>
-            {outcomeEntries.map(([key, count]) =>
-              key === 'unresolved' ? (
-                <Tag key={key}>{count} unresolved</Tag>
-              ) : (
-                <Tag key={key} color={OUTCOME_COLORS[key as AnalystOutcome]}>
-                  {count} {OUTCOME_LABELS[key as AnalystOutcome]}
-                </Tag>
-              ),
+            {summary.outcomeCounts.true_positive > 0 && (
+              <Tag color="red">{summary.outcomeCounts.true_positive} true positive</Tag>
+            )}
+            {summary.outcomeCounts.false_positive > 0 && (
+              <Tag color="gold">{summary.outcomeCounts.false_positive} false positive</Tag>
+            )}
+            {summary.outcomeCounts.unresolved > 0 && (
+              <Tag>{summary.outcomeCounts.unresolved} unresolved</Tag>
             )}
           </Space>
         </div>
       )}
-
-      <OutcomeEditor
-        key={current.analystResult?.resolvedAt || 'new'}
-        alertId={alertId}
-        current={current.analystResult}
-      />
 
       <div style={{ marginTop: 16 }}>
         <Text strong>Previous occurrences</Text>
@@ -117,12 +116,12 @@ const AlertMemoryCard: React.FC<Props> = ({ alertId }) => {
                     {item.match.level.toUpperCase()}
                   </Tag>
                   <Text>{formatTime(item.occurredAt)}</Text>
-                  {item.analystResult?.outcome && (
-                    <Tag color={OUTCOME_COLORS[item.analystResult.outcome]}>
-                      {OUTCOME_LABELS[item.analystResult.outcome]}
+                  {item.analystResult?.finalOutcome && (
+                    <Tag color={OUTCOME_COLORS[item.analystResult.finalOutcome]}>
+                      {OUTCOME_LABELS[item.analystResult.finalOutcome]}
                     </Tag>
                   )}
-                  {!item.analystResult && item.aiResult.verdict && <Tag>AI: {item.aiResult.verdict}</Tag>}
+                  {!item.analystResult?.finalOutcome && item.aiResult.verdict && <Tag>AI: {item.aiResult.verdict}</Tag>}
                 </Space>
               ),
               children: (
@@ -142,25 +141,42 @@ const AlertMemoryCard: React.FC<Props> = ({ alertId }) => {
                       {item.aiResult.summary}
                     </Paragraph>
                   )}
-                  {item.analystResult ? (
+                  {item.analystResult?.finalOutcome ? (
                     <div>
-                      <Text strong>Analyst result: </Text>
-                      <Tag color={OUTCOME_COLORS[item.analystResult.outcome]}>
-                        {OUTCOME_LABELS[item.analystResult.outcome]}
+                      <Text strong>Final analyst decision: </Text>
+                      <Tag color={OUTCOME_COLORS[item.analystResult.finalOutcome]}>
+                        {OUTCOME_LABELS[item.analystResult.finalOutcome]}
                       </Tag>
+                      {item.analystResult.finalOutcome === 'true_positive' && item.analystResult.ticketNumber && (
+                        <Text> ticket {item.analystResult.ticketNumber}</Text>
+                      )}
+                      {item.analystResult.finalOutcome === 'false_positive' && item.analystResult.falsePositiveReason && (
+                        <Paragraph style={{ marginTop: 6, marginBottom: 4 }}>
+                          <Text strong>False-positive reason: </Text>
+                          {FP_REASON_LABELS[item.analystResult.falsePositiveReason] || item.analystResult.falsePositiveReason}
+                          {item.analystResult.falsePositiveDetails ? ` — ${item.analystResult.falsePositiveDetails}` : ''}
+                        </Paragraph>
+                      )}
+                      {item.analystResult.actionsTaken.length > 0 && (
+                        <div style={{ marginTop: 6 }}>
+                          <Text strong>Actions: </Text>
+                          {item.analystResult.actionsTaken.map((action) => <Tag key={action}>{action}</Tag>)}
+                        </div>
+                      )}
                       {item.analystResult.note && (
                         <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>
                           {item.analystResult.note}
                         </Paragraph>
                       )}
                       <Text type="secondary">
-                        {item.analystResult.resolvedBy?.displayName || 'Analyst'}
-                        {item.analystResult.resolvedAt ? ` · ${formatTime(item.analystResult.resolvedAt)}` : ''}
-                        {item.analystResult.ticketNumber ? ` · ticket ${item.analystResult.ticketNumber}` : ''}
+                        {item.analystResult.closedBy?.displayName || 'Analyst'}
+                        {item.analystResult.closedAt ? ` · ${formatTime(item.analystResult.closedAt)}` : ''}
                       </Text>
                     </div>
+                  ) : item.analystResult ? (
+                    <Text type="secondary">A previous investigation exists, but it was not closed with a final decision.</Text>
                   ) : (
-                    <Text type="secondary">No analyst outcome was recorded for this occurrence.</Text>
+                    <Text type="secondary">No analyst investigation was recorded for this occurrence.</Text>
                   )}
                 </div>
               ),
@@ -179,82 +195,6 @@ const AlertMemoryCard: React.FC<Props> = ({ alertId }) => {
     </Card>
   );
 };
-
-function OutcomeEditor({
-  alertId,
-  current,
-}: {
-  alertId: string;
-  current: AlertResolution | null;
-}) {
-  const queryClient = useQueryClient();
-  const [outcome, setOutcome] = useState<AnalystOutcome | undefined>(current?.outcome);
-  const [note, setNote] = useState(current?.note || '');
-  const [ticketNumber, setTicketNumber] = useState(current?.ticketNumber || '');
-
-  const mutation = useMutation({
-    mutationFn: () => {
-      if (!outcome) throw new Error('Choose an outcome first');
-      return api.saveAlertOutcome(alertId, {
-        outcome,
-        ...(note.trim() ? { note: note.trim() } : {}),
-        ...(ticketNumber.trim() ? { ticketNumber: ticketNumber.trim() } : {}),
-      });
-    },
-    onSuccess: async () => {
-      message.success(current ? 'Analyst outcome updated' : 'Analyst outcome saved');
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['alert-memory', alertId] }),
-        queryClient.invalidateQueries({ queryKey: ['alerts'] }),
-      ]);
-    },
-    onError: (error) => message.error(getErrorMessage(error, 'Could not save analyst outcome')),
-  });
-
-  return (
-    <Card size="small" title={current ? 'Current analyst outcome' : 'Record analyst outcome'} style={{ marginTop: 14 }}>
-      {current && (
-        <Space wrap style={{ marginBottom: 10 }}>
-          <Tag color={OUTCOME_COLORS[current.outcome]}>{OUTCOME_LABELS[current.outcome]}</Tag>
-          <Text type="secondary">
-            {current.resolvedBy?.displayName || 'Analyst'}
-            {current.resolvedAt ? ` · ${formatTime(current.resolvedAt)}` : ''}
-          </Text>
-        </Space>
-      )}
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <Select
-          value={outcome}
-          onChange={setOutcome}
-          placeholder="Final analyst outcome"
-          options={OUTCOME_OPTIONS}
-          style={{ width: '100%' }}
-        />
-        <Input.TextArea
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          maxLength={2000}
-          rows={2}
-          placeholder="Optional analyst note — what was concluded and why?"
-        />
-        <Input
-          value={ticketNumber}
-          onChange={(event) => setTicketNumber(event.target.value)}
-          maxLength={128}
-          placeholder="External ticket number (optional)"
-        />
-        <Button
-          type="primary"
-          disabled={!outcome}
-          loading={mutation.isPending}
-          onClick={() => mutation.mutate()}
-        >
-          {current ? 'Update outcome' : 'Save outcome'}
-        </Button>
-      </Space>
-    </Card>
-  );
-}
 
 function formatTime(value: string | null) {
   if (!value) return 'unknown time';

@@ -16,8 +16,9 @@ import {
 } from '../types';
 import type {
   AlertMemoryResult,
-  AlertResolution,
-  SaveAlertOutcomeInput,
+  AnalystCaseWriteResult,
+  SaveInvestigationInput,
+  CloseAlertInput,
 } from '../types/alertMemory';
 import type {
   HistoricalReport,
@@ -91,12 +92,23 @@ export const api = {
     return response.data.data;
   },
 
-  saveAlertOutcome: async (
+  saveAlertInvestigation: async (
     alertId: string,
-    input: SaveAlertOutcomeInput,
-  ): Promise<AlertResolution> => {
-    const response = await apiClient.put<ApiResponse<AlertResolution>>(
-      `/alerts/${encodeURIComponent(alertId)}/outcome`,
+    input: SaveInvestigationInput,
+  ): Promise<AnalystCaseWriteResult> => {
+    const response = await apiClient.put<ApiResponse<AnalystCaseWriteResult>>(
+      `/alerts/${encodeURIComponent(alertId)}/investigation`,
+      input,
+    );
+    return response.data.data;
+  },
+
+  closeAlert: async (
+    alertId: string,
+    input: CloseAlertInput,
+  ): Promise<AnalystCaseWriteResult> => {
+    const response = await apiClient.post<ApiResponse<AnalystCaseWriteResult>>(
+      `/alerts/${encodeURIComponent(alertId)}/close`,
       input,
     );
     return response.data.data;

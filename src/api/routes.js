@@ -5,7 +5,9 @@ const path = require('node:path');
 const { IncidentAnalyzer } = require('../services/analyzer');
 const { AlertRepository } = require('../repositories/AlertRepository');
 const { UnifiedCopilotService } = require('../services/unifiedCopilotService');
+const { AlertMemoryService } = require('../services/alertMemoryService');
 const { AlertController, getRequestedSocFields } = require('./controllers/alerts.controller');
+const { createAlertMemoryController } = require('./controllers/alertMemory.controller');
 const { CopilotController } = require('./controllers/copilot.controller');
 const { RuleController } = require('./controllers/rules.controller');
 const { MitreController } = require('./controllers/mitre.controller');
@@ -19,11 +21,13 @@ function createRouter({
   analyzer = new IncidentAnalyzer(),
   alertRepository = new AlertRepository(),
   copilot = new UnifiedCopilotService(),
+  alertMemoryService = new AlertMemoryService(),
   ruleController = new RuleController(),
   mitreController = new MitreController(),
 } = {}) {
   const router = express.Router();
   const alerts = new AlertController({ alertRepository, analyzer });
+  const alertMemory = createAlertMemoryController({ alertMemoryService });
   const copilotController = new CopilotController({ copilot });
 
   router.get('/copilot/schema', asyncHandler(copilotController.describeSchema));
@@ -34,6 +38,8 @@ function createRouter({
   router.post('/webhook-alert', asyncHandler(alerts.ingestWebhook));
 
   router.get('/alerts', asyncHandler(alerts.list));
+  router.get('/alerts/:id/history', asyncHandler(alertMemory.history));
+  router.put('/alerts/:id/outcome', asyncHandler(alertMemory.saveOutcome));
   router.get('/alerts/:id', asyncHandler(alerts.get));
   router.post('/alerts/:id/analyze', asyncHandler(alerts.analyze));
   router.get('/dashboard/stats', asyncHandler(alerts.dashboardStats));

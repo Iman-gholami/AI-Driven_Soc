@@ -27,6 +27,12 @@ import type {
   ReportUploadCommitResult,
   ReportUploadPreviewSession,
 } from '../types/reports';
+import type {
+  AnalystFeedbackReport,
+  DispositionVocabulary,
+  InvestigationView,
+  InvestigationWriteResult,
+} from '../types/investigation';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
@@ -244,7 +250,61 @@ export const api = {
     const response = await apiClient.post<ApiResponse<ReportCopilotResult>>('/reports/copilot/query', { message });
     return response.data.data;
   },
+
+  getInvestigation: async (alertId: string, before?: number | null): Promise<InvestigationView> => {
+    const response = await apiClient.get<ApiResponse<InvestigationView>>(
+      `/alerts/${encodeURIComponent(alertId)}/investigation`,
+      { params: cleanParams({ before: before ?? undefined, limit: 50 }) },
+    );
+    return response.data.data;
+  },
+
+  getDispositionVocabulary: async (): Promise<DispositionVocabulary> => {
+    const response = await apiClient.get<ApiResponse<DispositionVocabulary>>('/investigation/reasons');
+    return response.data.data;
+  },
+
+  recordInvestigationEvent: async (
+    alertId: string,
+    kind: 'review' | 'disposition' | 'notes' | 'reopen',
+    body: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<InvestigationWriteResult> => {
+    const response = await apiClient.post<ApiResponse<InvestigationWriteResult>>(
+      `/alerts/${encodeURIComponent(alertId)}/investigation/${kind}`,
+      body,
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
+    return response.data.data;
+  },
+
+  getAnalystFeedback: async (params: { from?: string; to?: string } = {}): Promise<AnalystFeedbackReport> => {
+    const response = await apiClient.get<ApiResponse<AnalystFeedbackReport>>('/analytics/ai-accuracy', {
+      params: cleanParams(params),
+    });
+    return response.data.data;
+  },
 };
+
+export interface ApiErrorInfo {
+  status: number | null;
+  message: string;
+  reason: string | null;
+  issues: Array<{ path: string; message: string }>;
+}
+
+// Structured view of the backend error envelope ({ detail, reason, issues, ... }).
+export function getApiErrorInfo(error: unknown, fallback: string): ApiErrorInfo {
+  const data = axios.isAxiosError(error)
+    ? (error.response?.data as { reason?: unknown; issues?: unknown } | undefined)
+    : undefined;
+  return {
+    status: axios.isAxiosError(error) ? (error.response?.status ?? null) : null,
+    message: getErrorMessage(error, fallback),
+    reason: typeof data?.reason === 'string' ? data.reason : null,
+    issues: Array.isArray(data?.issues) ? (data.issues as ApiErrorInfo['issues']) : [],
+  };
+}
 
 function toStringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))) : [];

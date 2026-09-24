@@ -1,3 +1,5 @@
+import type { DispositionOutcome, TriageStatus, TriageSummary } from './investigation';
+
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data: T;
@@ -171,6 +173,7 @@ export interface Alert {
     providerMetadata?: unknown;
   };
   processing?: Record<string, unknown>;
+  triage?: TriageSummary;
 }
 
 export interface AlertListParams {
@@ -185,6 +188,8 @@ export interface AlertListParams {
   createdAtTo?: string;
   sortBy?: 'createdAt' | 'updatedAt' | 'alertId' | 'severity' | 'source';
   sortDirection?: 'asc' | 'desc';
+  triageStatus?: TriageStatus | '';
+  outcome?: DispositionOutcome | '';
 }
 
 export interface AlertListResult {

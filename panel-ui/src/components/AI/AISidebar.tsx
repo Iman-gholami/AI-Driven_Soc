@@ -1,7 +1,8 @@
 import React from 'react';
-import { Drawer, Button, Space, Typography, Card, Spin, message, Tag, Divider, Timeline, Progress, Collapse } from 'antd';
+import { Drawer, Button, Space, Typography, Card, Spin, message, Tag, Divider, Timeline, Progress, Collapse, Tabs } from 'antd';
 import { CloseOutlined, CopyOutlined, RobotOutlined, CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { Alert as AlertType, AttackMappingEntry } from '../../types';
+import InvestigationPanel from '../Investigation/InvestigationPanel';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -22,9 +23,13 @@ interface AISidebarProps {
   alert: AlertType | null;
   loading?: boolean;
   onReanalyze?: (alert: AlertType) => Promise<void> | void;
+  tab?: SidebarTab;
+  onTabChange?: (tab: SidebarTab) => void;
 }
 
-const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onReanalyze})=>{
+export type SidebarTab = 'ai' | 'investigation';
+
+const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onReanalyze,tab='ai',onTabChange})=>{
   const analysis = alert?.fullAnalysis || {};
   const risk = analysis.risk_assessment || {};
   const decision = analysis.analyst_decision || {};
@@ -68,6 +73,8 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
     message.success('Incident copied');
   };
 
+  const aiAssessment = alert ? renderAiAssessment(alert) : null;
+
   return <Drawer
     title={<Space><RobotOutlined/>SOC Investigation Workspace</Space>}
     width={820}
@@ -76,7 +83,19 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
     closeIcon={<CloseOutlined/>}
     extra={alert?<Space><Button icon={<CopyOutlined/>} onClick={copy}>Copy</Button>{alert.aiStatus==='analyzed' && alert.aiEligibility?.eligible && onReanalyze && <Button icon={<ReloadOutlined/>} onClick={()=>onReanalyze(alert)}>Re-run AI</Button>}</Space>:null}
   >
-    {!alert ? <Text>Select an alert</Text> : loading ? <Spin/> : <div className="space-y-4">
+    {!alert ? <Text>Select an alert</Text> : <Tabs
+      activeKey={tab}
+      onChange={(key)=>onTabChange?.(key as SidebarTab)}
+      destroyOnHidden={false}
+      items={[
+        { key: 'ai', label: 'AI Assessment', children: loading ? <Spin/> : aiAssessment },
+        { key: 'investigation', label: 'Investigation', children: <InvestigationPanel alertId={alert.alertId} /> },
+      ]}
+    />}
+  </Drawer>;
+
+  function renderAiAssessment(alert: AlertType) {
+    return <div className="space-y-4">
       <Card>
         <Title level={3}>🚨 {alert.signature||'Security Alert'}</Title>
         <Space wrap>
@@ -212,7 +231,7 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
         <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{renderValue(riskReasoning)}</Paragraph>
       </Card>
 
-      <Card title="SOC Decision">
+      <Card title="AI Recommendation">
         <Tag color="blue">{renderValue(decision.action, 'UNKNOWN')}</Tag>
         <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{renderValue(decision.reason, 'No analyst decision returned by the model.')}</Paragraph>
       </Card>
@@ -238,8 +257,8 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
 
       <Divider/>
       <Card title="Final SOC Note"><Paragraph style={{ whiteSpace: 'pre-wrap' }}>{renderValue(analysis.final_soc_note)}</Paragraph></Card>
-    </div>}
-  </Drawer>;
+    </div>;
+  }
 };
 
 export default AISidebar;

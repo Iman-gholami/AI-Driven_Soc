@@ -29,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
     { key: '/alerts', icon: <FileTextOutlined />, label: 'Alerts' },
     { key: '/reports', icon: <FileSearchOutlined />, label: 'Reports' },
     { key: '/mitre-coverage', icon: <RadarChartOutlined />, label: 'MITRE Coverage' },
-    { key: '/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
+    { key: '/analytics', icon: <BarChartOutlined />, label: 'Analyst Feedback' },
     { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
   ];
 

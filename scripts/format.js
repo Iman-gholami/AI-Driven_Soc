@@ -26,6 +26,9 @@ const FORMATTED_PATHS = [
   'src/repositories/AnalystFeedbackRepository.js',
   'src/services/analystFeedbackService.js',
   'test/analystFeedbackMetrics.test.js',
+  'panel-ui/src/components/Investigation',
+  'panel-ui/src/pages/AnalystFeedback',
+  'panel-ui/src/types/investigation.ts',
 ];
 
 const mode = process.argv[2] === '--write' ? '--write' : '--check';

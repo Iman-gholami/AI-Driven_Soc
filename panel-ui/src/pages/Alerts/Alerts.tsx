@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Table, Card, Typography, Button, Space, Tag, message, Modal, Tooltip, Badge, Collapse, Select, Input } from 'antd';
 import type { BadgeProps } from 'antd';
-import { PlusOutlined, RobotOutlined, FilterOutlined, DownloadOutlined, CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, InfoCircleOutlined, AlertOutlined, ClockCircleOutlined, FileTextOutlined } from '@ant-design/icons';
+import { PlusOutlined, RobotOutlined, FilterOutlined, DownloadOutlined, CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, InfoCircleOutlined, AlertOutlined, ClockCircleOutlined, FileTextOutlined, SolutionOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api, getErrorMessage } from '../../api/client';
 import { Alert, AlertListParams } from '../../types';
-import AISidebar from '../../components/AI/AISidebar';
+import AISidebar, { type SidebarTab } from '../../components/AI/AISidebar';
+import { OUTCOME_COLORS, outcomeLabel } from '../../components/Investigation/investigationFormat';
+import type { DispositionOutcome, TriageStatus } from '../../types/investigation';
 import './Alerts.css';
 
 const { Title, Text } = Typography;
@@ -23,6 +25,9 @@ const Alerts: React.FC = () => {
   const [filterAiStatus, setFilterAiStatus] = useState<Alert['aiStatus'] | ''>('');
   const [filterSource, setFilterSource] = useState('');
   const [search, setSearch] = useState('');
+  const [filterTriageStatus, setFilterTriageStatus] = useState<TriageStatus | ''>('');
+  const [filterOutcome, setFilterOutcome] = useState<DispositionOutcome | ''>('');
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('ai');
   const [aiSidebarOpen, setAiSidebarOpen] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
@@ -38,9 +43,17 @@ const Alerts: React.FC = () => {
     aiStatus: filterAiStatus,
     source: filterSource,
     search,
+    triageStatus: filterTriageStatus,
+    outcome: filterOutcome,
     sortBy: 'createdAt',
     sortDirection: 'desc',
-  }), [page,pageSize,filterSeverity,filterStatus,filterAiStatus,filterSource,search]);
+  }), [page,pageSize,filterSeverity,filterStatus,filterAiStatus,filterSource,search,filterTriageStatus,filterOutcome]);
+
+  const { data: vocabulary } = useQuery({
+    queryKey: ['investigation-reasons'],
+    queryFn: api.getDispositionVocabulary,
+    staleTime: 60 * 60 * 1000,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['alerts', queryParams],
@@ -74,7 +87,20 @@ const Alerts: React.FC = () => {
 
   const resetPage = () => setPage(1);
 
+  // Opens the investigation workspace from stored data only; it never triggers AI analysis.
+  const openInvestigation = async (alert: Alert) => {
+    setSidebarTab('investigation');
+    setAiSidebarOpen(true);
+    setSelectedAlert(alert);
+    try {
+      setSelectedAlert(await api.getAlertById(alert.alertId));
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Alert could not be loaded'));
+    }
+  };
+
   const handleAIAnalysis = async (alert: Alert) => {
+    setSidebarTab('ai');
     setAiSidebarOpen(true);
     setSelectedAlert(alert);
 
@@ -114,6 +140,8 @@ const Alerts: React.FC = () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['alerts'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+      queryClient.invalidateQueries({ queryKey: ['investigation'] }),
+      queryClient.invalidateQueries({ queryKey: ['analyst-feedback'] }),
     ]);
   };
 
@@ -146,6 +174,9 @@ const Alerts: React.FC = () => {
         Created: new Date(alert.createdAt).toISOString(),
         Updated: new Date(alert.updatedAt).toISOString(),
         'Event Hash': alert.eventHash,
+        'Triage Status': alert.triage?.status || 'open',
+        Outcome: alert.triage?.outcome || '',
+        Ticket: alert.triage?.ticketNumber || '',
         'Rule ID': alert.ruleMatch?.ruleId || '',
         'Rule Match Status': alert.ruleMatch?.status || '',
         'Rule Match Type': alert.ruleMatch?.matchType || '',
@@ -176,6 +207,8 @@ const Alerts: React.FC = () => {
     setFilterAiStatus('');
     setFilterSource('');
     setSearch('');
+    setFilterTriageStatus('');
+    setFilterOutcome('');
     setPage(1);
   };
 
@@ -212,6 +245,15 @@ const Alerts: React.FC = () => {
     { title: 'Severity', dataIndex: 'severity', key: 'severity', render: (severity: string) => <Badge status={getSeverityBadge(severity)} text={severity.toUpperCase()} /> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={getStatusColor(status)} className="px-3 py-1">{getStatusIcon(status)} {status.toUpperCase()}</Tag> },
     { title: 'AI Status', dataIndex: 'aiStatus', key: 'aiStatus', render: (status: string, record: Alert) => <Tooltip title={record.aiEligibility.eligible ? 'Eligible for AI analysis' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Tag color={getAiStatusColor(status)}>{getAiStatusIcon(status)} {status.replace('_', ' ').toUpperCase()}</Tag>{!record.aiEligibility.eligible && <InfoCircleOutlined className="text-gray-400 ml-1" />}</Tooltip> },
+    { title: 'Triage', key: 'triage', render: (_: unknown, record: Alert) => {
+      const triage = record.triage;
+      return <Space direction="vertical" size={2}>
+        <Tag color={triage?.status === 'closed' ? 'default' : 'processing'}>{(triage?.status || 'open').toUpperCase()}</Tag>
+        {triage?.outcome && <Tag color={OUTCOME_COLORS[triage.outcome]}>{outcomeLabel(vocabulary, triage.outcome)}</Tag>}
+        {triage?.latestAnalysisReviewed === false && <Tooltip title="The newest AI analysis has no analyst review yet"><Tag color="warning">AI unreviewed</Tag></Tooltip>}
+      </Space>;
+    } },
+    { title: 'Investigate', key: 'investigate', render: (_: unknown, record: Alert) => <Button icon={<SolutionOutlined />} onClick={() => openInvestigation(record)}>Investigate</Button> },
     { title: 'AI Action', key: 'aiAction', render: (_: unknown, record: Alert) => <Tooltip title={record.aiStatus === 'analyzed' ? 'View persisted AI analysis' : record.aiEligibility.eligible ? 'Run deterministic rule resolution and AI triage' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Button type="primary" icon={<RobotOutlined />} onClick={() => handleAIAnalysis(record)} disabled={record.aiStatus !== 'analyzed' && !record.aiEligibility.eligible} size="middle">{record.aiStatus === 'analyzed' ? 'View AI Analysis' : 'AI Analyze'}</Button></Tooltip> },
   ];
 
@@ -235,15 +277,17 @@ const Alerts: React.FC = () => {
         <Select allowClear placeholder="Severity" value={filterSeverity || undefined} style={{width:140}} onChange={(value)=>{setFilterSeverity(value || '');resetPage();}} options={['critical','high','medium','low','info','unknown'].map(value=>({value,label:value.toUpperCase()}))}/>
         <Select allowClear placeholder="Status" value={filterStatus || undefined} style={{width:130}} onChange={(value)=>{setFilterStatus(value || '');resetPage();}} options={['new','analyzed'].map(value=>({value,label:value.toUpperCase()}))}/>
         <Select allowClear placeholder="AI status" value={filterAiStatus || undefined} style={{width:160}} onChange={(value)=>{setFilterAiStatus(value || '');resetPage();}} options={['not_analyzed','analyzing','analyzed','failed'].map(value=>({value,label:value.replace('_',' ').toUpperCase()}))}/>
+        <Select allowClear placeholder="Triage" value={filterTriageStatus || undefined} style={{width:130}} onChange={(value)=>{setFilterTriageStatus(value || '');resetPage();}} options={[{value:'open',label:'OPEN'},{value:'closed',label:'CLOSED'}]}/>
+        <Select allowClear placeholder="Outcome" value={filterOutcome || undefined} style={{width:190}} onChange={(value)=>{setFilterOutcome(value || '');resetPage();}} options={(vocabulary?.outcomes || []).map((item)=>({value:item.id,label:item.label}))}/>
         <Input placeholder="Source" allowClear value={filterSource} onChange={(event)=>{setFilterSource(event.target.value);resetPage();}} style={{width:160}} />
         <div className="alerts-result-count"><strong>{pagination.total.toLocaleString()}</strong><span>matching alerts</span></div>
       </Space>
     </Card>
 
-    <Card className="alerts-table-card"><Table scroll={{ x: 1120 }} columns={columns} dataSource={alerts} loading={isLoading} rowKey="alertId" expandable={{ expandedRowRender, expandedRowKeys, onExpandedRowsChange: keys => setExpandedRowKeys(keys as string[]), expandIcon: ({ expanded, onExpand, record }) => <Button type="text" icon={expanded ? <CloseCircleOutlined /> : <FileTextOutlined />} onClick={e => onExpand(record, e)} /> }} pagination={{ current:pagination.page, pageSize:pagination.limit, total:pagination.total, showSizeChanger:true, showQuickJumper:true, showTotal:(total,range)=>`${range[0]}-${range[1]} of ${total} alerts`, pageSizeOptions:['10','20','50','100'], onChange:(nextPage,nextPageSize)=>{setPage(nextPageSize!==pageSize?1:nextPage);setPageSize(nextPageSize);} }} /></Card>
+    <Card className="alerts-table-card"><Table scroll={{ x: 1400 }} columns={columns} dataSource={alerts} loading={isLoading} rowKey="alertId" expandable={{ expandedRowRender, expandedRowKeys, onExpandedRowsChange: keys => setExpandedRowKeys(keys as string[]), expandIcon: ({ expanded, onExpand, record }) => <Button type="text" icon={expanded ? <CloseCircleOutlined /> : <FileTextOutlined />} onClick={e => onExpand(record, e)} /> }} pagination={{ current:pagination.page, pageSize:pagination.limit, total:pagination.total, showSizeChanger:true, showQuickJumper:true, showTotal:(total,range)=>`${range[0]}-${range[1]} of ${total} alerts`, pageSizeOptions:['10','20','50','100'], onChange:(nextPage,nextPageSize)=>{setPage(nextPageSize!==pageSize?1:nextPage);setPageSize(nextPageSize);} }} /></Card>
 
     <Modal title="Alert ingestion" open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={[<Button key="close" type="primary" onClick={() => setIsModalVisible(false)}>Close</Button>]} width={600}><Text>Alerts are ingested from Splunk through <Text code>/webhook-alert</Text>. This panel intentionally does not create or delete alerts.</Text></Modal>
-    <AISidebar open={aiSidebarOpen} onClose={() => { setAiSidebarOpen(false); setSelectedAlert(null); }} alert={selectedAlert} loading={sidebarLoading} onReanalyze={handleReanalysis} />
+    <AISidebar open={aiSidebarOpen} onClose={() => { setAiSidebarOpen(false); setSelectedAlert(null); }} alert={selectedAlert} loading={sidebarLoading} onReanalyze={handleReanalysis} tab={sidebarTab} onTabChange={setSidebarTab} />
   </main>;
 };
 

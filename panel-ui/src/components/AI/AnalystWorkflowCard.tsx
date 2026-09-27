@@ -1,5 +1,18 @@
-import React, { useState } from 'react';
-import { Alert, Button, Card, Divider, Input, Radio, Select, Space, Spin, Tag, Typography, message } from 'antd';
+import React, { useMemo, useState } from 'react';
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Divider,
+  Input,
+  Radio,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+  message,
+} from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api/client';
 import type {
@@ -21,6 +34,8 @@ const ACTION_OPTIONS = [
   'Escalated to IR',
 ].map((value) => ({ value, label: value }));
 
+const ACTION_VALUES = new Set(ACTION_OPTIONS.map((item) => item.value));
+
 const FALSE_POSITIVE_OPTIONS: Array<{ value: FalsePositiveReason; label: string }> = [
   { value: 'authorized_scanner', label: 'Authorized scanner' },
   { value: 'authorized_testing', label: 'Authorized testing / simulation' },
@@ -35,14 +50,6 @@ const FP_LABELS = Object.fromEntries(FALSE_POSITIVE_OPTIONS.map((item) => [item.
   FalsePositiveReason,
   string
 >;
-
-// Ant Design renders Select menus in document.body by default. Inside the investigation
-// Drawer that can put the popup outside the Drawer's stacking/scrolling context and make
-// an otherwise populated Select look like it does not open. Keep each popup next to its
-// trigger so both menus remain clickable and visible inside the Drawer.
-function selectPopupContainer(trigger: HTMLElement): HTMLElement {
-  return trigger.parentElement || document.body;
-}
 
 interface Props {
   alertId: string;
@@ -91,11 +98,17 @@ function WorkflowEditor({
 }) {
   const queryClient = useQueryClient();
   const [actionsTaken, setActionsTaken] = useState<string[]>(analystCase?.actionsTaken || []);
+  const [customAction, setCustomAction] = useState('');
   const [note, setNote] = useState(analystCase?.note || '');
   const [finalOutcome, setFinalOutcome] = useState<AnalystOutcome>();
   const [ticketNumber, setTicketNumber] = useState('');
   const [falsePositiveReason, setFalsePositiveReason] = useState<FalsePositiveReason>();
   const [falsePositiveDetails, setFalsePositiveDetails] = useState('');
+
+  const customActions = useMemo(
+    () => actionsTaken.filter((action) => !ACTION_VALUES.has(action)),
+    [actionsTaken],
+  );
 
   const invalidate = async () => {
     await Promise.all([
@@ -137,6 +150,24 @@ function WorkflowEditor({
     onError: (error) => message.error(getErrorMessage(error, 'Could not close alert')),
   });
 
+  const toggleAction = (action: string, checked: boolean) => {
+    setActionsTaken((current) => {
+      if (checked) return current.includes(action) ? current : [...current, action];
+      return current.filter((item) => item !== action);
+    });
+  };
+
+  const addCustomAction = () => {
+    const next = customAction.trim();
+    if (!next) return;
+    setActionsTaken((current) => current.includes(next) ? current : [...current, next]);
+    setCustomAction('');
+  };
+
+  const removeCustomAction = (action: string) => {
+    setActionsTaken((current) => current.filter((item) => item !== action));
+  };
+
   const missingTicket = finalOutcome === 'true_positive' && !ticketNumber.trim();
   const missingFpReason = finalOutcome === 'false_positive' && !falsePositiveReason;
   const missingFpDetails =
@@ -153,18 +184,39 @@ function WorkflowEditor({
       </Paragraph>
 
       <Text strong>Actions taken</Text>
-      <Select
-        mode="tags"
-        value={actionsTaken}
-        onChange={setActionsTaken}
-        options={ACTION_OPTIONS}
-        placeholder="Select or type investigation actions"
-        tokenSeparators={[',']}
-        optionFilterProp="label"
-        getPopupContainer={selectPopupContainer}
-        style={{ width: '100%', marginTop: 6 }}
-        maxTagCount="responsive"
-      />
+      <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+        {ACTION_OPTIONS.map((item) => (
+          <Checkbox
+            key={item.value}
+            checked={actionsTaken.includes(item.value)}
+            onChange={(event) => toggleAction(item.value, event.target.checked)}
+          >
+            {item.label}
+          </Checkbox>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <Input
+          value={customAction}
+          onChange={(event) => setCustomAction(event.target.value)}
+          onPressEnter={addCustomAction}
+          placeholder="Add a custom investigation action"
+        />
+        <Button onClick={addCustomAction} disabled={!customAction.trim()}>
+          Add
+        </Button>
+      </div>
+
+      {customActions.length > 0 && (
+        <Space wrap size={[4, 4]} style={{ marginTop: 8 }}>
+          {customActions.map((action) => (
+            <Tag key={action} closable onClose={() => removeCustomAction(action)}>
+              {action}
+            </Tag>
+          ))}
+        </Space>
+      )}
 
       <Input.TextArea
         value={note}
@@ -217,15 +269,22 @@ function WorkflowEditor({
       {finalOutcome === 'false_positive' && (
         <div style={{ marginTop: 12 }}>
           <Text strong>Why is this a false positive?</Text>
-          <Select
+          <Radio.Group
             value={falsePositiveReason}
-            onChange={setFalsePositiveReason}
-            options={FALSE_POSITIVE_OPTIONS}
-            placeholder="Required false-positive reason"
-            status={missingFpReason ? 'error' : undefined}
-            getPopupContainer={selectPopupContainer}
-            style={{ width: '100%', marginTop: 6 }}
-          />
+            onChange={(event) => setFalsePositiveReason(event.target.value)}
+            style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}
+          >
+            {FALSE_POSITIVE_OPTIONS.map((item) => (
+              <Radio key={item.value} value={item.value}>
+                {item.label}
+              </Radio>
+            ))}
+          </Radio.Group>
+          {missingFpReason && (
+            <Text type="danger" style={{ display: 'block', marginTop: 6 }}>
+              Choose a false-positive reason before closing the alert.
+            </Text>
+          )}
           {falsePositiveReason === 'other' && (
             <Input.TextArea
               value={falsePositiveDetails}

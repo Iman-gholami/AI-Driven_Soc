@@ -3,6 +3,7 @@ import { Drawer, Button, Space, Typography, Card, Spin, message, Tag, Divider, T
 import { CloseOutlined, CopyOutlined, RobotOutlined, CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { Alert as AlertType, AttackMappingEntry } from '../../types';
 import AlertMemoryCard from './AlertMemoryCard';
+import AutomatedInvestigationDemo from './AutomatedInvestigationDemo';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -235,7 +236,10 @@ const AISidebar:React.FC<AISidebarProps>=({open,onClose,alert,loading=false,onRe
         {falsePositives.length ? falsePositives.map((item,index)=><div key={index}>• {renderValue(item)}</div>) : <Text type="secondary">No false-positive scenarios were returned.</Text>}
       </Card>
 
-      <Card title="Recommended Investigation Steps">
+      <Card
+        title="Recommended Investigation Steps"
+        extra={steps.length ? <AutomatedInvestigationDemo alert={alert} steps={steps} /> : null}
+      >
         {steps.length ? steps.map((item,index)=><div key={index}>{index+1}. {typeof item==='string'?item:JSON.stringify(item)}</div>) : <Text type="secondary">No investigation steps available.</Text>}
       </Card>
 

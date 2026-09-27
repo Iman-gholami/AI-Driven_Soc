@@ -87,7 +87,7 @@ export interface SaveInvestigationInput {
   note?: string;
 }
 
-export interface CloseAlertInput extends SaveInvestigationInput {
+export interface CloseAlertInput {
   finalOutcome: AnalystOutcome;
   ticketNumber?: string;
   falsePositiveReason?: FalsePositiveReason;

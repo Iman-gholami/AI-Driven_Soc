@@ -1,55 +1,20 @@
-import React, { useMemo, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Card,
-  Checkbox,
-  Divider,
-  Input,
-  Radio,
-  Space,
-  Spin,
-  Tag,
-  Typography,
-  message,
-} from 'antd';
+import React, { useState } from 'react';
+import { Alert, Button, Card, Input, Radio, Space, Spin, Tag, Typography, message } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api/client';
-import type {
-  AnalystCase,
-  AnalystOutcome,
-  FalsePositiveReason,
-} from '../../types/alertMemory';
+import type { AnalystCase, AnalystOutcome } from '../../types/alertMemory';
 
 const { Text, Paragraph } = Typography;
 
-const ACTION_OPTIONS = [
-  'Reviewed previous occurrences',
-  'Checked source IP',
-  'Checked destination asset',
-  'Reviewed firewall / network logs',
-  'Checked endpoint / EDR',
-  'Checked threat intelligence',
-  'Contacted asset owner',
-  'Escalated to IR',
-].map((value) => ({ value, label: value }));
-
-const ACTION_VALUES = new Set(ACTION_OPTIONS.map((item) => item.value));
-
-const FALSE_POSITIVE_OPTIONS: Array<{ value: FalsePositiveReason; label: string }> = [
-  { value: 'authorized_scanner', label: 'Authorized scanner' },
-  { value: 'authorized_testing', label: 'Authorized testing / simulation' },
-  { value: 'known_benign_service', label: 'Known benign service' },
-  { value: 'rule_too_broad', label: 'Detection rule too broad' },
-  { value: 'duplicate_alert', label: 'Duplicate alert' },
-  { value: 'expected_behavior', label: 'Expected behavior' },
-  { value: 'other', label: 'Other' },
-];
-
-const FP_LABELS = Object.fromEntries(FALSE_POSITIVE_OPTIONS.map((item) => [item.value, item.label])) as Record<
-  FalsePositiveReason,
-  string
->;
+const LEGACY_FP_LABELS: Record<string, string> = {
+  authorized_scanner: 'Authorized scanner',
+  authorized_testing: 'Authorized testing / simulation',
+  known_benign_service: 'Known benign service',
+  rule_too_broad: 'Detection rule too broad',
+  duplicate_alert: 'Duplicate alert',
+  expected_behavior: 'Expected behavior',
+  other: 'Other',
+};
 
 interface Props {
   alertId: string;
@@ -61,10 +26,10 @@ const AnalystWorkflowCard: React.FC<Props> = ({ alertId }) => {
     queryFn: () => api.getAlertMemory(alertId),
   });
 
-  if (query.isLoading) return <Card title="Analyst Investigation"><Spin /></Card>;
+  if (query.isLoading) return <Card title="Analyst Decision"><Spin /></Card>;
   if (query.isError || !query.data) {
     return (
-      <Card title="Analyst Investigation">
+      <Card title="Analyst Decision">
         <Alert type="error" showIcon message={getErrorMessage(query.error, 'Analyst case could not be loaded')} />
       </Card>
     );
@@ -77,38 +42,14 @@ const AnalystWorkflowCard: React.FC<Props> = ({ alertId }) => {
     return <ClosedCase analystCase={analystCase} />;
   }
 
-  return (
-    <WorkflowEditor
-      key={analystCase?.updatedAt || analystCase?.startedAt || 'new-case'}
-      alertId={alertId}
-      status={current.status}
-      analystCase={analystCase}
-    />
-  );
+  return <DecisionEditor alertId={alertId} />;
 };
 
-function WorkflowEditor({
-  alertId,
-  status,
-  analystCase,
-}: {
-  alertId: string;
-  status: 'new' | 'analyzed' | 'investigating' | 'closed';
-  analystCase: AnalystCase | null;
-}) {
+function DecisionEditor({ alertId }: { alertId: string }) {
   const queryClient = useQueryClient();
-  const [actionsTaken, setActionsTaken] = useState<string[]>(analystCase?.actionsTaken || []);
-  const [customAction, setCustomAction] = useState('');
-  const [note, setNote] = useState(analystCase?.note || '');
   const [finalOutcome, setFinalOutcome] = useState<AnalystOutcome>();
   const [ticketNumber, setTicketNumber] = useState('');
-  const [falsePositiveReason, setFalsePositiveReason] = useState<FalsePositiveReason>();
-  const [falsePositiveDetails, setFalsePositiveDetails] = useState('');
-
-  const customActions = useMemo(
-    () => actionsTaken.filter((action) => !ACTION_VALUES.has(action)),
-    [actionsTaken],
-  );
+  const [falsePositiveReason, setFalsePositiveReason] = useState('');
 
   const invalidate = async () => {
     await Promise.all([
@@ -119,28 +60,23 @@ function WorkflowEditor({
     ]);
   };
 
-  const saveMutation = useMutation({
-    mutationFn: () => api.saveAlertInvestigation(alertId, {
-      actionsTaken,
-      ...(note.trim() ? { note: note.trim() } : {}),
-    }),
-    onSuccess: async () => {
-      message.success('Investigation progress saved');
-      await invalidate();
-    },
-    onError: (error) => message.error(getErrorMessage(error, 'Could not save investigation progress')),
-  });
-
   const closeMutation = useMutation({
     mutationFn: () => {
       if (!finalOutcome) throw new Error('Choose the final analyst decision');
+
+      if (finalOutcome === 'true_positive') {
+        return api.closeAlert(alertId, {
+          finalOutcome,
+          ticketNumber: ticketNumber.trim(),
+        });
+      }
+
       return api.closeAlert(alertId, {
         finalOutcome,
-        actionsTaken,
-        ...(note.trim() ? { note: note.trim() } : {}),
-        ...(ticketNumber.trim() ? { ticketNumber: ticketNumber.trim() } : {}),
-        ...(falsePositiveReason ? { falsePositiveReason } : {}),
-        ...(falsePositiveDetails.trim() ? { falsePositiveDetails: falsePositiveDetails.trim() } : {}),
+        // The backend keeps a stable reason code for historical compatibility.
+        // The analyst only needs to provide the actual free-text explanation.
+        falsePositiveReason: 'other',
+        falsePositiveDetails: falsePositiveReason.trim(),
       });
     },
     onSuccess: async () => {
@@ -150,98 +86,20 @@ function WorkflowEditor({
     onError: (error) => message.error(getErrorMessage(error, 'Could not close alert')),
   });
 
-  const toggleAction = (action: string, checked: boolean) => {
-    setActionsTaken((current) => {
-      if (checked) return current.includes(action) ? current : [...current, action];
-      return current.filter((item) => item !== action);
-    });
-  };
-
-  const addCustomAction = () => {
-    const next = customAction.trim();
-    if (!next) return;
-    setActionsTaken((current) => current.includes(next) ? current : [...current, next]);
-    setCustomAction('');
-  };
-
-  const removeCustomAction = (action: string) => {
-    setActionsTaken((current) => current.filter((item) => item !== action));
-  };
-
   const missingTicket = finalOutcome === 'true_positive' && !ticketNumber.trim();
-  const missingFpReason = finalOutcome === 'false_positive' && !falsePositiveReason;
-  const missingFpDetails =
-    finalOutcome === 'false_positive' && falsePositiveReason === 'other' && !falsePositiveDetails.trim();
-  const canClose = Boolean(finalOutcome && !missingTicket && !missingFpReason && !missingFpDetails);
+  const missingFalsePositiveReason = finalOutcome === 'false_positive' && !falsePositiveReason.trim();
+  const canClose = Boolean(finalOutcome && !missingTicket && !missingFalsePositiveReason);
 
   return (
-    <Card
-      title="Analyst Investigation"
-      extra={<Tag color={status === 'investigating' ? 'processing' : 'default'}>{status.toUpperCase()}</Tag>}
-    >
+    <Card title="Analyst Decision">
       <Paragraph type="secondary">
-        Review the AI evidence, record what you checked, then make the final human decision. The AI does not close the alert.
+        Confirm the final human decision for this alert. A real incident requires a ticket number; a false positive requires a reason.
       </Paragraph>
 
-      <Text strong>Actions taken</Text>
-      <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-        {ACTION_OPTIONS.map((item) => (
-          <Checkbox
-            key={item.value}
-            checked={actionsTaken.includes(item.value)}
-            onChange={(event) => toggleAction(item.value, event.target.checked)}
-          >
-            {item.label}
-          </Checkbox>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <Input
-          value={customAction}
-          onChange={(event) => setCustomAction(event.target.value)}
-          onPressEnter={addCustomAction}
-          placeholder="Add a custom investigation action"
-        />
-        <Button onClick={addCustomAction} disabled={!customAction.trim()}>
-          Add
-        </Button>
-      </div>
-
-      {customActions.length > 0 && (
-        <Space wrap size={[4, 4]} style={{ marginTop: 8 }}>
-          {customActions.map((action) => (
-            <Tag key={action} closable onClose={() => removeCustomAction(action)}>
-              {action}
-            </Tag>
-          ))}
-        </Space>
-      )}
-
-      <Input.TextArea
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        maxLength={4000}
-        showCount
-        rows={3}
-        placeholder="Analyst notes: what you checked, evidence found, and investigation context"
-        style={{ marginTop: 10 }}
-      />
-
-      <Button
-        onClick={() => saveMutation.mutate()}
-        loading={saveMutation.isPending}
-        style={{ marginTop: 10 }}
-      >
-        {status === 'investigating' ? 'Save progress' : 'Start investigation / Save progress'}
-      </Button>
-
-      <Divider />
-      <Text strong>Final decision</Text>
       <Radio.Group
         value={finalOutcome}
         onChange={(event) => setFinalOutcome(event.target.value)}
-        style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
       >
         <Radio value="true_positive">
           <Text strong>True positive</Text> — confirmed security incident
@@ -252,7 +110,7 @@ function WorkflowEditor({
       </Radio.Group>
 
       {finalOutcome === 'true_positive' && (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 14 }}>
           <Text strong>Ticket number</Text>
           <Input
             value={ticketNumber}
@@ -262,50 +120,34 @@ function WorkflowEditor({
             status={missingTicket ? 'error' : undefined}
             style={{ marginTop: 6 }}
           />
-          {missingTicket && <Text type="danger"> A ticket is required before closing a true positive.</Text>}
+          {missingTicket && (
+            <Text type="danger" style={{ display: 'block', marginTop: 6 }}>
+              Ticket number is required.
+            </Text>
+          )}
         </div>
       )}
 
       {finalOutcome === 'false_positive' && (
-        <div style={{ marginTop: 12 }}>
-          <Text strong>Why is this a false positive?</Text>
-          <Radio.Group
+        <div style={{ marginTop: 14 }}>
+          <Text strong>Reason</Text>
+          <Input.TextArea
             value={falsePositiveReason}
             onChange={(event) => setFalsePositiveReason(event.target.value)}
-            style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}
-          >
-            {FALSE_POSITIVE_OPTIONS.map((item) => (
-              <Radio key={item.value} value={item.value}>
-                {item.label}
-              </Radio>
-            ))}
-          </Radio.Group>
-          {missingFpReason && (
+            maxLength={2000}
+            showCount
+            rows={3}
+            placeholder="Explain why this alert is a false positive"
+            status={missingFalsePositiveReason ? 'error' : undefined}
+            style={{ marginTop: 6 }}
+          />
+          {missingFalsePositiveReason && (
             <Text type="danger" style={{ display: 'block', marginTop: 6 }}>
-              Choose a false-positive reason before closing the alert.
+              A reason is required.
             </Text>
-          )}
-          {falsePositiveReason === 'other' && (
-            <Input.TextArea
-              value={falsePositiveDetails}
-              onChange={(event) => setFalsePositiveDetails(event.target.value)}
-              maxLength={2000}
-              rows={2}
-              placeholder="Describe the false-positive reason (required)"
-              status={missingFpDetails ? 'error' : undefined}
-              style={{ marginTop: 8 }}
-            />
           )}
         </div>
       )}
-
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginTop: 14 }}
-        message="Closing is the final analyst action"
-        description="True positives require a ticket. False positives require a reason. The result becomes historical context for future similar alerts."
-      />
 
       <Button
         type="primary"
@@ -313,7 +155,7 @@ function WorkflowEditor({
         disabled={!canClose}
         loading={closeMutation.isPending}
         onClick={() => closeMutation.mutate()}
-        style={{ marginTop: 12 }}
+        style={{ marginTop: 16 }}
       >
         Close alert
       </Button>
@@ -323,10 +165,14 @@ function WorkflowEditor({
 
 function ClosedCase({ analystCase }: { analystCase: AnalystCase | null }) {
   const outcome = analystCase?.finalOutcome;
+  const falsePositiveText =
+    analystCase?.falsePositiveDetails ||
+    (analystCase?.falsePositiveReason ? LEGACY_FP_LABELS[analystCase.falsePositiveReason] : null);
+
   return (
-    <Card title="Analyst Investigation" extra={<Tag color="success">CLOSED</Tag>}>
+    <Card title="Analyst Decision" extra={<Tag color="success">CLOSED</Tag>}>
       {!analystCase ? (
-        <Text type="secondary">This alert is closed, but no analyst case details are available.</Text>
+        <Text type="secondary">This alert is closed, but no analyst decision details are available.</Text>
       ) : (
         <Space direction="vertical" style={{ width: '100%' }} size={8}>
           <div>
@@ -335,32 +181,23 @@ function ClosedCase({ analystCase }: { analystCase: AnalystCase | null }) {
               {outcome === 'true_positive' ? 'TRUE POSITIVE' : 'FALSE POSITIVE'}
             </Tag>
           </div>
+
           {outcome === 'true_positive' && (
-            <div><Text strong>Ticket: </Text><Text code>{analystCase.ticketNumber || 'missing'}</Text></div>
-          )}
-          {outcome === 'false_positive' && analystCase.falsePositiveReason && (
             <div>
-              <Text strong>False-positive reason: </Text>
-              <Text>{FP_LABELS[analystCase.falsePositiveReason]}</Text>
-              {analystCase.falsePositiveDetails && (
-                <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>{analystCase.falsePositiveDetails}</Paragraph>
-              )}
+              <Text strong>Ticket: </Text>
+              <Text code>{analystCase.ticketNumber || 'missing'}</Text>
             </div>
           )}
-          {analystCase.actionsTaken.length > 0 && (
+
+          {outcome === 'false_positive' && (
             <div>
-              <Text strong>Actions taken</Text>
-              <div style={{ marginTop: 4 }}>
-                {analystCase.actionsTaken.map((action) => <Tag key={action}>{action}</Tag>)}
-              </div>
+              <Text strong>Reason</Text>
+              <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 4, marginBottom: 0 }}>
+                {falsePositiveText || 'No reason recorded'}
+              </Paragraph>
             </div>
           )}
-          {analystCase.note && (
-            <div>
-              <Text strong>Analyst note</Text>
-              <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>{analystCase.note}</Paragraph>
-            </div>
-          )}
+
           <Text type="secondary">
             Closed by {analystCase.closedBy?.displayName || 'Analyst'}
             {analystCase.closedAt ? ` · ${formatTime(analystCase.closedAt)}` : ''}

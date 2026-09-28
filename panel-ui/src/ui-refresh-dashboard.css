@@ -1,0 +1,46 @@
+.command-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.command-quick-actions button {
+  min-width: 76px;
+  height: 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel-surface) 92%, transparent);
+  color: var(--panel-text);
+  cursor: pointer;
+  box-shadow: var(--ui-shadow-sm);
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+
+.command-quick-actions button span {
+  color: var(--panel-muted-2);
+  font-size: 7px;
+  line-height: 1;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.command-quick-actions button strong {
+  margin-top: 3px;
+  font-size: 9.5px;
+  line-height: 1;
+}
+
+.command-quick-actions button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--panel-primary) 28%, var(--panel-border));
+  background: var(--panel-primary-soft);
+}
+
+@media (max-width: 1180px) {
+  .command-quick-actions { display: none; }
+}

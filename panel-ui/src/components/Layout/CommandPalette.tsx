@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Input, Modal, Typography } from 'antd';
 import type { InputRef } from 'antd';
 import {
@@ -41,26 +41,32 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose }) => {
     return destinations.filter((item) => `${item.title} ${item.hint} ${item.keywords}`.toLowerCase().includes(needle));
   }, [query]);
 
-  useEffect(() => {
-    if (!open) return;
+  const reset = () => {
     setQuery('');
     setActiveIndex(0);
-    window.setTimeout(() => inputRef.current?.focus(), 50);
-  }, [open]);
+  };
 
-  useEffect(() => {
-    setActiveIndex((current) => Math.min(current, Math.max(0, matches.length - 1)));
-  }, [matches.length]);
+  const closePalette = () => {
+    reset();
+    onClose();
+  };
 
   const go = (path: string) => {
+    reset();
     onClose();
     if (path !== location.pathname) navigate(path);
   };
 
+  const maxIndex = Math.max(0, matches.length - 1);
+  const selectedIndex = Math.min(activeIndex, maxIndex);
+
   return (
     <Modal
       open={open}
-      onCancel={onClose}
+      onCancel={closePalette}
+      afterOpenChange={(visible) => {
+        if (visible) window.setTimeout(() => inputRef.current?.focus(), 50);
+      }}
       footer={null}
       closable={false}
       centered={false}
@@ -76,19 +82,22 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose }) => {
             variant="borderless"
             value={query}
             placeholder="Jump to a workspace…"
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setActiveIndex(0);
+            }}
             onKeyDown={(event) => {
               if (event.key === 'ArrowDown') {
                 event.preventDefault();
-                setActiveIndex((current) => Math.min(current + 1, matches.length - 1));
+                setActiveIndex((current) => Math.min(current + 1, maxIndex));
               } else if (event.key === 'ArrowUp') {
                 event.preventDefault();
                 setActiveIndex((current) => Math.max(current - 1, 0));
-              } else if (event.key === 'Enter' && matches[activeIndex]) {
+              } else if (event.key === 'Enter' && matches[selectedIndex]) {
                 event.preventDefault();
-                go(matches[activeIndex].path);
+                go(matches[selectedIndex].path);
               } else if (event.key === 'Escape') {
-                onClose();
+                closePalette();
               }
             }}
           />
@@ -101,7 +110,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose }) => {
             <button
               type="button"
               key={item.path}
-              className={`soc-command-item ${index === activeIndex ? 'is-active' : ''}`}
+              className={`soc-command-item ${index === selectedIndex ? 'is-active' : ''}`}
               onMouseEnter={() => setActiveIndex(index)}
               onClick={() => go(item.path)}
             >

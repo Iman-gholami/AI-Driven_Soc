@@ -45,7 +45,21 @@ const Dashboard:React.FC=()=>{
   }));
 
   return <main className="command-center">
-    <header className="command-header"><div><div className="command-kicker"><span>OPERATIONS</span><i /> Stored SOC telemetry</div><h1>Cyber Command Center</h1><p>Security posture from your alert and AI-analysis data</p></div><div className="header-controls"><div className="refresh-status"><i /><span>Last refresh<strong>{dataUpdatedAt?new Date(dataUpdatedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Connecting'}</strong></span></div><div className="range-selector">{(['24h','7d','30d'] as const).map(r=><button className={range===r?'active':''} onClick={()=>setRange(r)} key={r}>{r}</button>)}</div></div></header>
+    <header className="command-header">
+      <div>
+        <div className="command-kicker"><span>OPERATIONS</span><i /> Stored SOC telemetry</div>
+        <h1>Cyber Command Center</h1>
+        <p>Security posture from your alert and AI-analysis data</p>
+      </div>
+      <div className="header-controls">
+        <div className="command-quick-actions" aria-label="Quick actions">
+          <button type="button" onClick={()=>navigate('/alerts')}><span>Investigate</span><strong>Alerts</strong></button>
+          <button type="button" onClick={()=>navigate('/mitre-coverage')}><span>Review</span><strong>MITRE</strong></button>
+        </div>
+        <div className="refresh-status"><i /><span>Last refresh<strong>{dataUpdatedAt?new Date(dataUpdatedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Connecting'}</strong></span></div>
+        <div className="range-selector">{(['24h','7d','30d'] as const).map(r=><button className={range===r?'active':''} onClick={()=>setRange(r)} key={r}>{r}</button>)}</div>
+      </div>
+    </header>
 
     <div className="section-label"><span>01</span><div><h2>Security Posture Overview</h2><p>Calculated from alerts stored in MongoDB for the selected time window</p></div></div>
     <div className="posture-grid">

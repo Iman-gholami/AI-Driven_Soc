@@ -1,0 +1,211 @@
+/* Focused polish for AI-assisted workspaces and authentication surfaces. */
+
+.soc-copilot-launcher {
+  right: 22px !important;
+  bottom: 20px !important;
+  min-height: 42px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  padding: 0 14px !important;
+  border: 1px solid color-mix(in srgb, var(--panel-primary) 26%, var(--panel-border)) !important;
+  border-radius: 12px !important;
+  background: color-mix(in srgb, var(--panel-surface-raised) 92%, transparent) !important;
+  color: var(--panel-text) !important;
+  box-shadow: var(--ui-glow) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: -.005em;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease !important;
+}
+
+.soc-copilot-launcher .anticon {
+  color: var(--panel-primary);
+  font-size: 15px;
+}
+
+.soc-copilot-launcher:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--panel-primary) 42%, var(--panel-border)) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel-primary) 18%, transparent), 0 18px 50px color-mix(in srgb, var(--panel-primary) 13%, transparent) !important;
+}
+
+.soc-copilot-panel {
+  right: 22px !important;
+  bottom: 20px !important;
+  width: min(430px, calc(100vw - 28px)) !important;
+  max-height: min(760px, calc(100vh - 92px)) !important;
+  overflow: hidden;
+  border: 1px solid var(--panel-border-strong) !important;
+  border-radius: 16px !important;
+  background: color-mix(in srgb, var(--panel-surface-raised) 96%, transparent) !important;
+  box-shadow: var(--ui-shadow-md) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.soc-copilot-header {
+  min-height: 62px;
+  padding: 11px 12px 10px 14px !important;
+  border-bottom-color: var(--panel-border) !important;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--panel-primary) 5%, transparent), transparent 48%);
+}
+
+.soc-copilot-icon {
+  width: 34px !important;
+  height: 34px !important;
+  border: 1px solid color-mix(in srgb, var(--panel-primary) 18%, var(--panel-border));
+  border-radius: 10px !important;
+  background: var(--panel-primary-soft) !important;
+  color: var(--panel-primary) !important;
+}
+
+.soc-copilot-heading strong {
+  font-size: 11px !important;
+  letter-spacing: -.005em;
+}
+
+.soc-copilot-heading > div > span {
+  color: var(--panel-muted-2) !important;
+  font-size: 8.5px !important;
+}
+
+.soc-copilot-safety {
+  margin: 9px 10px 0 !important;
+  padding: 8px 9px !important;
+  border: 1px solid color-mix(in srgb, var(--panel-success) 14%, var(--panel-border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel-success) 5%, var(--panel-surface));
+  color: var(--panel-muted) !important;
+  font-size: 8.5px !important;
+}
+
+.soc-copilot-safety .anticon {
+  color: var(--panel-success);
+}
+
+.soc-copilot-messages {
+  padding: 12px 11px !important;
+}
+
+.soc-copilot-bubble {
+  border-radius: 11px !important;
+  line-height: 1.65 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .025);
+}
+
+.soc-copilot-message.is-assistant .soc-copilot-bubble {
+  border: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel-surface-soft) 82%, transparent) !important;
+}
+
+.soc-copilot-message.is-user .soc-copilot-bubble {
+  background: color-mix(in srgb, var(--panel-primary) 13%, var(--panel-surface)) !important;
+  border: 1px solid color-mix(in srgb, var(--panel-primary) 15%, var(--panel-border));
+}
+
+.soc-copilot-suggestions button {
+  border-radius: 9px !important;
+  border-color: var(--panel-border) !important;
+  background: var(--panel-surface-soft) !important;
+  transition: border-color .14s ease, background .14s ease, transform .14s ease;
+}
+
+.soc-copilot-suggestions button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--panel-primary) 25%, var(--panel-border)) !important;
+  background: var(--panel-primary-soft) !important;
+}
+
+.soc-copilot-panel textarea.ant-input {
+  border-radius: 10px !important;
+}
+
+/* Investigation drawer: clearer surface hierarchy for long evidence workflows. */
+.ant-drawer .ant-drawer-content-wrapper {
+  box-shadow: -20px 0 70px rgba(0, 0, 0, .16) !important;
+}
+
+.ant-drawer .ant-drawer-header {
+  min-height: 62px;
+  padding-inline: 20px;
+  background: color-mix(in srgb, var(--panel-surface-raised) 94%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.ant-drawer .ant-drawer-title {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: -.01em;
+}
+
+.ant-drawer .ant-drawer-body {
+  padding: 18px !important;
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--panel-primary) 4%, transparent), transparent 320px),
+    var(--panel-bg);
+}
+
+.ant-drawer .ant-drawer-body > .space-y-4 > .ant-card,
+.ant-drawer .ant-drawer-body .ant-card {
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.ant-drawer .ant-drawer-body .ant-card .ant-card-head {
+  min-height: 46px;
+}
+
+.ant-drawer .ant-drawer-body .ant-card .ant-card-head-title {
+  font-size: 11px;
+  font-weight: 760;
+}
+
+/* Modal workflows such as automated investigation. */
+.ant-modal:not(.soc-command-modal) .ant-modal-content {
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 15px;
+  box-shadow: var(--ui-shadow-md);
+}
+
+.ant-modal:not(.soc-command-modal) .ant-modal-title {
+  font-size: 12px;
+  font-weight: 760;
+}
+
+/* Login should feel related to the app without flattening its own visual identity. */
+.soc-login-panel {
+  border-radius: 18px !important;
+  box-shadow: 0 26px 90px rgba(0, 0, 0, .30) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.soc-login-panel .ant-input-affix-wrapper,
+.soc-login-panel .ant-input {
+  border-radius: 10px !important;
+}
+
+.soc-login-submit.ant-btn {
+  border-radius: 10px !important;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--panel-primary) 20%, transparent) !important;
+}
+
+@media (max-width: 640px) {
+  .soc-copilot-launcher {
+    right: 13px !important;
+    bottom: 13px !important;
+  }
+
+  .soc-copilot-panel {
+    right: 9px !important;
+    bottom: 9px !important;
+    width: calc(100vw - 18px) !important;
+    max-height: calc(100vh - 78px) !important;
+  }
+
+  .ant-drawer .ant-drawer-body {
+    padding: 12px !important;
+  }
+}

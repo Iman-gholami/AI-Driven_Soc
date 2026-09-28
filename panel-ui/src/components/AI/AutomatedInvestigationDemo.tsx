@@ -14,6 +14,8 @@ import {
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
+  CodeOutlined,
+  DatabaseOutlined,
   ExperimentOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
@@ -93,6 +95,7 @@ const AutomatedInvestigationDemo: React.FC<Props> = ({ alert, steps }) => {
 
   const completed = plan.filter((step) => step.status === 'completed').length;
   const percent = plan.length ? Math.round((completed / plan.length) * 100) : 0;
+  const activeStep = plan.findIndex((step) => step.status === 'running');
 
   return (
     <>
@@ -115,7 +118,8 @@ const AutomatedInvestigationDemo: React.FC<Props> = ({ alert, steps }) => {
         }
         open={open}
         onCancel={close}
-        width={900}
+        width={960}
+        className="automated-investigation-modal"
         footer={[
           <Button key="close" onClick={close}>Close</Button>,
           <Button
@@ -133,86 +137,114 @@ const AutomatedInvestigationDemo: React.FC<Props> = ({ alert, steps }) => {
           showIcon
           message="Demo / test mode"
           description="No real Splunk search is executed yet. The runner simulates each investigation step so the workflow and UI can be validated before real playbooks are connected."
-          style={{ marginBottom: 16 }}
+          className="investigation-demo-alert"
         />
 
-        <Space direction="vertical" style={{ width: '100%' }} size={4}>
-          <Text strong>{alert.signature || 'Security alert'}</Text>
-          <Text type="secondary">
-            {alert.host ? `Host: ${alert.host}` : 'Host unavailable'} · Alert: {alert.alertId}
-          </Text>
-        </Space>
+        <section className="investigation-run-summary">
+          <div className="investigation-run-identity">
+            <span className="investigation-run-icon"><DatabaseOutlined /></span>
+            <div>
+              <Text strong>{alert.signature || 'Security alert'}</Text>
+              <Text type="secondary">
+                {alert.host ? `Host: ${alert.host}` : 'Host unavailable'} · Alert: {alert.alertId}
+              </Text>
+            </div>
+          </div>
+          <div className="investigation-run-counters">
+            <div><span>PLAYBOOK STEPS</span><strong>{plan.length || steps.length}</strong></div>
+            <div><span>COMPLETED</span><strong>{completed}</strong></div>
+            <div><span>MODE</span><strong>DEMO</strong></div>
+          </div>
+        </section>
 
+        <div className="investigation-progress-row">
+          <div>
+            <Text strong>{running ? `Running step ${activeStep + 1} of ${plan.length}` : percent === 100 ? 'Investigation complete' : 'Ready to investigate'}</Text>
+            <Text type="secondary">Sequential playbook execution</Text>
+          </div>
+          <span>{percent}%</span>
+        </div>
         <Progress
           percent={percent}
+          showInfo={false}
           status={running ? 'active' : percent === 100 ? 'success' : 'normal'}
-          style={{ marginTop: 14, marginBottom: 14 }}
+          className="investigation-progress"
         />
 
-        <div style={{ display: 'grid', gap: 10 }}>
+        <div className="investigation-step-list">
           {plan.map((step, index) => (
             <Card
               key={step.id}
               size="small"
+              className={`investigation-step-card is-${step.status}`}
               title={
-                <Space>
-                  {step.status === 'completed'
-                    ? <CheckCircleOutlined />
-                    : step.status === 'running'
-                      ? <Spin size="small" />
-                      : <ClockCircleOutlined />}
-                  <span>{index + 1}. {step.title}</span>
-                </Space>
+                <div className="investigation-step-title">
+                  <span className="investigation-step-index">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="investigation-step-state">
+                    {step.status === 'completed'
+                      ? <CheckCircleOutlined />
+                      : step.status === 'running'
+                        ? <Spin size="small" />
+                        : <ClockCircleOutlined />}
+                  </span>
+                  <span>{step.title}</span>
+                </div>
               }
               extra={<StepTag status={step.status} />}
             >
               {step.status === 'pending' && (
-                <Text type="secondary">Waiting for the previous investigation step.</Text>
+                <div className="investigation-step-placeholder">
+                  <Text type="secondary">Waiting for the previous investigation step.</Text>
+                </div>
               )}
 
               {step.status === 'running' && (
-                <Space direction="vertical" size={4}>
-                  <Text>Preparing demo Splunk search...</Text>
-                  <Text type="secondary">Collecting evidence for this investigation step.</Text>
-                </Space>
+                <div className="investigation-step-running">
+                  <Spin size="small" />
+                  <div>
+                    <Text strong>Preparing demo Splunk search</Text>
+                    <Text type="secondary">Collecting and normalizing evidence for this investigation step.</Text>
+                  </div>
+                </div>
               )}
 
               {step.status === 'completed' && (
-                <>
-                  <Text strong>Demo SPL</Text>
-                  <Paragraph
-                    code
-                    copyable
-                    style={{ display: 'block', whiteSpace: 'pre-wrap', marginTop: 6 }}
-                  >
-                    {step.query}
-                  </Paragraph>
+                <div className="investigation-evidence-grid">
+                  <section className="investigation-evidence-block query-block">
+                    <div className="investigation-evidence-heading"><CodeOutlined /><span>DEMO SPL</span></div>
+                    <Paragraph code copyable className="investigation-query-code">
+                      {step.query}
+                    </Paragraph>
+                  </section>
 
-                  <Divider style={{ marginBlock: 12 }} />
-                  <Text strong>Result</Text>
-                  <div style={{ marginTop: 6 }}>
-                    {(step.result || []).map((line, lineIndex) => (
-                      <div key={lineIndex}>• {line}</div>
-                    ))}
-                  </div>
+                  <section className="investigation-evidence-block result-block">
+                    <div className="investigation-evidence-heading"><DatabaseOutlined /><span>RETURNED FINDINGS</span></div>
+                    <div className="investigation-result-list">
+                      {(step.result || []).map((line, lineIndex) => (
+                        <div key={lineIndex}><i /> <span>{line}</span></div>
+                      ))}
+                    </div>
+                  </section>
 
-                  <Divider style={{ marginBlock: 12 }} />
-                  <Text strong>Analysis</Text>
-                  <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 6, marginBottom: 0 }}>
-                    {step.analysis}
-                  </Paragraph>
-                </>
+                  <Divider className="investigation-step-divider" />
+
+                  <section className="investigation-analysis-block">
+                    <span>STEP ANALYSIS</span>
+                    <Paragraph>{step.analysis}</Paragraph>
+                  </section>
+                </div>
               )}
             </Card>
           ))}
         </div>
 
         {finalAnalysis && (
-          <Card title="Final Investigation Analysis" style={{ marginTop: 16 }}>
-            <Tag color="orange">DEMO ASSESSMENT</Tag>
-            <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 10, marginBottom: 0 }}>
-              {finalAnalysis}
-            </Paragraph>
+          <Card title="Final Investigation Analysis" className="investigation-final-card">
+            <div className="investigation-final-head">
+              <Tag color="orange">DEMO ASSESSMENT</Tag>
+              <Text type="secondary">Generated after all configured checks completed</Text>
+            </div>
+            <Paragraph>{finalAnalysis}</Paragraph>
           </Card>
         )}
       </Modal>

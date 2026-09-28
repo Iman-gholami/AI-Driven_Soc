@@ -1,0 +1,481 @@
+/* Enterprise analyst workspace pass — restraint, density, scanability, and long-session ergonomics. */
+
+:root {
+  --enterprise-line: color-mix(in srgb, var(--panel-border-strong) 74%, transparent);
+  --enterprise-surface: color-mix(in srgb, var(--panel-surface) 97%, transparent);
+  --enterprise-elevated: color-mix(in srgb, var(--panel-surface-raised) 98%, transparent);
+  --enterprise-hover: color-mix(in srgb, var(--panel-primary) 4%, var(--panel-surface));
+}
+
+/* A production console should feel calm. Keep decoration behind the data. */
+body {
+  background:
+    radial-gradient(circle at 78% -16%, color-mix(in srgb, var(--panel-primary) 5%, transparent), transparent 36rem),
+    var(--panel-bg) !important;
+}
+
+.soc-route-content {
+  max-width: 1720px;
+}
+
+.soc-topbar.ant-layout-header {
+  border-bottom-color: var(--enterprise-line);
+  box-shadow: none;
+}
+
+.soc-topbar.ant-layout-header::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--panel-primary) 20%, transparent) 36%, transparent 72%);
+  opacity: .48;
+}
+
+.soc-sidebar.ant-layout-sider {
+  box-shadow: 10px 0 42px rgba(0, 0, 0, .08);
+}
+
+.soc-nav.ant-menu-dark .ant-menu-item {
+  font-size: 12px;
+}
+
+.soc-nav.ant-menu-dark .ant-menu-item:hover {
+  transform: none;
+}
+
+.soc-nav.ant-menu-dark .ant-menu-item-selected::after {
+  box-shadow: none;
+}
+
+.soc-live-pill {
+  border-radius: 7px;
+  background: transparent;
+}
+
+.soc-live-pill i {
+  box-shadow: none;
+}
+
+.soc-user-chip,
+.soc-command-trigger,
+.panel-theme-btn,
+.soc-density-btn {
+  box-shadow: none !important;
+}
+
+.soc-density-btn.is-compact {
+  color: var(--panel-primary);
+  border-color: color-mix(in srgb, var(--panel-primary) 30%, var(--panel-border));
+  background: var(--panel-primary-soft);
+}
+
+/* ---------- Global component discipline ---------- */
+
+.ant-card {
+  border-radius: 10px !important;
+}
+
+.ant-card:hover {
+  border-color: var(--panel-border-strong);
+}
+
+.ant-btn {
+  border-radius: 8px;
+  font-weight: 600;
+  box-shadow: none !important;
+}
+
+.ant-btn-primary:not(:disabled) {
+  border-color: color-mix(in srgb, var(--panel-primary) 80%, black 8%);
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker,
+.ant-segmented {
+  border-radius: 8px !important;
+}
+
+.ant-input:focus,
+.ant-input-affix-wrapper-focused,
+.ant-select-focused .ant-select-selector {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--panel-primary) 10%, transparent) !important;
+}
+
+.ant-tag {
+  font-weight: 600;
+}
+
+.ant-table-wrapper .ant-table {
+  border-radius: 9px;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th {
+  height: 42px;
+  background: color-mix(in srgb, var(--panel-surface-soft) 88%, var(--panel-surface)) !important;
+  border-bottom-color: var(--enterprise-line) !important;
+  color: var(--panel-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .055em;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  border-bottom-color: color-mix(in srgb, var(--panel-border) 78%, transparent) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr:hover > td {
+  background: var(--enterprise-hover) !important;
+}
+
+.ant-pagination .ant-pagination-item,
+.ant-pagination .ant-pagination-prev,
+.ant-pagination .ant-pagination-next {
+  border-radius: 7px !important;
+}
+
+.ant-tooltip .ant-tooltip-inner {
+  font-size: 11px;
+}
+
+/* ---------- Page headers ---------- */
+
+.command-header,
+.alerts-page-heading,
+.mitre-page-heading,
+.report-v2-hero {
+  position: relative;
+}
+
+.command-header h1,
+.alerts-page-heading h2,
+.mitre-page-heading h2,
+.report-v2-hero-copy h2 {
+  font-weight: 720 !important;
+  letter-spacing: -.032em !important;
+}
+
+.command-header p,
+.alerts-page-heading .ant-typography-secondary,
+.mitre-page-heading p,
+.report-v2-hero-copy p {
+  line-height: 1.6;
+}
+
+/* ---------- Alerts: make it behave like an investigation console ---------- */
+
+.alerts-filter-card.ant-card {
+  position: sticky;
+  top: 76px;
+  z-index: 40;
+  margin-bottom: 10px;
+  border-color: var(--enterprise-line);
+  background: color-mix(in srgb, var(--panel-surface) 92%, transparent);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .045);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.alerts-filter-card .ant-card-body {
+  padding: 11px 12px;
+}
+
+.alerts-table-card.ant-card {
+  overflow: hidden;
+  border-color: var(--enterprise-line);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .035);
+}
+
+.alerts-table-card .ant-table-tbody > tr > td:first-child {
+  border-left: 2px solid transparent;
+}
+
+.alerts-table-card .ant-table-tbody > tr:has(.ant-badge-status-error) > td:first-child {
+  border-left-color: var(--panel-danger);
+}
+
+.alerts-table-card .ant-table-tbody > tr:has(.ant-badge-status-warning) > td:first-child {
+  border-left-color: color-mix(in srgb, var(--panel-warning) 70%, transparent);
+}
+
+.alerts-table-card .ant-table-tbody > tr {
+  transition: background .12s ease;
+}
+
+.alerts-expanded {
+  border-radius: 8px !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--panel-primary) 28%, transparent);
+}
+
+.alerts-result-count strong {
+  font-size: 14px;
+}
+
+/* ---------- Dashboard: denser command-center hierarchy ---------- */
+
+.command-header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 72%, transparent);
+}
+
+.command-header h1 {
+  font-size: 30px;
+}
+
+.command-center .soc-panel,
+.command-center .metric-card,
+.command-center .performance-card {
+  border-color: var(--enterprise-line);
+  box-shadow: none;
+}
+
+.command-center .soc-panel:hover,
+.command-center .metric-card:hover,
+.command-center .performance-card:hover {
+  transform: none;
+  background: var(--enterprise-elevated);
+}
+
+.metric-card::before {
+  width: 2px;
+  opacity: .86;
+}
+
+.risk-gauge {
+  box-shadow: none;
+}
+
+.command-center .section-label h2 {
+  letter-spacing: .075em;
+}
+
+.command-center .section-label > span {
+  color: color-mix(in srgb, var(--panel-primary) 72%, var(--panel-muted));
+}
+
+.command-quick-action {
+  min-width: 118px;
+  min-height: 34px;
+  border-radius: 8px !important;
+}
+
+/* ---------- Reports and MITRE: persistent controls for long review sessions ---------- */
+
+.report-v2-hero {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.report-v2-card,
+.report-v2-filter-rail,
+.report-v2-insight-banner,
+.report-v2-command-metric {
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+.report-v2-filter-rail {
+  top: 78px;
+  border-color: var(--enterprise-line);
+}
+
+.report-v2-command-metric::after {
+  height: 2px;
+}
+
+.report-v2-searchbar {
+  border-radius: 10px;
+}
+
+.mitre-refresh-meta,
+.mitre-provenance-strip,
+.mitre-controls,
+.mitre-matrix-shell,
+.mitre-summary-card.ant-card {
+  border-color: var(--enterprise-line) !important;
+  box-shadow: none !important;
+}
+
+.mitre-summary-card.ant-card {
+  border-radius: 10px !important;
+}
+
+.mitre-controls {
+  position: sticky;
+  top: 76px;
+  z-index: 35;
+  background: color-mix(in srgb, var(--panel-surface) 93%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.mitre-technique,
+.mitre-tactic-column {
+  border-radius: 8px !important;
+}
+
+/* ---------- AI workspaces: evidence first, decoration second ---------- */
+
+.soc-copilot-launcher {
+  border-radius: 9px !important;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .12) !important;
+}
+
+.soc-copilot-launcher:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .15) !important;
+}
+
+.soc-copilot-panel {
+  border-radius: 12px !important;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .24) !important;
+}
+
+.soc-copilot-header {
+  background: var(--enterprise-elevated) !important;
+}
+
+.soc-copilot-bubble {
+  border-radius: 9px !important;
+}
+
+.ant-drawer .ant-drawer-header {
+  border-bottom: 1px solid var(--enterprise-line);
+  background: var(--enterprise-elevated);
+}
+
+.ant-drawer .ant-drawer-body {
+  background: var(--panel-bg) !important;
+}
+
+.ant-drawer .ant-drawer-body .ant-card {
+  border-color: var(--enterprise-line);
+  box-shadow: none !important;
+}
+
+.ant-drawer .ant-drawer-body .ant-card + .ant-card {
+  margin-top: 2px;
+}
+
+.ant-drawer .ant-drawer-body .ant-card-head {
+  background: color-mix(in srgb, var(--panel-surface-soft) 46%, transparent);
+}
+
+.ant-modal:not(.soc-command-modal) .ant-modal-content,
+.soc-command-modal .ant-modal-content {
+  border-radius: 12px !important;
+}
+
+/* ---------- Compact density ---------- */
+
+html[data-density='compact'] .soc-content {
+  padding: 20px 24px 30px;
+}
+
+html[data-density='compact'] .command-header,
+html[data-density='compact'] .alerts-page-heading,
+html[data-density='compact'] .mitre-page-heading {
+  margin-bottom: 14px;
+}
+
+html[data-density='compact'] .section-label {
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+html[data-density='compact'] .metric-card {
+  min-height: 112px;
+  padding: 13px 14px;
+}
+
+html[data-density='compact'] .metric-card > strong {
+  margin-top: 9px;
+  font-size: 25px;
+}
+
+html[data-density='compact'] .metric-card p {
+  margin-top: 8px;
+}
+
+html[data-density='compact'] .soc-panel {
+  padding: 15px;
+}
+
+html[data-density='compact'] .ant-table-wrapper .ant-table-thead > tr > th,
+html[data-density='compact'] .ant-table-wrapper .ant-table-tbody > tr > td {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+html[data-density='compact'] .alerts-filter-card .ant-card-body {
+  padding: 8px 10px;
+}
+
+html[data-density='compact'] .alerts-table-card .ant-pagination {
+  margin-block: 9px !important;
+}
+
+html[data-density='compact'] .report-v2-workspace-grid {
+  gap: 10px;
+}
+
+html[data-density='compact'] .report-v2-filter-rail {
+  padding: 10px;
+}
+
+html[data-density='compact'] .report-v2-filter-group {
+  padding-block: 9px;
+}
+
+html[data-density='compact'] .mitre-summary-card .ant-card-body {
+  padding: 13px 14px 12px;
+}
+
+html[data-density='compact'] .ant-drawer .ant-drawer-body {
+  padding: 13px !important;
+}
+
+html[data-density='compact'] .ant-drawer .ant-drawer-body .ant-card .ant-card-body {
+  padding: 14px;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1100px) {
+  .soc-live-pill {
+    display: none;
+  }
+
+  .alerts-filter-card,
+  .mitre-controls {
+    position: static;
+  }
+
+  .report-v2-filter-rail {
+    top: 72px;
+  }
+}
+
+@media (max-width: 760px) {
+  .soc-content,
+  html[data-density='compact'] .soc-content {
+    padding: 14px;
+  }
+
+  .soc-user-copy {
+    display: none;
+  }
+
+  .soc-user-chip {
+    padding-right: 5px;
+  }
+
+  .soc-density-btn {
+    display: none;
+  }
+}

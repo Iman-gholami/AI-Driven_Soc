@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Input, Modal, Typography } from 'antd';
+import type { InputRef } from 'antd';
 import {
   BarChartOutlined,
   DashboardOutlined,
@@ -32,7 +33,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose }) => {
   const location = useLocation();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const inputRef = useRef<React.ElementRef<typeof Input>>(null);
+  const inputRef = useRef<InputRef>(null);
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();

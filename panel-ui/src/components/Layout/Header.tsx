@@ -9,7 +9,7 @@ const { Header: AntHeader } = Layout;
 const { Text } = Typography;
 
 const PAGE_META: Record<string, { eyebrow: string; title: string }> = {
-  '/dashboard': { eyebrow: 'OPERATIONS', title: 'Overview' },
+  '/dashboard': { eyebrow: 'OPERATIONS', title: 'Command Center' },
   '/alerts': { eyebrow: 'DETECTION', title: 'Investigation queue' },
   '/reports': { eyebrow: 'INTELLIGENCE', title: 'Historical reports' },
   '/mitre-coverage': { eyebrow: 'DETECTION ENGINE', title: 'ATT&CK matrix' },
@@ -41,7 +41,6 @@ const Header: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
 
       <div className="soc-topbar-actions">
         {user && <Tag className="soc-topbar-tag">{user.displayName || user.username} · {user.role}</Tag>}
-        <Tag className="soc-topbar-tag">V1</Tag>
         <Text type="secondary" className="soc-theme-label">
           {mode === 'dark' ? 'Dark' : 'Light'}
         </Text>

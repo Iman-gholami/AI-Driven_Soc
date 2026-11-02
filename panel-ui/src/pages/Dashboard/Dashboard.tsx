@@ -3,15 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { Alert, DashboardStats } from '../../types';
-import RiskIndex from '../../components/SOC/RiskIndex';
-import MetricCard from '../../components/SOC/MetricCard';
 import PerformanceMetric from '../../components/SOC/PerformanceMetric';
 import DetectionSourcePanel from '../../components/SOC/DetectionSourcePanel';
-import SeverityPressure from '../../components/SOC/SeverityPressure';
 import WorkloadPanel from '../../components/SOC/WorkloadPanel';
 import ThreatTimeline from '../../components/SOC/ThreatTimeline';
 import MitreCoverage from '../../components/SOC/MitreCoverage';
-import IncidentCard from '../../components/SOC/IncidentCard';
+import { SafetyCertificateOutlined, BellOutlined, WarningOutlined, RobotOutlined, DesktopOutlined, ReloadOutlined, ArrowRightOutlined, RadarChartOutlined, FileSearchOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import './Dashboard.css';
 
 const EMPTY_STATS: DashboardStats = {
@@ -29,6 +26,16 @@ const EMPTY_STATS: DashboardStats = {
 type TimeRange = '24h' | '7d' | '30d';
 const RANGES: TimeRange[] = ['24h', '7d', '30d'];
 
+
+const SEVERITIES = [
+  { key: 'critical', label: 'Critical', color: '#ff647c' },
+  { key: 'high', label: 'High', color: '#ffab5e' },
+  { key: 'medium', label: 'Medium', color: '#facb5b' },
+  { key: 'low', label: 'Low', color: '#50d9aa' },
+  { key: 'info', label: 'Info', color: '#4c9cff' },
+  { key: 'unknown', label: 'Unknown', color: '#91a0bf' },
+] as const;
+
 const Dashboard: React.FC = () => {
   const [range, setRange] = useState<TimeRange>('24h');
   const navigate = useNavigate();
@@ -39,152 +46,152 @@ const Dashboard: React.FC = () => {
     refetchInterval: 60_000,
   });
 
-  // Never display fabricated values while the first request is loading or has failed.
-  if (isLoading && !data) {
-    return <main className="command-center command-center--redesign">
-      <div className="soc-dashboard-state" role="status">Loading security operations data…</div>
-    </main>;
-  }
-  if (isError && !data) {
-    return <main className="command-center command-center--redesign">
-      <div className="soc-dashboard-state soc-dashboard-state--error" role="alert">
-        <h1>Dashboard unavailable</h1>
-        <p>Security telemetry could not be loaded. Please try again.</p>
-        <button type="button" onClick={() => void refetch()}>Retry loading</button>
-      </div>
-    </main>;
-  }
+  if (isLoading && !data) return <main className="soc-v3-dashboard"><div className="soc-v3-loading" role="status"><RadarChartOutlined spin /><strong>Loading Command Center</strong><span>Reading security telemetry…</span></div></main>;
+  if (isError && !data) return <main className="soc-v3-dashboard"><div className="soc-v3-loading" role="alert"><WarningOutlined /><strong>Security data unavailable</strong><span>Could not load the SOC dashboard.</span><button onClick={() => void refetch()}>Try again</button></div></main>;
 
   const stats = data || EMPTY_STATS;
-  // The dashboard response exposes only its most recent alerts, not the full investigation queue.
-  const recentAlerts = stats.recentAlerts.slice(0, 4);
+  const recentAlerts = stats.recentAlerts.slice(0, 5);
   const pendingAnalysis = stats.aiStatus.notAnalyzed + stats.aiStatus.failed;
+  const risk = stats.posture.severityPressureIndex;
+  const riskLabel = stats.totals.alerts === 0 ? 'No alert data' : risk >= 75 ? 'Severe pressure' : risk >= 50 ? 'Elevated pressure' : 'Low pressure';
+  const severityTotal = SEVERITIES.reduce((total, item) => total + stats.severity[item.key], 0);
+  let cursor = 0;
+  const donutSegments = SEVERITIES.map((item) => {
+    const next = cursor + (severityTotal ? stats.severity[item.key] / severityTotal * 360 : 0);
+    const part = item.color + ' ' + cursor + 'deg ' + next + 'deg';
+    cursor = next;
+    return part;
+  });
+  const severityFill = severityTotal ? 'conic-gradient(' + donutSegments.join(', ') + ')' : 'conic-gradient(#26334b 0deg 360deg)';
   const timeline = stats.recentAlerts.slice(0, 4).map((alert) => ({
     time: new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     title: alert.signature || alert.eventType || 'Unclassified detection',
-    detail: `${alert.source || 'Unknown source'}${alert.host ? ` · ${alert.host}` : ''} · AI ${alert.aiStatus.replace('_', ' ')}`,
+    detail: (alert.source || 'Unknown source') + (alert.host ? ' · ' + alert.host : '') + ' · AI ' + alert.aiStatus.replace('_', ' '),
     state: toTimelineState(alert),
   }));
 
-  return <main className="command-center command-center--redesign">
-    <header className="command-header soc-dashboard-header">
-      <div>
-        <div className="command-kicker"><span>SECURITY OPERATIONS</span><i /> Live database metrics</div>
-        <h1>Command Center</h1>
-        <p>A focused view of detections, investigations, and AI analysis.</p>
+  return <main className="soc-v3-dashboard">
+    <header className="soc-v3-hero">
+      <div className="soc-v3-hero-copy">
+        <div className="soc-v3-kicker"><span className="soc-v3-beacon" /> SECURITY OPERATIONS <span className="soc-v3-kicker-separator">/</span> COMMAND CENTER</div>
+        <h1>SOC Dashboard <span>Overview</span></h1>
+        <p>Prioritize real detections, review risk, and track AI-assisted investigation.</p>
       </div>
-      <div className="header-controls">
-        <div className="refresh-status">
-          <i aria-hidden="true" />
-          <span>Last updated<strong>{dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</strong></span>
+      <div className="soc-v3-controls">
+        <div className="soc-v3-updated"><span className="soc-v3-status-dot"/><div><small>LAST UPDATED</small><strong>{dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</strong></div></div>
+        <div className="soc-v3-range" aria-label="Reporting time range" role="group">
+          {RANGES.map(option => <button type="button" key={option} className={range === option ? 'selected' : ''} aria-pressed={range === option} onClick={() => setRange(option)}>{option === '24h' ? 'Last 24h' : option}</button>)}
         </div>
-        <button className="soc-refresh-button" type="button" onClick={() => void refetch()} disabled={isFetching} aria-label="Refresh dashboard data">
-          {isFetching ? 'Refreshing…' : 'Refresh'}
-        </button>
-        <div className="range-selector" role="group" aria-label="Dashboard time range">
-          {RANGES.map((option) => <button key={option} type="button" aria-pressed={range === option}
-            className={range === option ? 'active' : ''} onClick={() => setRange(option)}>{option}</button>)}
-        </div>
+        <button className="soc-v3-refresh" type="button" disabled={isFetching} onClick={() => void refetch()} title="Refresh dashboard" aria-label="Refresh dashboard"><ReloadOutlined spin={isFetching}/></button>
       </div>
     </header>
 
-    {isError && <div role="alert" className="soc-dashboard-warning">The latest refresh failed. Showing the last successfully loaded data.</div>}
+    {isError && <div className="soc-v3-warning" role="alert">The latest refresh failed. Previously loaded data is shown.</div>}
 
-    <section className="soc-overview-kpis" aria-label="Security overview metrics">
-      <MetricCard title="Total alerts" value={stats.totals.alerts} detail={`Detected in the last ${range}`} />
-      <MetricCard title="Critical alerts" value={stats.severity.critical} detail="Highest severity detections" tone="critical" />
-      <MetricCard title="AI analyzed" value={stats.aiStatus.analyzed} detail={`${stats.performance.aiCoveragePercent}% analysis coverage`} tone="ai" />
-      <MetricCard title="Affected hosts" value={stats.totals.uniqueHosts} detail="Distinct hosts with alerts" tone="success" />
+    <section className="soc-v3-kpis" aria-label="Key operational metrics">
+      <article className="soc-v3-kpi soc-v3-risk">
+        <div className="soc-v3-kpi-top"><span className="soc-v3-kpi-icon"><SafetyCertificateOutlined /></span><span className="soc-v3-kpi-name">RISK INDEX</span></div>
+        <div className="soc-v3-kpi-number">{risk}<small>/ 100</small></div>
+        <div className="soc-v3-kpi-foot"><span>{riskLabel}</span><div className="soc-v3-mini-track"><i style={{ width: boundedPercent(risk) + '%' }} /></div></div>
+      </article>
+      <article className="soc-v3-kpi soc-v3-blue">
+        <div className="soc-v3-kpi-top"><span className="soc-v3-kpi-icon"><BellOutlined /></span><span className="soc-v3-kpi-name">TOTAL ALERTS</span></div>
+        <div className="soc-v3-kpi-number">{stats.totals.alerts.toLocaleString()}</div>
+        <div className="soc-v3-kpi-foot">Detected in selected window</div>
+      </article>
+      <article className="soc-v3-kpi soc-v3-rose">
+        <div className="soc-v3-kpi-top"><span className="soc-v3-kpi-icon"><WarningOutlined /></span><span className="soc-v3-kpi-name">CRITICAL ALERTS</span></div>
+        <div className="soc-v3-kpi-number">{stats.severity.critical.toLocaleString()}</div>
+        <div className="soc-v3-kpi-foot">Highest-priority detections</div>
+      </article>
+      <article className="soc-v3-kpi soc-v3-purple">
+        <div className="soc-v3-kpi-top"><span className="soc-v3-kpi-icon"><RobotOutlined /></span><span className="soc-v3-kpi-name">AI ANALYZED</span></div>
+        <div className="soc-v3-kpi-number">{stats.aiStatus.analyzed.toLocaleString()}</div>
+        <div className="soc-v3-kpi-foot">{stats.performance.aiCoveragePercent}% of stored alerts</div>
+      </article>
+      <article className="soc-v3-kpi soc-v3-mint">
+        <div className="soc-v3-kpi-top"><span className="soc-v3-kpi-icon"><DesktopOutlined /></span><span className="soc-v3-kpi-name">AFFECTED HOSTS</span></div>
+        <div className="soc-v3-kpi-number">{stats.totals.uniqueHosts.toLocaleString()}</div>
+        <div className="soc-v3-kpi-foot">Unique hosts in selected window</div>
+      </article>
     </section>
 
-    <div className="soc-dashboard-workspace">
-      <section className="soc-dashboard-primary" aria-labelledby="recent-alerts-heading">
-        <div className="soc-section-heading">
-          <div>
-            <span className="soc-section-eyebrow">INVESTIGATION</span>
-            <h2 id="recent-alerts-heading">Recent alerts</h2>
-            <p>Latest stored detections. Open an alert to review evidence and AI analysis.</p>
+    <div className="soc-v3-overview">
+      <section className="soc-v3-panel soc-v3-severity" aria-labelledby="severity-v3-title">
+        <div className="soc-v3-panel-heading">
+          <div><span className="soc-v3-eyebrow">DETECTION INTELLIGENCE</span><h2 id="severity-v3-title">Alerts by severity</h2></div>
+          <span className="soc-v3-panel-subtitle">LIVE DISTRIBUTION</span>
+        </div>
+        <div className="soc-v3-donut-layout">
+          <div className="soc-v3-donut" style={{ background: severityFill }} role="img" aria-label={'Alert severity distribution for ' + severityTotal + ' alerts'}>
+            <div className="soc-v3-donut-core"><strong>{severityTotal.toLocaleString()}</strong><span>ALERTS</span></div>
           </div>
-          <button type="button" className="soc-view-all-button" onClick={() => navigate('/alerts')}>View all alerts <span aria-hidden="true">→</span></button>
+          <div className="soc-v3-severity-legend">
+            {SEVERITIES.map(item => <div className="soc-v3-legend-row" key={item.key}>
+              <span><i style={{ background: item.color }}/>{item.label}</span>
+              <strong>{stats.severity[item.key].toLocaleString()} <small>({severityTotal ? Math.round(stats.severity[item.key] / severityTotal * 100) : 0}%)</small></strong>
+            </div>)}
+          </div>
         </div>
-        <div className="soc-attention-strip">
-          <span className="soc-attention-dot" aria-hidden="true" />
-          <strong>{pendingAnalysis}</strong> alerts not analyzed or with failed AI analysis
-          <span className="soc-attention-hint">AI eligibility depends on rule matching</span>
-        </div>
-        <div className="incident-queue soc-dashboard-incidents">
-          {recentAlerts.length ? recentAlerts.map((alert) => <IncidentCard key={alert.alertId} alert={alert}
-            onInvestigate={(id) => navigate(`/alerts?alert=${encodeURIComponent(id)}`)} />)
-            : <div className="queue-empty"><strong>No recent alerts</strong><span>Change the time range to inspect a wider window.</span></div>}
+        {severityTotal === 0 && <p className="soc-v3-panel-note">No alerts recorded for this time range.</p>}
+      </section>
+      <section className="soc-v3-panel soc-v3-triage" aria-labelledby="ai-v3-title">
+        <div className="soc-v3-panel-heading"><div><span className="soc-v3-eyebrow">AUTOMATED TRIAGE</span><h2 id="ai-v3-title">AI analysis performance</h2></div><RobotOutlined className="soc-v3-panel-symbol"/></div>
+        <div className="soc-v3-progress-row"><div><span>Analysis coverage</span><strong>{stats.performance.aiCoveragePercent}%</strong></div><div className="soc-v3-progress-track"><i style={{ width: boundedPercent(stats.performance.aiCoveragePercent) + '%' }}/></div></div>
+        <div className="soc-v3-progress-row soc-v3-progress-green"><div><span>Detection rule matching</span><strong>{stats.performance.ruleMatchCoveragePercent}%</strong></div><div className="soc-v3-progress-track"><i style={{ width: boundedPercent(stats.performance.ruleMatchCoveragePercent) + '%' }}/></div></div>
+        <div className="soc-v3-triage-states">
+          <div><strong>{stats.aiStatus.notAnalyzed.toLocaleString()}</strong><span>Not analyzed</span></div>
+          <div><strong>{stats.aiStatus.failed.toLocaleString()}</strong><span>Failed</span></div>
+          <div><strong>{stats.aiStatus.analyzing.toLocaleString()}</strong><span>Processing</span></div>
         </div>
       </section>
-
-      <aside className="soc-dashboard-sidebar" aria-label="Security posture and analysis health">
-        <RiskIndex value={stats.posture.severityPressureIndex} totalAlerts={stats.totals.alerts}
-          criticalAlerts={stats.severity.critical} highAlerts={stats.severity.high} />
-        <section className="soc-panel soc-ai-health">
-          <div className="panel-heading">
-            <div><span className="eyebrow">AUTOMATED TRIAGE</span><h2>AI analysis health</h2></div>
-          </div>
-          <div className="soc-health-row">
-            <div><span>AI coverage</span><strong>{stats.performance.aiCoveragePercent}%</strong></div>
-            <div className="soc-health-track"><i style={{ width: `${boundedPercent(stats.performance.aiCoveragePercent)}%` }} /></div>
-          </div>
-          <div className="soc-health-row">
-            <div><span>Rule match coverage</span><strong>{stats.performance.ruleMatchCoveragePercent}%</strong></div>
-            <div className="soc-health-track"><i style={{ width: `${boundedPercent(stats.performance.ruleMatchCoveragePercent)}%` }} /></div>
-          </div>
-          <div className="soc-health-summary">
-            <div><strong>{stats.aiStatus.notAnalyzed}</strong><span>Not analyzed</span></div>
-            <div><strong>{stats.aiStatus.failed}</strong><span>Failed</span></div>
-            <div><strong>{stats.aiStatus.analyzing}</strong><span>In progress</span></div>
-          </div>
-        </section>
-      </aside>
     </div>
 
-    <section aria-labelledby="analytics-heading" className="soc-dashboard-section">
-      <div className="soc-section-heading">
-        <div><span className="soc-section-eyebrow">DETECTION ANALYTICS</span><h2 id="analytics-heading">What the alerts tell us</h2>
-          <p>Source, severity, and AI processing breakdown for the selected time range.</p></div>
+    <section className="soc-v3-panel soc-v3-investigations" aria-labelledby="v3-investigations-title">
+      <div className="soc-v3-panel-heading soc-v3-investigations-header">
+        <div><span className="soc-v3-eyebrow">INVESTIGATION WORKSPACE</span><h2 id="v3-investigations-title">Recent detections</h2><p>Latest stored alerts with a direct path to investigation.</p></div>
+        <button className="soc-v3-text-action" type="button" onClick={() => navigate('/alerts')}>Open alert queue <ArrowRightOutlined /></button>
       </div>
-      <div className="analytics-grid">
-        <DetectionSourcePanel sources={stats.sources} />
-        <SeverityPressure counts={stats.severity} />
+      <div className="soc-v3-pending"><span className="soc-v3-pending-pill">{pendingAnalysis.toLocaleString()} NEED AI REVIEW</span><span>Includes not-analyzed and failed AI attempts; rule matching governs AI eligibility.</span></div>
+      {recentAlerts.length > 0 ? <div className="soc-v3-table-scroll">
+        <table className="soc-v3-table">
+          <thead><tr><th>Detection</th><th>Severity</th><th>Source</th><th>Affected host</th><th>AI status</th><th>Action</th></tr></thead>
+          <tbody>{recentAlerts.map(alert => <tr key={alert.alertId}>
+            <td><strong>{alert.signature || alert.eventType || 'Unclassified detection'}</strong><small>{alert.alertId}</small></td>
+            <td><span className={'soc-v3-severity-badge severity-' + alert.severity}>{alert.severity}</span></td>
+            <td>{alert.source || '—'}</td><td>{alert.host || '—'}</td>
+            <td><span className="soc-v3-ai-state">{alert.aiStatus.replace('_', ' ')}</span></td>
+            <td><button type="button" className="soc-v3-row-action" onClick={() => navigate('/alerts?alert=' + encodeURIComponent(alert.alertId))}>Investigate <ArrowRightOutlined /></button></td>
+          </tr>)}</tbody>
+        </table>
+      </div> : <div className="soc-v3-empty">
+        <span className="soc-v3-empty-icon"><CheckCircleOutlined /></span>
+        <strong>No detections in this time range</strong>
+        <p>This view uses real database records. Switch to 7d or 30d to check an earlier period, or open the full alert queue.</p>
+        <div><button type="button" onClick={() => setRange('7d')}>View last 7 days</button><button type="button" onClick={() => navigate('/alerts')}>Open alert queue <ArrowRightOutlined /></button></div>
+      </div>}
+    </section>
+
+    <details className="soc-v3-extended">
+      <summary><span><FileSearchOutlined /> Extended SOC analytics</span><span>Sources, AI lifecycle, ATT&amp;CK, timeline, and processing metrics</span></summary>
+      <div className="soc-v3-extended-grid">
+        <DetectionSourcePanel sources={stats.sources}/>
         <WorkloadPanel states={[
           { label: 'Failed', value: stats.aiStatus.failed },
           { label: 'Analyzing', value: stats.aiStatus.analyzing },
           { label: 'Not analyzed', value: stats.aiStatus.notAnalyzed },
           { label: 'Analyzed', value: stats.aiStatus.analyzed },
-        ]} />
+        ]}/>
+        <MitreCoverage techniques={stats.mitre.techniqueCount} mappedAlerts={stats.mitre.mappedAlertCount} analyzedAlerts={stats.mitre.analyzedAlertCount} coverage={stats.mitre.coveragePercent}/>
       </div>
-    </section>
-
-    <section aria-labelledby="context-heading" className="soc-dashboard-section">
-      <div className="soc-section-heading">
-        <div><span className="soc-section-eyebrow">THREAT CONTEXT</span><h2 id="context-heading">Activity and ATT&amp;CK mapping</h2>
-          <p>Only detections and technique mappings saved by the platform are shown.</p></div>
+      <ThreatTimeline events={timeline} onViewAll={() => navigate('/alerts')}/>
+      <div className="soc-v3-perf-grid">
+        <PerformanceMetric code="AI" label="Analysis coverage" value={stats.performance.aiCoveragePercent + '%'} target={stats.aiStatus.analyzed + ' analyzed'} status={stats.performance.aiCoveragePercent >= 70 ? 'good' : 'watch'}/>
+        <PerformanceMetric code="LLM" label="Average processing time" value={formatDuration(stats.performance.avgProcessingTimeMs)} target="Stored processing time" status="good"/>
+        <PerformanceMetric code="RULE" label="Rule match coverage" value={stats.performance.ruleMatchCoveragePercent + '%'} target={stats.posture.matchedRules + ' matched'} status={stats.performance.ruleMatchCoveragePercent >= 70 ? 'good' : 'watch'}/>
       </div>
-      <div className="threat-grid">
-        <ThreatTimeline events={timeline} onViewAll={() => navigate('/alerts')} />
-        <MitreCoverage techniques={stats.mitre.techniqueCount} mappedAlerts={stats.mitre.mappedAlertCount}
-          analyzedAlerts={stats.mitre.analyzedAlertCount} coverage={stats.mitre.coveragePercent} />
-      </div>
-    </section>
-
-    <section aria-labelledby="performance-heading" className="soc-dashboard-section soc-dashboard-performance">
-      <div className="soc-section-heading">
-        <div><span className="soc-section-eyebrow">PIPELINE HEALTH</span><h2 id="performance-heading">Processing performance</h2></div>
-      </div>
-      <div className="performance-grid">
-        <PerformanceMetric code="AI" label="Analysis coverage" value={`${stats.performance.aiCoveragePercent}%`}
-          target={`${stats.aiStatus.analyzed} analyzed`} status={stats.performance.aiCoveragePercent >= 70 ? 'good' : 'watch'} />
-        <PerformanceMetric code="LLM" label="Average processing time" value={formatDuration(stats.performance.avgProcessingTimeMs)}
-          target="Measured processing time" status="good" />
-        <PerformanceMetric code="RULE" label="Rule match coverage" value={`${stats.performance.ruleMatchCoveragePercent}%`}
-          target={`${stats.posture.matchedRules} matched`} status={stats.performance.ruleMatchCoveragePercent >= 70 ? 'good' : 'watch'} />
-      </div>
-    </section>
+    </details>
+    <p className="soc-v3-disclaimer"><SafetyCertificateOutlined /> Metrics are computed from stored SOC data. No simulated alerts or trends.</p>
   </main>;
 };
 

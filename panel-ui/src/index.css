@@ -904,3 +904,21 @@ html.dark body{background:radial-gradient(ellipse at 57% -25%,rgba(90,70,185,.12
 .panel-theme-btn{border-radius:9px}
 .panel-theme-btn:hover{background:var(--panel-primary-soft)}
 @media(max-width:760px){.soc-content{padding:15px}.soc-topbar.ant-layout-header{padding:0 13px}}
+
+
+/* Safe browser-only sample-data preview controls (Dashboard and Alerts). */
+.soc-demo-switch { display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:8px 12px;border:1px solid color-mix(in srgb,var(--panel-primary) 42%,var(--panel-border));border-radius:9px;background:var(--panel-surface-soft);color:var(--panel-muted);font-size:11px;font-weight:650;cursor:pointer;white-space:nowrap; }
+.soc-demo-switch .anticon {font-size:14px;color:var(--panel-primary-strong)}
+.soc-demo-switch strong {font-size:10px;letter-spacing:.05em;color:var(--panel-muted);}
+.soc-demo-switch:hover {background:var(--panel-primary-soft);border-color:var(--panel-primary);color:var(--panel-text);}
+.soc-demo-switch.is-on {border-color:#d6ae59;background:rgba(214,174,89,.14);color:#d9b879;}
+.soc-demo-switch.is-on strong {color:#ecc978}
+.soc-demo-switch.is-on .anticon {color:#e4be6c}
+.soc-demo-banner {display:flex;align-items:center;gap:14px;padding:13px 17px;margin:0 0 4px;background:rgba(214,174,89,.105);border:1px solid rgba(214,174,89,.4);border-radius:12px;color:var(--panel-text);}
+.soc-demo-banner>.anticon {color:#e3b85e;font-size:22px;}
+.soc-demo-banner>div {display:flex;flex-direction:column;gap:5px;flex:1;min-width:0;}
+.soc-demo-banner strong {font-size:11px;letter-spacing:.07em;color:#e8bd63}
+.soc-demo-banner span {font-size:10px;color:var(--panel-muted);line-height:1.5}
+.soc-demo-banner button {border:1px solid rgba(214,174,89,.6);background:rgba(214,174,89,.1);padding:9px 12px;border-radius:8px;color:var(--panel-text);font-size:10px;font-weight:650;cursor:pointer;white-space:nowrap}
+.soc-demo-banner button:hover {background:rgba(214,174,89,.19)}
+@media(max-width:650px) {.soc-demo-banner {align-items:flex-start;flex-wrap:wrap;padding:12px}.soc-demo-banner>div {flex:1 1 calc(100% - 50px)}.soc-demo-banner button{margin-left:34px}}

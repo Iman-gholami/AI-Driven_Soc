@@ -9,6 +9,8 @@ import WorkloadPanel from '../../components/SOC/WorkloadPanel';
 import ThreatTimeline from '../../components/SOC/ThreatTimeline';
 import MitreCoverage from '../../components/SOC/MitreCoverage';
 import { SafetyCertificateOutlined, BellOutlined, WarningOutlined, RobotOutlined, DesktopOutlined, ReloadOutlined, ArrowRightOutlined, RadarChartOutlined, FileSearchOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { useDemoMode, getDemoDashboardStats } from '../../demo/demoData';
+import { ExperimentOutlined } from '@ant-design/icons';
 import './Dashboard.css';
 
 const EMPTY_STATS: DashboardStats = {
@@ -38,18 +40,21 @@ const SEVERITIES = [
 
 const Dashboard: React.FC = () => {
   const [range, setRange] = useState<TimeRange>('24h');
+  const [demoMode, setDemoMode] = useDemoMode();
+  const demoStats = useMemo(() => getDemoDashboardStats(range), [range]);
   const navigate = useNavigate();
   const rangeStart = useMemo(() => getRangeStart(range), [range]);
   const { data, dataUpdatedAt, isFetching, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard-stats', range],
     queryFn: () => api.getDashboardStats({ createdAtFrom: rangeStart.toISOString() }),
     refetchInterval: 60_000,
+    enabled: !demoMode,
   });
 
-  if (isLoading && !data) return <main className="soc-v3-dashboard"><div className="soc-v3-loading" role="status"><RadarChartOutlined spin /><strong>Loading Command Center</strong><span>Reading security telemetry…</span></div></main>;
-  if (isError && !data) return <main className="soc-v3-dashboard"><div className="soc-v3-loading" role="alert"><WarningOutlined /><strong>Security data unavailable</strong><span>Could not load the SOC dashboard.</span><button onClick={() => void refetch()}>Try again</button></div></main>;
+  if (!demoMode && isLoading && !data) return <main className="soc-v3-dashboard"><div className="soc-v3-loading" role="status"><RadarChartOutlined spin /><strong>Loading Command Center</strong><span>Reading security telemetry…</span></div></main>;
+  if (!demoMode && isError && !data) return <main className="soc-v3-dashboard"><div className="soc-v3-loading" role="alert"><WarningOutlined /><strong>Security data unavailable</strong><span>Could not load the SOC dashboard.</span><button onClick={() => void refetch()}>Try again</button></div></main>;
 
-  const stats = data || EMPTY_STATS;
+  const stats = demoMode ? demoStats : (data || EMPTY_STATS);
   const recentAlerts = stats.recentAlerts.slice(0, 5);
   const pendingAnalysis = stats.aiStatus.notAnalyzed + stats.aiStatus.failed;
   const risk = stats.posture.severityPressureIndex;
@@ -78,15 +83,20 @@ const Dashboard: React.FC = () => {
         <p>Prioritize real detections, review risk, and track AI-assisted investigation.</p>
       </div>
       <div className="soc-v3-controls">
-        <div className="soc-v3-updated"><span className="soc-v3-status-dot"/><div><small>LAST UPDATED</small><strong>{dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</strong></div></div>
+        <button type="button" className={'soc-demo-switch' + (demoMode ? ' is-on' : '')} aria-pressed={demoMode}
+          onClick={() => setDemoMode(!demoMode)} title="Toggle local demo data (never writes to the database)">
+          <ExperimentOutlined /> Demo data <strong>{demoMode ? 'ON' : 'OFF'}</strong>
+        </button>
+        <div className="soc-v3-updated"><span className="soc-v3-status-dot"/><div><small>{demoMode ? 'SAMPLE DATA' : 'LAST UPDATED'}</small><strong>{demoMode ? 'Preview only' : dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</strong></div></div>
         <div className="soc-v3-range" aria-label="Reporting time range" role="group">
           {RANGES.map(option => <button type="button" key={option} className={range === option ? 'selected' : ''} aria-pressed={range === option} onClick={() => setRange(option)}>{option === '24h' ? 'Last 24h' : option}</button>)}
         </div>
-        <button className="soc-v3-refresh" type="button" disabled={isFetching} onClick={() => void refetch()} title="Refresh dashboard" aria-label="Refresh dashboard"><ReloadOutlined spin={isFetching}/></button>
+        <button className="soc-v3-refresh" type="button" disabled={demoMode || isFetching} onClick={() => void refetch()} title={demoMode ? 'Unavailable in demo mode' : 'Refresh dashboard'} aria-label="Refresh dashboard"><ReloadOutlined spin={isFetching}/></button>
       </div>
     </header>
 
-    {isError && <div className="soc-v3-warning" role="alert">The latest refresh failed. Previously loaded data is shown.</div>}
+    {demoMode && <div className="soc-demo-banner" role="status"><ExperimentOutlined /><div><strong>DEMO MODE — SYNTHETIC DATA</strong><span>Illustrative alerts only. No database changes, AI requests, or API ingestion. Demo applies to Dashboard and Alerts only.</span></div><button type="button" onClick={() => setDemoMode(false)}>Return to live data</button></div>}
+    {!demoMode && isError && <div className="soc-v3-warning" role="alert">The latest refresh failed. Previously loaded data is shown.</div>}
 
     <section className="soc-v3-kpis" aria-label="Key operational metrics">
       <article className="soc-v3-kpi soc-v3-risk">
@@ -191,7 +201,7 @@ const Dashboard: React.FC = () => {
         <PerformanceMetric code="RULE" label="Rule match coverage" value={stats.performance.ruleMatchCoveragePercent + '%'} target={stats.posture.matchedRules + ' matched'} status={stats.performance.ruleMatchCoveragePercent >= 70 ? 'good' : 'watch'}/>
       </div>
     </details>
-    <p className="soc-v3-disclaimer"><SafetyCertificateOutlined /> Metrics are computed from stored SOC data. No simulated alerts or trends.</p>
+    <p className="soc-v3-disclaimer"><SafetyCertificateOutlined /> {demoMode ? 'Demo preview: all metrics and detections are synthetic and read-only.' : 'Metrics are computed from stored SOC data. No simulated alerts or trends.'}</p>
   </main>;
 };
 

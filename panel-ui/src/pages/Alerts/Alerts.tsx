@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Table, Card, Typography, Button, Space, Tag, message, Modal, Tooltip, Badge, Collapse, Select, Input } from 'antd';
-import type { BadgeProps } from 'antd';
 import { PlusOutlined, RobotOutlined, FilterOutlined, DownloadOutlined, CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, InfoCircleOutlined, AlertOutlined, ClockCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api, getErrorMessage } from '../../api/client';
 import { Alert, AlertListParams } from '../../types';
 import AISidebar from '../../components/AI/AISidebar';
+import { ExperimentOutlined, SearchOutlined, ReloadOutlined, DatabaseOutlined, ThunderboltOutlined, WarningOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { useDemoMode, getDemoAlertsPage } from '../../demo/demoData';
 import './Alerts.css';
 
 const { Title, Text } = Typography;
@@ -14,6 +15,7 @@ const { Panel } = Collapse;
 
 const Alerts: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const [demoMode, setDemoMode] = useDemoMode();
   const deepLinkedAlertId = searchParams.get('alert');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [page, setPage] = useState(1);
@@ -42,18 +44,21 @@ const Alerts: React.FC = () => {
     sortDirection: 'desc',
   }), [page,pageSize,filterSeverity,filterStatus,filterAiStatus,filterSource,search]);
 
-  const { data, isLoading } = useQuery({
+  const { data: liveData, isLoading, isError, refetch } = useQuery({
     queryKey: ['alerts', queryParams],
     queryFn: () => api.getAlertsPage(queryParams),
     placeholderData: (previous) => previous,
+    enabled: !demoMode,
   });
+  const sampleData = useMemo(() => getDemoAlertsPage(queryParams), [queryParams]);
+  const data = demoMode ? sampleData : liveData;
 
   const alerts = data?.alerts || [];
   const pagination = data?.pagination || { page, limit: pageSize, total: 0, pages: 0 };
 
   // Open the sidebar as soon as a deep link arrives; the effect below only fetches the alert.
   const [handledDeepLink, setHandledDeepLink] = useState<string | null>(null);
-  if (deepLinkedAlertId !== handledDeepLink) {
+  if (!demoMode && deepLinkedAlertId !== handledDeepLink) {
     setHandledDeepLink(deepLinkedAlertId);
     if (deepLinkedAlertId) {
       setAiSidebarOpen(true);
@@ -63,18 +68,26 @@ const Alerts: React.FC = () => {
 
   useEffect(() => {
     const alertId = deepLinkedAlertId;
-    if (!alertId) return;
+    if (!alertId || demoMode) return;
     let active = true;
     api.getAlertById(alertId)
       .then((alert) => { if (active) setSelectedAlert(alert); })
       .catch(() => { if (active) message.error('Alert could not be loaded'); })
       .finally(() => { if (active) setSidebarLoading(false); });
     return () => { active = false; };
-  }, [deepLinkedAlertId]);
+  }, [deepLinkedAlertId, demoMode]);
 
   const resetPage = () => setPage(1);
+  const changeDemoMode = () => {
+    setDemoMode(!demoMode);
+    setAiSidebarOpen(false);
+    setSelectedAlert(null);
+    setExpandedRowKeys([]);
+    resetPage();
+  };
 
   const handleAIAnalysis = async (alert: Alert) => {
+    if (demoMode) { message.info('Demo alerts cannot be submitted for AI analysis'); return; }
     setAiSidebarOpen(true);
     setSelectedAlert(alert);
 
@@ -97,6 +110,7 @@ const Alerts: React.FC = () => {
   };
 
   const handleReanalysis = async (alert: Alert) => {
+    if (demoMode) return;
     try {
       setSidebarLoading(true);
       await api.regenerateAIAnalysis(alert.alertId);
@@ -118,6 +132,7 @@ const Alerts: React.FC = () => {
   };
 
   const exportToCSV = async () => {
+    if (demoMode) { message.info('Sample data export is disabled'); return; }
     try {
       setExporting(true);
       const baseParams = { ...queryParams, page: 1, limit: 100 };
@@ -179,9 +194,6 @@ const Alerts: React.FC = () => {
     setPage(1);
   };
 
-  const getSeverityBadge = (severity: string): BadgeProps['status'] => ({ critical: 'error', high: 'warning', medium: 'warning', low: 'success', info: 'processing', unknown: 'default' } as Record<string, BadgeProps['status']>)[severity] || 'default';
-  const getStatusIcon = (status: string) => ({ new: <AlertOutlined className="text-blue-500" />, analyzed: <CheckCircleOutlined className="text-green-500" /> }[status] || null);
-  const getStatusColor = (status: string) => ({ new: 'blue', analyzed: 'green' }[status] || 'default');
   const getAiStatusColor = (status: string) => ({ not_analyzed: 'default', analyzing: 'processing', analyzed: 'success', failed: 'error' }[status] || 'default');
   const getAiStatusIcon = (status: string) => ({ not_analyzed: <InfoCircleOutlined />, analyzing: <SyncOutlined spin />, analyzed: <CheckCircleOutlined />, failed: <CloseCircleOutlined /> }[status] || null);
 
@@ -205,45 +217,134 @@ const Alerts: React.FC = () => {
     </div>;
   };
 
+  const visibleCritical = alerts.filter(alert => alert.severity === 'critical').length;
+  const visibleNeedsAI = alerts.filter(alert => alert.aiStatus === 'not_analyzed' || alert.aiStatus === 'failed').length;
+  const visibleEligible = alerts.filter(alert => alert.aiEligibility.eligible).length;
+  const hasFilters = !!(filterSeverity || filterStatus || filterAiStatus || filterSource || search);
   const columns = [
-    { title: 'Alert ID', dataIndex: 'alertId', key: 'alertId', render: (text: string) => <Text code className="text-xs">{text.length > 14 ? `${text.substring(0, 14)}…` : text}</Text> },
-    { title: 'Signature / Event', dataIndex: 'signature', key: 'signature', render: (signature: string | null, record: Alert) => <div><div className="font-medium">{signature || 'No Signature'}</div>{record.eventType && <Tag className="alerts-meta-tag text-xs mt-1">{record.eventType}</Tag>}{record.host && <Tag className="alerts-meta-tag text-xs mt-1">{record.host}</Tag>}</div> },
+    { title: 'Detection / Alert ID', key: 'detection', render: (_: unknown, record: Alert) => <div className="alerts-detection-cell">
+        <strong>{record.signature || record.eventType || 'Unclassified detection'}</strong>
+        <span>{record.alertId} {record.host ? '· ' + record.host : ''}</span>
+      </div> },
+    { title: 'Severity', dataIndex: 'severity', key: 'severity', render: (severity: string) =>
+      <span className={'alerts-severity-pill severity-' + severity}><span className="alerts-pill-dot"/>{severity.toUpperCase()}</span> },
     { title: 'Source', dataIndex: 'source', key: 'source', render: (source: string) => <Tag className="alerts-meta-tag">{source}</Tag> },
-    { title: 'Severity', dataIndex: 'severity', key: 'severity', render: (severity: string) => <Badge status={getSeverityBadge(severity)} text={severity.toUpperCase()} /> },
-    { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={getStatusColor(status)} className="px-3 py-1">{getStatusIcon(status)} {status.toUpperCase()}</Tag> },
-    { title: 'AI Status', dataIndex: 'aiStatus', key: 'aiStatus', render: (status: string, record: Alert) => <Tooltip title={record.aiEligibility.eligible ? 'Eligible for AI analysis' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Tag color={getAiStatusColor(status)}>{getAiStatusIcon(status)} {status.replace('_', ' ').toUpperCase()}</Tag>{!record.aiEligibility.eligible && <InfoCircleOutlined className="text-gray-400 ml-1" />}</Tooltip> },
-    { title: 'AI Action', key: 'aiAction', render: (_: unknown, record: Alert) => <Tooltip title={record.aiStatus === 'analyzed' ? 'View persisted AI analysis' : record.aiEligibility.eligible ? 'Run deterministic rule resolution and AI triage' : `AI unavailable in V1: ${record.aiEligibility.reason || 'rule match required'}`}><Button type="primary" icon={<RobotOutlined />} onClick={() => handleAIAnalysis(record)} disabled={record.aiStatus !== 'analyzed' && !record.aiEligibility.eligible} size="middle">{record.aiStatus === 'analyzed' ? 'View AI Analysis' : 'AI Analyze'}</Button></Tooltip> },
+    { title: 'Received', dataIndex: 'createdAt', key: 'createdAt', render: (createdAt: string) =>
+      <span className="alerts-date-cell">{new Date(createdAt).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span> },
+    { title: 'AI status', dataIndex: 'aiStatus', key: 'aiStatus', render: (status: string, record: Alert) =>
+      <Tooltip title={demoMode ? 'Demo alert: preview only' : record.aiEligibility.eligible ? 'Eligible for AI analysis' : 'Not eligible: ' + (record.aiEligibility.reason || 'rule match required')}>
+        <Tag color={getAiStatusColor(status)} className="alerts-ai-tag">{getAiStatusIcon(status)} {status.replace('_',' ').toUpperCase()}</Tag>
+      </Tooltip> },
+    { title: 'Action', key: 'aiAction', render: (_: unknown, record: Alert) =>
+      <Tooltip title={demoMode ? 'AI actions are disabled for sample data' : record.aiStatus === 'analyzed' ? 'View saved analysis' : record.aiEligibility.eligible ? 'Run AI triage' : record.aiEligibility.reason || 'Matched rule required'}>
+        <Button type={record.aiStatus === 'analyzed' ? 'default' : 'primary'} icon={<RobotOutlined />}
+          onClick={() => void handleAIAnalysis(record)}
+          disabled={demoMode || (record.aiStatus !== 'analyzed' && !record.aiEligibility.eligible)}
+          className="alerts-ai-action" size="middle">
+          {record.aiStatus === 'analyzed' ? 'View analysis' : 'Analyze'}
+        </Button>
+      </Tooltip> },
   ];
 
-  return <main className="alerts-page">
+  return <main className="alerts-page alerts-redesign">
     <header className="alerts-page-heading">
       <div>
-        <div className="alerts-eyebrow"><AlertOutlined /> DETECTION QUEUE / STORED TELEMETRY</div>
-        <Title level={2}>Security Alerts</Title>
-        <Text type="secondary">Server-side investigation queue backed by persisted SIEM/Splunk alerts.</Text>
+        <div className="alerts-eyebrow"><span className="alerts-live-dot"/> SECURITY OPERATIONS / DETECTION QUEUE</div>
+        <Title level={2}>Alerts <span className="alerts-heading-accent">&amp; Investigations</span></Title>
+        <Text type="secondary">Prioritize findings, filter detections, and review AI analysis from Splunk / SIEM.</Text>
       </div>
       <Space wrap className="alerts-actions">
-        <Button icon={<FilterOutlined />} onClick={clearFilters}>Clear filters</Button>
-        <Button icon={<DownloadOutlined />} loading={exporting} onClick={exportToCSV}>Export CSV</Button>
+        <button type="button" aria-pressed={demoMode} className={'soc-demo-switch' + (demoMode ? ' is-on' : '')}
+          onClick={changeDemoMode} title="Enable browser-only sample data">
+          <ExperimentOutlined /> Demo data <strong>{demoMode ? 'ON' : 'OFF'}</strong>
+        </button>
+        <Button icon={<ReloadOutlined />} onClick={() => void refetch()} disabled={demoMode}>Refresh</Button>
+        <Button icon={<DownloadOutlined />} loading={exporting} onClick={exportToCSV} disabled={demoMode}>Export CSV</Button>
         <Button icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>Ingestion info</Button>
       </Space>
     </header>
 
-    <Card className="alerts-filter-card">
-      <Space wrap>
-        <Input.Search placeholder="Search alert, signature, host, source" allowClear value={search} onChange={(event)=>{setSearch(event.target.value);resetPage();}} style={{width:320}} />
-        <Select allowClear placeholder="Severity" value={filterSeverity || undefined} style={{width:140}} onChange={(value)=>{setFilterSeverity(value || '');resetPage();}} options={['critical','high','medium','low','info','unknown'].map(value=>({value,label:value.toUpperCase()}))}/>
-        <Select allowClear placeholder="Status" value={filterStatus || undefined} style={{width:130}} onChange={(value)=>{setFilterStatus(value || '');resetPage();}} options={['new','analyzed'].map(value=>({value,label:value.toUpperCase()}))}/>
-        <Select allowClear placeholder="AI status" value={filterAiStatus || undefined} style={{width:160}} onChange={(value)=>{setFilterAiStatus(value || '');resetPage();}} options={['not_analyzed','analyzing','analyzed','failed'].map(value=>({value,label:value.replace('_',' ').toUpperCase()}))}/>
-        <Input placeholder="Source" allowClear value={filterSource} onChange={(event)=>{setFilterSource(event.target.value);resetPage();}} style={{width:160}} />
-        <div className="alerts-result-count"><strong>{pagination.total.toLocaleString()}</strong><span>matching alerts</span></div>
-      </Space>
-    </Card>
+    {demoMode && <div className="soc-demo-banner" role="status">
+      <ExperimentOutlined />
+      <div><strong>DEMO MODE — SYNTHETIC ALERTS</strong><span>Preview data only. AI actions, exports, and API requests are disabled. Nothing is written to MongoDB.</span></div>
+      <button type="button" onClick={changeDemoMode}>Return to live data</button>
+    </div>}
 
-    <Card className="alerts-table-card"><Table scroll={{ x: 1120 }} columns={columns} dataSource={alerts} loading={isLoading} rowKey="alertId" expandable={{ expandedRowRender, expandedRowKeys, onExpandedRowsChange: keys => setExpandedRowKeys(keys as string[]), expandIcon: ({ expanded, onExpand, record }) => <Button type="text" icon={expanded ? <CloseCircleOutlined /> : <FileTextOutlined />} onClick={e => onExpand(record, e)} /> }} pagination={{ current:pagination.page, pageSize:pagination.limit, total:pagination.total, showSizeChanger:true, showQuickJumper:true, showTotal:(total,range)=>`${range[0]}-${range[1]} of ${total} alerts`, pageSizeOptions:['10','20','50','100'], onChange:(nextPage,nextPageSize)=>{setPage(nextPageSize!==pageSize?1:nextPage);setPageSize(nextPageSize);} }} /></Card>
+    {!demoMode && isError && <div className="alerts-query-error" role="alert">
+      <WarningOutlined /> Alert data could not be refreshed.
+      <Button size="small" onClick={() => void refetch()}>Retry</Button>
+    </div>}
 
-    <Modal title="Alert ingestion" open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={[<Button key="close" type="primary" onClick={() => setIsModalVisible(false)}>Close</Button>]} width={600}><Text>Alerts are ingested from Splunk through <Text code>/webhook-alert</Text>. This panel intentionally does not create or delete alerts.</Text></Modal>
-    <AISidebar open={aiSidebarOpen} onClose={() => { setAiSidebarOpen(false); setSelectedAlert(null); }} alert={selectedAlert} loading={sidebarLoading} onReanalyze={handleReanalysis} />
+    <section className="alerts-summary-grid" aria-label="Queue summary">
+      <article className="alerts-summary-card">
+        <span className="alerts-summary-icon alerts-summary-purple"><DatabaseOutlined /></span>
+        <div><span>MATCHING ALERTS</span><strong>{pagination.total.toLocaleString()}</strong><small>{hasFilters ? 'Current search & filters' : 'Current queue'}</small></div>
+      </article>
+      <article className="alerts-summary-card">
+        <span className="alerts-summary-icon alerts-summary-red"><WarningOutlined /></span>
+        <div><span>CRITICAL</span><strong>{visibleCritical.toLocaleString()}</strong><small>On current page</small></div>
+      </article>
+      <article className="alerts-summary-card">
+        <span className="alerts-summary-icon alerts-summary-yellow"><ThunderboltOutlined /></span>
+        <div><span>NEEDS AI REVIEW</span><strong>{visibleNeedsAI.toLocaleString()}</strong><small>On current page</small></div>
+      </article>
+      <article className="alerts-summary-card">
+        <span className="alerts-summary-icon alerts-summary-green"><SafetyCertificateOutlined /></span>
+        <div><span>RULE-MATCH ELIGIBLE</span><strong>{visibleEligible.toLocaleString()}</strong><small>On current page</small></div>
+      </article>
+    </section>
+
+    <section className="alerts-queue-section" aria-label="Investigation queue">
+      <div className="alerts-workspace-title">
+        <div><span className="alerts-mini-eyebrow">INVESTIGATION WORKSPACE</span><h2>Detection queue</h2><p>Quick filters apply server-side for live alerts, or locally in Demo mode.</p></div>
+        <span className="alerts-workspace-count">{pagination.total.toLocaleString()} results</span>
+      </div>
+
+      <Card className="alerts-filter-card">
+        <div className="alerts-filter-topline"><span><FilterOutlined /> FILTER DETECTIONS</span>
+          <Button size="small" type="text" disabled={!hasFilters} onClick={clearFilters}>Clear all filters</Button>
+        </div>
+        <Space wrap className="alerts-filter-controls">
+          <Input.Search prefix={<SearchOutlined />} placeholder="Search alert, signature, host, source" allowClear
+            value={search} onChange={event => { setSearch(event.target.value); resetPage(); }} style={{width:300}} />
+          <Select allowClear placeholder="Severity" value={filterSeverity || undefined} style={{width:135}}
+            onChange={value => {setFilterSeverity(value || '');resetPage();}}
+            options={['critical','high','medium','low','info','unknown'].map(value=>({value,label:value.toUpperCase()}))}/>
+          <Select allowClear placeholder="Status" value={filterStatus || undefined} style={{width:120}}
+            onChange={value=>{setFilterStatus(value || '');resetPage();}}
+            options={['new','analyzed'].map(value=>({value,label:value.toUpperCase()}))}/>
+          <Select allowClear placeholder="AI status" value={filterAiStatus || undefined} style={{width:150}}
+            onChange={value=>{setFilterAiStatus(value || '');resetPage();}}
+            options={['not_analyzed','analyzing','analyzed','failed'].map(value=>({value,label:value.replace('_',' ').toUpperCase()}))}/>
+          <Input placeholder="Detection source" allowClear value={filterSource} onChange={event=>{setFilterSource(event.target.value);resetPage();}} style={{width:158}}/>
+        </Space>
+        <div className="alerts-quick-filters">
+          <span>QUICK FILTERS</span>
+          <button type="button" className={!hasFilters ? 'is-active' : ''} onClick={clearFilters}>All alerts</button>
+          <button type="button" className={filterSeverity === 'critical' ? 'is-active' : ''} onClick={()=>{clearFilters();setFilterSeverity('critical');}}>Critical only</button>
+          <button type="button" className={filterAiStatus === 'not_analyzed' ? 'is-active' : ''} onClick={()=>{clearFilters();setFilterAiStatus('not_analyzed');}}>Not analyzed</button>
+          <button type="button" className={filterAiStatus === 'failed' ? 'is-active' : ''} onClick={()=>{clearFilters();setFilterAiStatus('failed');}}>AI failed</button>
+        </div>
+      </Card>
+
+      <Card className="alerts-table-card">
+        <div className="alerts-table-header"><div><strong>Stored detections</strong><span>Newest first · Expand a row for rule match and AI eligibility</span></div>
+          <span>{demoMode ? 'SAMPLE DATA' : 'LIVE DATA'}</span></div>
+        <Table scroll={{x:1000}} columns={columns} dataSource={alerts} loading={!demoMode && isLoading} rowKey="alertId"
+          locale={{emptyText:<div className="alerts-empty-state"><AlertOutlined /><strong>No alerts match these filters</strong><span>{demoMode ? 'Try clearing filters or turning off demo data.' : 'Try clearing filters or check the incoming SIEM telemetry.'}</span><Button size="small" onClick={clearFilters}>Clear filters</Button></div>}}
+          expandable={{expandedRowRender,expandedRowKeys:demoMode && deepLinkedAlertId && alerts.some(a=>a.alertId===deepLinkedAlertId) ? [...new Set([...expandedRowKeys,deepLinkedAlertId])] : expandedRowKeys,
+            onExpandedRowsChange:keys=>setExpandedRowKeys(keys as string[]),
+            expandIcon:({expanded,onExpand,record})=><Button type="text" aria-label={expanded?'Collapse details':'Expand details'} icon={expanded?<CloseCircleOutlined />:<FileTextOutlined />} onClick={e=>onExpand(record,e)}/>}}
+          pagination={{current:pagination.page,pageSize:pagination.limit,total:pagination.total,showSizeChanger:true,showQuickJumper:!demoMode,showTotal:(total,range)=>total ? range[0]+'–'+range[1]+' of '+total+' alerts':'0 alerts',pageSizeOptions:['10','20','50','100'],
+            onChange:(nextPage,nextPageSize)=>{setPage(nextPageSize!==pageSize?1:nextPage);setPageSize(nextPageSize);}}}/>
+      </Card>
+    </section>
+    <Modal title="Alert ingestion" open={isModalVisible} onCancel={()=>setIsModalVisible(false)}
+      footer={[<Button key="close" type="primary" onClick={()=>setIsModalVisible(false)}>Close</Button>]} width={600}>
+      <Text>Alerts are ingested from Splunk through <Text code>/webhook-alert</Text>. This panel intentionally does not create or delete alerts.</Text>
+    </Modal>
+    {!demoMode && <AISidebar open={aiSidebarOpen} onClose={()=>{setAiSidebarOpen(false);setSelectedAlert(null);}}
+      alert={selectedAlert} loading={sidebarLoading} onReanalyze={handleReanalysis}/>}
   </main>;
 };
 

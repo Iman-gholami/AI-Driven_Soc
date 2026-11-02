@@ -25,7 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
 
   const menuItems = [
-    { key: '/dashboard', icon: <DashboardOutlined />, label: 'Command Center' },
+    { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
     { key: '/alerts', icon: <FileTextOutlined />, label: 'Alerts' },
     { key: '/reports', icon: <FileSearchOutlined />, label: 'Reports' },
     { key: '/mitre-coverage', icon: <RadarChartOutlined />, label: 'MITRE Coverage' },
@@ -56,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
         )}
       </div>
 
-      <div className="soc-nav-label">{collapsed ? '•••' : 'OPERATIONS'}</div>
+      <div className="soc-nav-label">{collapsed ? '•••' : 'WORKSPACE'}</div>
       <Menu
         theme="dark"
         mode="inline"

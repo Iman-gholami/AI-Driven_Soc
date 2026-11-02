@@ -34,18 +34,18 @@ const ThemeApplier: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       theme={{
         algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
-          colorPrimary: dark ? '#4c8dff' : '#2f6fed',
+          colorPrimary: dark ? '#9d83ff' : '#6652dc',
           colorInfo: dark ? '#3ac0d9' : '#0f7188',
           colorSuccess: dark ? '#3bcf91' : '#0f7a4e',
           colorWarning: dark ? '#e2b45b' : '#946115',
           colorError: dark ? '#ec6b78' : '#c84b5d',
-          colorBgBase: dark ? '#0a1016' : '#f5f7fa',
-          colorBgContainer: dark ? '#101820' : '#ffffff',
-          colorBgElevated: dark ? '#141e28' : '#ffffff',
-          colorBorder: dark ? '#202d39' : '#e0e6ed',
-          colorBorderSecondary: dark ? '#1b2732' : '#e8edf2',
-          colorText: dark ? '#e6edf3' : '#17212b',
-          colorTextSecondary: dark ? '#93a4b7' : '#607184',
+          colorBgBase: dark ? '#0a0f1e' : '#f5f7fa',
+          colorBgContainer: dark ? '#131c2e' : '#ffffff',
+          colorBgElevated: dark ? '#172237' : '#ffffff',
+          colorBorder: dark ? '#243047' : '#e0e6ed',
+          colorBorderSecondary: dark ? '#202b41' : '#e8edf2',
+          colorText: dark ? '#f0f4fd' : '#17212b',
+          colorTextSecondary: dark ? '#b0bdd3' : '#607184',
           borderRadius: 10,
           borderRadiusLG: 14,
           controlHeight: 36,
@@ -54,7 +54,7 @@ const ThemeApplier: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         },
         components: {
           Card: { bodyPadding: 20 },
-          Table: { headerBg: dark ? '#101923' : '#f8fafc' },
+          Table: { headerBg: dark ? '#18243b' : '#f8fafc' },
         },
       }}
     >

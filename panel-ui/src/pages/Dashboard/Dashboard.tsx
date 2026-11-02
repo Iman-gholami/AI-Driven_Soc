@@ -27,7 +27,7 @@ const EMPTY_STATS: DashboardStats = {
 };
 
 const Dashboard:React.FC=()=>{
-  const [range,setRange]=useState<'24h'|'7d'|'30d'>('24h');
+  const [range,setRange]=useState<'24h'|'7d'|'30d'|'365d'>('24h');
   const navigate=useNavigate();
   const rangeStart = useMemo(() => getRangeStart(range), [range]);
   const {data,isLoading,dataUpdatedAt}=useQuery({
@@ -45,7 +45,7 @@ const Dashboard:React.FC=()=>{
   }));
 
   return <main className="command-center">
-    <header className="command-header"><div><div className="command-kicker"><span>OPERATIONS</span><i /> Stored SOC telemetry</div><h1>Cyber Command Center</h1><p>Security posture from your alert and AI-analysis data</p></div><div className="header-controls"><div className="refresh-status"><i /><span>Last refresh<strong>{dataUpdatedAt?new Date(dataUpdatedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Connecting'}</strong></span></div><div className="range-selector">{(['24h','7d','30d'] as const).map(r=><button className={range===r?'active':''} onClick={()=>setRange(r)} key={r}>{r}</button>)}</div></div></header>
+    <header className="command-header"><div><div className="command-kicker"><span>OPERATIONS</span><i /> Stored SOC telemetry</div><h1>Cyber Command Center</h1><p>Security posture from your alert and AI-analysis data</p></div><div className="header-controls"><div className="refresh-status"><i /><span>Last refresh<strong>{dataUpdatedAt?new Date(dataUpdatedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Connecting'}</strong></span></div><div className="range-selector">{(['24h','7d','30d','365d'] as const).map(r=><button className={range===r?'active':''} onClick={()=>setRange(r)} key={r}>{r}</button>)}</div></div></header>
 
     <div className="section-label"><span>01</span><div><h2>Security Posture Overview</h2><p>Calculated from alerts stored in MongoDB for the selected time window</p></div></div>
     <div className="posture-grid">
@@ -90,9 +90,9 @@ const Dashboard:React.FC=()=>{
   </main>;
 };
 
-function getRangeStart(range:'24h'|'7d'|'30d') {
+function getRangeStart(range:'24h'|'7d'|'30d'|'365d') {
   const now = Date.now();
-  const hours = range === '24h' ? 24 : range === '7d' ? 24 * 7 : 24 * 30;
+  const hours = range === '24h' ? 24 : range === '7d' ? 24 * 7 : range === '30d' ? 24 * 30 : 24 * 365;
   return new Date(now - hours * 60 * 60 * 1000);
 }
 

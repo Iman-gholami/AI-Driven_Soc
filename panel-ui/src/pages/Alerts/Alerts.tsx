@@ -58,7 +58,7 @@ const Alerts: React.FC = () => {
 
   // Open the sidebar as soon as a deep link arrives; the effect below only fetches the alert.
   const [handledDeepLink, setHandledDeepLink] = useState<string | null>(null);
-  if (!demoMode && deepLinkedAlertId !== handledDeepLink) {
+  if (!demoMode && !deepLinkedAlertId?.startsWith('DEMO-') && deepLinkedAlertId !== handledDeepLink) {
     setHandledDeepLink(deepLinkedAlertId);
     if (deepLinkedAlertId) {
       setAiSidebarOpen(true);
@@ -68,7 +68,7 @@ const Alerts: React.FC = () => {
 
   useEffect(() => {
     const alertId = deepLinkedAlertId;
-    if (!alertId || demoMode) return;
+    if (!alertId || demoMode || alertId.startsWith('DEMO-')) return;
     let active = true;
     api.getAlertById(alertId)
       .then((alert) => { if (active) setSelectedAlert(alert); })
